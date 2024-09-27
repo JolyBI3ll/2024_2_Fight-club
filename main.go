@@ -45,7 +45,7 @@ func getAllPlaces(w http.ResponseWriter, r *http.Request) {
 func main() {
 	router := mux.NewRouter()
 
-	router.HandleFunc("/ads", getAllPlaces).Methods("GET")
+	router.HandleFunc("/api/ads", getAllPlaces).Methods("GET")
 
 	http.Handle("/", router)
 	fmt.Println("Starting server on port 8080")
