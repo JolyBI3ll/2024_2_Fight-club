@@ -1,0 +1,158 @@
+openapi: 3.0.0
+info:
+  title: Путник API
+  description: API для серивиса каучсерфинга "Путник"
+  version: 1.0.0
+servers:
+  - url: https://api.putnik.example.com
+    description: Основной сервер
+
+paths:
+  /auth/register:
+    post:
+      summary: Регистрация нового пользователя
+      tags:
+        - Аутентификация
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Пользователь успешно зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Некорректные данные запроса
+        '409':
+          description: Пользователь уже существует
+
+  /auth/login:
+    post:
+      summary: Авторизация пользователя
+      tags:
+        - Аутентификация
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Успешная авторизация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Некорректные данные запроса
+        '401':
+          description: Неправильные учетные данные
+
+  /ads:
+    get:
+      summary: Получение всех объявлений
+      tags:
+        - Объявления
+      responses:
+        '200':
+          description: Список всех объявлений
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ad'
+        '500':
+          description: Внутренняя ошибка сервера
+
+components:
+  schemas:
+    RegisterRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          example: johndoe
+        email:
+          type: string
+          format: email
+          example: johndoe@example.com
+        password:
+          type: string
+          format: password
+          example: StrongPassword123
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: johndoe@example.com
+        password:
+          type: string
+          format: password
+          example: StrongPassword123
+
+    AuthResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: johndoe
+        email:
+          type: string
+          format: email
+          example: johndoe@example.com
+
+    Ad:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 101
+        title:
+          type: string
+          example: Уютный диван в центре города
+        description:
+          type: string
+          example: Привет! Я предлагаю место на своем диване для путешественников.
+        location:
+          type: string
+          example: Москва
+        host:
+          $ref: '#/components/schemas/User'
+        availableDates:
+          type: array
+          items:
+            type: string
+            format: date
+          example: ["2024-05-01", "2024-05-15"]
+        rating:
+          type: integer
+          example: 9.1
