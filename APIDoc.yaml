@@ -18,17 +18,17 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RegisterRequest'
+              $ref: "#/components/schemas/RegisterRequest"
       responses:
-        '201':
+        "201":
           description: Пользователь успешно зарегистрирован
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
-        '400':
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
           description: Некорректные данные запроса
-        '409':
+        "409":
           description: Пользователь уже существует
 
   /api/auth/login:
@@ -41,17 +41,17 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              $ref: "#/components/schemas/LoginRequest"
       responses:
-        '200':
+        "200":
           description: Успешная авторизация
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
-        '400':
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
           description: Некорректные данные запроса
-        '401':
+        "401":
           description: Неправильные учетные данные
 
   /api/auth/logout:
@@ -60,9 +60,9 @@ paths:
       tags:
         - Аутентификация
       responses:
-        '200':
+        "200":
           description: Успешный выход
-        '401':
+        "401":
           description: Неавторизованный запрос
 
   /api/ads:
@@ -71,15 +71,15 @@ paths:
       tags:
         - Объявления
       responses:
-        '200':
+        "200":
           description: Список всех объявлений
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Ad'
-        '500':
+                  $ref: "#/components/schemas/Ad"
+        "500":
           description: Внутренняя ошибка сервера
 
 components:
@@ -124,7 +124,7 @@ components:
           type: string
           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
         user:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
 
     User:
       type: object
@@ -146,24 +146,54 @@ components:
         id:
           type: integer
           example: 101
-        title:
+        locationMain:
           type: string
-          example: Уютный диван в центре города
-        description:
+          example: Россия, г. Москва
+        locationStreet:
           type: string
-          example: Привет! Я предлагаю место на своем диване для путешественников.
-        location:
+          example: Малая Ботаническая ул., 10А
+        position:
+          type: array
+          items:
+            type: number
+          example: [2.3213, 3.3213]
+        pictures:
+          type: array
+          items:
+            type: string
+          example: ["images/1.webp", "images/2.webp", "images/3.webp"]
+        author:
+          type: object
+          properties:
+            name:
+              type: string
+              example: Leo D.
+            score:
+              type: number
+              format: float
+              example: 4.98
+            avatar:
+              type: string
+              example: "" # Ссылка на аву
+            sex:
+              type: integer
+              format: int32
+              enum: [0, 1]
+              example: 1 # 0 женщина, 1 мужчина
+            guestsCount:
+              type: integer
+              example: 50 # сколько гостей было
+        publicationDate:
           type: string
-          example: Москва
-        rating:
+          format: date
+          example: "2022-05-31"
+        distance:
           type: number
           format: float
-          example: 4.5
-        host:
-          $ref: '#/components/schemas/User'
+          example: 1.4 # в км
         availableDates:
           type: array
           items:
             type: string
             format: date
-          example: ["2024-05-01", "2024-05-15"]
+          example: ["2024-05-01"]
