@@ -165,6 +165,9 @@ components:
         author:
           type: object
           properties:
+            id:
+              type: integer
+              example: 1
             name:
               type: string
               example: Leo D.
@@ -176,10 +179,9 @@ components:
               type: string
               example: "" # Ссылка на аву
             sex:
-              type: integer
-              format: int32
-              enum: [0, 1]
-              example: 1 # 0 женщина, 1 мужчина
+              type: string
+              enum: ["M", "F"]
+              example: M # 0 женщина, 1 мужчина
             guestsCount:
               type: integer
               example: 50 # сколько гостей было
