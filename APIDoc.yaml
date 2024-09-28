@@ -1,14 +1,14 @@
 openapi: 3.0.0
 info:
   title: Путник API
-  description: API для серивиса каучсерфинга "Путник"
+  description: API для сервиса каучсерфинга "Путник"
   version: 1.0.0
 servers:
   - url: https://api.putnik.example.com
     description: Основной сервер
 
 paths:
-  /auth/register:
+  /api/auth/register:
     post:
       summary: Регистрация нового пользователя
       tags:
@@ -31,7 +31,7 @@ paths:
         '409':
           description: Пользователь уже существует
 
-  /auth/login:
+  /api/auth/login:
     post:
       summary: Авторизация пользователя
       tags:
@@ -54,7 +54,18 @@ paths:
         '401':
           description: Неправильные учетные данные
 
-  /ads:
+  /api/auth/logout:
+    post:
+      summary: Выход из системы
+      tags:
+        - Аутентификация
+      responses:
+        '200':
+          description: Успешный выход
+        '401':
+          description: Неавторизованный запрос
+
+  /api/ads:
     get:
       summary: Получение всех объявлений
       tags:
@@ -95,13 +106,12 @@ components:
     LoginRequest:
       type: object
       required:
-        - email
+        - username
         - password
       properties:
-        email:
+        username:
           type: string
-          format: email
-          example: johndoe@example.com
+          example: johndoe
         password:
           type: string
           format: password
@@ -145,6 +155,10 @@ components:
         location:
           type: string
           example: Москва
+        rating:
+          type: number
+          format: float
+          example: 4.5
         host:
           $ref: '#/components/schemas/User'
         availableDates:
@@ -153,6 +167,3 @@ components:
             type: string
             format: date
           example: ["2024-05-01", "2024-05-15"]
-        rating:
-          type: integer
-          example: 9.1
