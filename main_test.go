@@ -136,55 +136,55 @@ func TestRegisterUser(t *testing.T) {
 	}
 }
 
-func TestLoginUser(t *testing.T){
+func TestLoginUser(t *testing.T) {
 	tests := []struct {
-        name           string
-        input          Credentials
-        expectedStatus int
-        expectedBody   map[string]interface{}
-        existingUsers  map[string]Credentials
-    }{
-        {
-            name: "Successful Login",
-            input: Credentials{
-                Username: "existinguser",
-                Password: "password",
-            },
-            expectedStatus: http.StatusOK,
-            expectedBody: map[string]interface{}{
-                "session_id": "mock-session-id",
-                "user": map[string]interface{}{
-                    "id":       1,
-                    "username": "existinguser",
-                    "email":    "existinguser@example.com",
-                },
-            },
-            existingUsers: map[string]Credentials{
-                "existinguser": {
-                    ID:       1,
+		name           string
+		input          Credentials
+		expectedStatus int
+		expectedBody   map[string]interface{}
+		existingUsers  map[string]Credentials
+	}{
+		{
+			name: "Successful Login",
+			input: Credentials{
+				Username: "existinguser",
+				Password: "password",
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody: map[string]interface{}{
+				"session_id": "mock-session-id",
+				"user": map[string]interface{}{
+					"id":       1,
+					"username": "existinguser",
+					"email":    "existinguser@example.com",
+				},
+			},
+			existingUsers: map[string]Credentials{
+				"existinguser": {
+					ID:       1,
 					Username: "existinguser",
-                    Email:    "existinguser@example.com",
-                    Password: "password",
-                },
-            },
+					Email:    "existinguser@example.com",
+					Password: "password",
+				},
+			},
 		},
 		{
 			name: "Invalid Login Credentials",
-            input: Credentials{
-                Username: "invaliduser",
-                Password: "invalidpassword",
-            },
-            expectedStatus: http.StatusUnauthorized,
-            expectedBody:   nil,
-            existingUsers: map[string]Credentials{
-                "existinguser": {
-                    ID:       1,
-                    Username: "existinguser",
-                    Email:    "existinguser@example.com",
-                    Password: "password",
-                },
-            },
-        },
+			input: Credentials{
+				Username: "invaliduser",
+				Password: "invalidpassword",
+			},
+			expectedStatus: http.StatusUnauthorized,
+			expectedBody:   nil,
+			existingUsers: map[string]Credentials{
+				"existinguser": {
+					ID:       1,
+					Username: "existinguser",
+					Email:    "existinguser@example.com",
+					Password: "password",
+				},
+			},
+		},
 		{
 			name: "Invalid JSON",
 			input: Credentials{
@@ -239,41 +239,41 @@ func TestGetAllPlaces(t *testing.T) {
 	type ResponsePlaces struct {
 		Places []Place `json:"places"`
 	}
-    req, err := http.NewRequest("GET", "/api/ads", nil)
-    if err != nil {
-        t.Fatalf("Failed to create request: %v", err)
-    }
+	req, err := http.NewRequest("GET", "/api/ads", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
 
-    rr := httptest.NewRecorder()
+	rr := httptest.NewRecorder()
 
-    handler := http.HandlerFunc(getAllPlaces)
-    handler.ServeHTTP(rr, req)
+	handler := http.HandlerFunc(getAllPlaces)
+	handler.ServeHTTP(rr, req)
 
-    if status := rr.Code; status != http.StatusOK {
-        t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
-    }
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
 
-    if contentType := rr.Header().Get("Content-Type"); contentType != "application/json" {
-        t.Errorf("Handler returned wrong content type: got %v want %v", contentType, "application/json")
-    }
+	if contentType := rr.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Errorf("Handler returned wrong content type: got %v want %v", contentType, "application/json")
+	}
 
-    var responseBody ResponsePlaces
-    if err := json.NewDecoder(rr.Body).Decode(&responseBody); err != nil {
-        t.Fatalf("Failed to decode JSON response: %v", err)
-    }
+	var responseBody ResponsePlaces
+	if err := json.NewDecoder(rr.Body).Decode(&responseBody); err != nil {
+		t.Fatalf("Failed to decode JSON response: %v", err)
+	}
 
-    expectedPlaces := Places 
+	expectedPlaces := Places
 
-    if !reflect.DeepEqual(responseBody.Places, expectedPlaces) {
-        t.Errorf("Handler returned unexpected body: got %v want %v", responseBody.Places, expectedPlaces)
-    }
+	if !reflect.DeepEqual(responseBody.Places, expectedPlaces) {
+		t.Errorf("Handler returned unexpected body: got %v want %v", responseBody.Places, expectedPlaces)
+	}
 }
 
 func TestLogoutUser_AfterLogin_Success(t *testing.T) {
 	mockUser := Credentials{
-        Username: "testuser",
-        Password: "testpassword",
-    }
+		Username: "testuser",
+		Password: "testpassword",
+	}
 	addUser(mockUser)
 
 	loginBody := map[string]string{
