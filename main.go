@@ -51,6 +51,11 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if creds.Username == "" || creds.Password == "" || creds.Email == "" {
+		http.Error(w, "Username, password, and email are required", http.StatusBadRequest)
+		return
+	}
+
 	creds.ID = userIDCounter
 	userIDCounter++
 	addUser(creds)
