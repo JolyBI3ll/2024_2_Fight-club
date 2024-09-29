@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -230,5 +232,117 @@ func TestLoginUser(t *testing.T){
 				assert.Equal(t, tt.expectedBody["user"].(map[string]interface{})["email"], responseBody["user"].(map[string]interface{})["email"])
 			}
 		})
+	}
+}
+
+func TestGetAllPlaces(t *testing.T) {
+	type ResponsePlaces struct {
+		Places []Place `json:"places"`
+	}
+    req, err := http.NewRequest("GET", "/api/ads", nil)
+    if err != nil {
+        t.Fatalf("Failed to create request: %v", err)
+    }
+
+    rr := httptest.NewRecorder()
+
+    handler := http.HandlerFunc(getAllPlaces)
+    handler.ServeHTTP(rr, req)
+
+    if status := rr.Code; status != http.StatusOK {
+        t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
+    }
+
+    if contentType := rr.Header().Get("Content-Type"); contentType != "application/json" {
+        t.Errorf("Handler returned wrong content type: got %v want %v", contentType, "application/json")
+    }
+
+    var responseBody ResponsePlaces
+    if err := json.NewDecoder(rr.Body).Decode(&responseBody); err != nil {
+        t.Fatalf("Failed to decode JSON response: %v", err)
+    }
+
+    expectedPlaces := Places 
+
+    if !reflect.DeepEqual(responseBody.Places, expectedPlaces) {
+        t.Errorf("Handler returned unexpected body: got %v want %v", responseBody.Places, expectedPlaces)
+    }
+}
+
+func TestLogoutUser_AfterLogin_Success(t *testing.T) {
+	mockUser := Credentials{
+        Username: "testuser",
+        Password: "testpassword",
+    }
+	addUser(mockUser)
+
+	loginBody := map[string]string{
+		"username": mockUser.Username,
+		"password": mockUser.Password,
+	}
+	loginBodyJSON, _ := json.Marshal(loginBody)
+	req, err := http.NewRequest("POST", "/api/auth/login", bytes.NewBuffer(loginBodyJSON))
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	loginHandler := http.HandlerFunc(loginUser)
+	loginHandler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Login failed: status code %v", rr.Code)
+	}
+
+	cookies := rr.Result().Cookies()
+	if len(cookies) == 0 {
+		t.Fatalf("No cookies found after login")
+	}
+
+	req, err = http.NewRequest("DELETE", "/api/auth/logout", nil)
+	if err != nil {
+		t.Fatalf("Failed to create logout request: %v", err)
+	}
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
+	}
+
+	rr = httptest.NewRecorder()
+	logoutHandler := http.HandlerFunc(logoutUser)
+	logoutHandler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	expected := "Logout successfully"
+	if rr.Body.String() != expected {
+		t.Errorf("Handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
+	}
+
+	session, _ := store.Get(req, "session_id")
+	if session.Options.MaxAge != -1 {
+		t.Errorf("Session was not properly invalidated: expected MaxAge to be -1, got %v", session.Options.MaxAge)
+	}
+}
+
+func TestLogoutUser_NoSession(t *testing.T) {
+	req, err := http.NewRequest("DELETE", "/api/auth/logout", nil)
+	if err != nil {
+		t.Fatalf("Failed to create logout request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(logoutUser)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusBadRequest)
+	}
+
+	expected := "No such session\n"
+	if rr.Body.String() != expected {
+		t.Errorf("Handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
 	}
 }
