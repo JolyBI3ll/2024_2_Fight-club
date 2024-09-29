@@ -60,15 +60,25 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 	userIDCounter++
 	addUser(creds)
 
-	session, _ := store.Get(r, "session-id")
+	session, _ := store.Get(r, "session_id")
+
+	session.Values["id"] = creds.ID
+	session.Values["username"] = creds.Username
+	session.Values["email"] = creds.Email
+	if creds.Name != "" {
+		session.Values["name"] = creds.Name
+	}
+	if creds.Avatar != "" {
+		session.Values["avatar"] = creds.Avatar
+	}
+
 	sessionID, err := generateSessionID()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to generate session ID", http.StatusInternalServerError)
 		return
 	}
 	session.Values["session_id"] = sessionID
-	session.Values["username"] = creds.Username
-	session.Values["email"] = creds.Email
+
 	err = session.Save(r, w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -104,17 +114,24 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, _ := store.Get(r, "session-id")
+	session, _ := store.Get(r, "session_id")
+
+	session.Values["id"] = requestedUser.ID
+	session.Values["username"] = requestedUser.Username
+	session.Values["email"] = requestedUser.Email
+	if requestedUser.Name != "" {
+		session.Values["name"] = requestedUser.Name
+	}
+	if requestedUser.Avatar != "" {
+		session.Values["avatar"] = requestedUser.Avatar
+	}
 
 	sessionID, err := generateSessionID()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to generate session ID", http.StatusInternalServerError)
 		return
 	}
-
 	session.Values["session_id"] = sessionID
-	session.Values["username"] = requestedUser.Username
-	session.Values["email"] = requestedUser.Email
 
 	err = session.Save(r, w)
 	if err != nil {
@@ -138,12 +155,12 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func logoutUser(w http.ResponseWriter, r *http.Request) {
-	session, _ := store.Get(r, "session-id")
+	session, _ := store.Get(r, "session_id")
 	if session.IsNew {
 		http.Error(w, "No such session", http.StatusBadRequest)
 		return
 	}
-	session.Options.MaxAge = -1 
+	session.Options.MaxAge = -1
 
 	err := session.Save(r, w)
 	if err != nil {
@@ -169,15 +186,45 @@ func getAllPlaces(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func getSessionData(w http.ResponseWriter, r *http.Request) {
+	session, _ := store.Get(r, "session_id")
+
+	if session.IsNew {
+		http.Error(w, "No active session", http.StatusUnauthorized)
+		return
+	}
+
+	ID, okID := session.Values["id"]
+	Avatar, okAvatar := session.Values["avatar"].(string)
+
+	if !okID || !okAvatar {
+		http.Error(w, "Invalid session data", http.StatusInternalServerError)
+		return
+	}
+
+	body := map[string]interface{}{
+		"id":     ID,
+		"avatar": Avatar,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 func main() {
 	router := mux.NewRouter()
 	api := "/api"
 
 	router.HandleFunc(api+"/ads", getAllPlaces).Methods("GET")
-	
+
 	router.HandleFunc(api+"/auth/register", registerUser).Methods("POST")
 	router.HandleFunc(api+"/auth/login", loginUser).Methods("POST")
 	router.HandleFunc(api+"/auth/logout", logoutUser).Methods("DELETE")
+
+	router.HandleFunc(api+"/getSessionData", getSessionData).Methods("GET")
 
 	http.Handle("/", router)
 	fmt.Println("Starting server on port 8080")
