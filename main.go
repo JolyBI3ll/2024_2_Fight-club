@@ -59,7 +59,6 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 	creds.ID = userIDCounter
 	userIDCounter++
 	addUser(creds)
-
 	session, _ := store.Get(r, "session_id")
 
 	session.Values["id"] = creds.ID
@@ -194,17 +193,19 @@ func getSessionData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ID, okID := session.Values["id"]
+	ID := session.Values["id"]
 	Avatar, okAvatar := session.Values["avatar"].(string)
-
-	if !okID || !okAvatar {
-		http.Error(w, "Invalid session data", http.StatusInternalServerError)
-		return
-	}
-
-	body := map[string]interface{}{
-		"id":     ID,
-		"avatar": Avatar,
+	body := map[string]interface{}{}
+	if okAvatar {
+		body = map[string]interface{}{
+			"id":     ID,
+			"avatar": Avatar,
+		}
+	} else {
+		body = map[string]interface{}{
+			"id":     ID,
+			"avatar": "",
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
