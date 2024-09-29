@@ -216,6 +216,7 @@ func getSessionData(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	store.Options.HttpOnly = true
 	router := mux.NewRouter()
 	api := "/api"
 
