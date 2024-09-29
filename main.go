@@ -169,21 +169,6 @@ func getAllPlaces(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func enableCORS(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("Access-Control-Allow-Origin", "*")
-        w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-        if r.Method == "OPTIONS" {
-            w.WriteHeader(http.StatusOK)
-            return
-        }
-
-        next.ServeHTTP(w, r)
-    })
-}
-
 func main() {
 	router := mux.NewRouter()
 	api := "/api"
@@ -194,7 +179,7 @@ func main() {
 	router.HandleFunc(api+"/auth/login", loginUser).Methods("POST")
 	router.HandleFunc(api+"/auth/logout", logoutUser).Methods("DELETE")
 
-	http.Handle("/", enableCORS(router))
+	http.Handle("/", router)
 	fmt.Println("Starting server on port 8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		fmt.Printf("Error on starting server: %s", err)
