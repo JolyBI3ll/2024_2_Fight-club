@@ -44,12 +44,12 @@ var Users = []Credentials{
 var Places = []Place{
 	{
 		ID: 1, LocationMain: "Moscow", LocationStreet: "Tverskaya", Position: []float64{55.7558, 37.6173},
-		Pictures: []string{"pic1.jpg", "pic2.jpg"}, Author: Author{ID: 1, Name: "Leo D.", Score: 4.98, Avatar: "", Sex: 1, GuestCount: 50},
+		Pictures: []string{"images/pic1.jpg", "images/pic2.jpg"}, Author: Author{ID: 1, Name: "Leo D.", Score: 4.98, Avatar: "", Sex: 1, GuestCount: 50},
 		PublicationDate: "2024-09-01", AvailableDates: []string{"2024-09-15", "2024-09-20"}, Distance: 5.0,
 	},
 	{
 		ID: 2, LocationMain: "Sochi", LocationStreet: "Kurortny Ave", Position: []float64{43.5855, 39.7231},
-		Pictures: []string{"pic3.jpg", "pic4.jpg"}, Author: Author{ID: 2, Name: "Oleg S.", Score: 4.50, Avatar: "", Sex: 1, GuestCount: 20},
+		Pictures: []string{"images/pic3.jpg", "images/pic4.jpg"}, Author: Author{ID: 2, Name: "Oleg S.", Score: 4.50, Avatar: "", Sex: 1, GuestCount: 20},
 		PublicationDate: "2024-09-10", AvailableDates: []string{"2024-09-18", "2024-09-22"}, Distance: 3.2,
 	},
 }
