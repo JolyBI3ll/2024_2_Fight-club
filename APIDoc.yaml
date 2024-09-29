@@ -157,11 +157,11 @@ components:
           items:
             type: number
           example: [2.3213, 3.3213]
-        pictures:
+        images:
           type: array
           items:
             type: string
-          example: ["images/1.webp", "images/2.webp", "images/3.webp"]
+          example: ["images/1.jpg", "images/2.jpg", "images/3.jpg"]
         author:
           type: object
           properties:
