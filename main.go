@@ -51,19 +51,33 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if creds.Username == "" || creds.Password == "" || creds.Email == "" {
+		http.Error(w, "Username, password, and email are required", http.StatusBadRequest)
+		return
+	}
+
 	creds.ID = userIDCounter
 	userIDCounter++
 	addUser(creds)
+	session, _ := store.Get(r, "session_id")
 
-	session, _ := store.Get(r, "session-id")
+	session.Values["id"] = creds.ID
+	session.Values["username"] = creds.Username
+	session.Values["email"] = creds.Email
+	if creds.Name != "" {
+		session.Values["name"] = creds.Name
+	}
+	if creds.Avatar != "" {
+		session.Values["avatar"] = creds.Avatar
+	}
+
 	sessionID, err := generateSessionID()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to generate session ID", http.StatusInternalServerError)
 		return
 	}
 	session.Values["session_id"] = sessionID
-	session.Values["username"] = creds.Username
-	session.Values["email"] = creds.Email
+
 	err = session.Save(r, w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -99,17 +113,24 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, _ := store.Get(r, "session-id")
+	session, _ := store.Get(r, "session_id")
+
+	session.Values["id"] = requestedUser.ID
+	session.Values["username"] = requestedUser.Username
+	session.Values["email"] = requestedUser.Email
+	if requestedUser.Name != "" {
+		session.Values["name"] = requestedUser.Name
+	}
+	if requestedUser.Avatar != "" {
+		session.Values["avatar"] = requestedUser.Avatar
+	}
 
 	sessionID, err := generateSessionID()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to generate session ID", http.StatusInternalServerError)
 		return
 	}
-
 	session.Values["session_id"] = sessionID
-	session.Values["username"] = requestedUser.Username
-	session.Values["email"] = requestedUser.Email
 
 	err = session.Save(r, w)
 	if err != nil {
@@ -133,12 +154,12 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func logoutUser(w http.ResponseWriter, r *http.Request) {
-	session, _ := store.Get(r, "session-id")
+	session, _ := store.Get(r, "session_id")
 	if session.IsNew {
 		http.Error(w, "No such session", http.StatusBadRequest)
 		return
 	}
-	session.Options.MaxAge = -1 
+	session.Options.MaxAge = -1
 
 	err := session.Save(r, w)
 	if err != nil {
@@ -180,19 +201,52 @@ func enableCORS(next http.Handler) http.Handler {
     })
 }
 
+func getSessionData(w http.ResponseWriter, r *http.Request) {
+	session, _ := store.Get(r, "session_id")
+
+	if session.IsNew {
+		http.Error(w, "No active session", http.StatusUnauthorized)
+		return
+	}
+
+	ID := session.Values["id"]
+	Avatar, okAvatar := session.Values["avatar"].(string)
+	body := map[string]interface{}{}
+	if okAvatar {
+		body = map[string]interface{}{
+			"id":     ID,
+			"avatar": Avatar,
+		}
+	} else {
+		body = map[string]interface{}{
+			"id":     ID,
+			"avatar": "",
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 func main() {
-    router := mux.NewRouter()
-    api := "/api"
+	store.Options.HttpOnly = true
+	router := mux.NewRouter()
+	api := "/api"
 
-    router.HandleFunc(api+"/ads", getAllPlaces).Methods("GET")
-    
-    router.HandleFunc(api+"/auth/register", registerUser).Methods("POST")
-    router.HandleFunc(api+"/auth/login", loginUser).Methods("POST")
-    router.HandleFunc(api+"/auth/logout", logoutUser).Methods("DELETE")
+	router.HandleFunc(api+"/ads", getAllPlaces).Methods("GET")
 
-    http.Handle("/", enableCORS(router))
-    fmt.Println("Starting server on port 8080")
-    if err := http.ListenAndServe(":8080", nil); err != nil {
-        fmt.Printf("Error on starting server: %s", err)
-    }
+	router.HandleFunc(api+"/auth/register", registerUser).Methods("POST")
+	router.HandleFunc(api+"/auth/login", loginUser).Methods("POST")
+	router.HandleFunc(api+"/auth/logout", logoutUser).Methods("DELETE")
+
+	router.HandleFunc(api+"/getSessionData", getSessionData).Methods("GET")
+
+	http.Handle("/", enableCORS(router))
+	fmt.Println("Starting server on port 8080")
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		fmt.Printf("Error on starting server: %s", err)
+	}
 }
