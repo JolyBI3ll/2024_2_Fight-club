@@ -233,6 +233,8 @@ func getSessionData(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	store.Options.HttpOnly = true
+	store.Options.Secure = false
+	store.Options.SameSite = http.SameSiteLaxMode
 	router := mux.NewRouter()
 	api := "/api"
 
