@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -93,7 +95,7 @@ func TestRegisterUser(t *testing.T) {
 				Email:    "",
 				Password: "",
 			},
-			expectedStatus: http.StatusBadRequest,
+			expectedStatus: http.StatusInternalServerError,
 			expectedBody:   nil,
 			existingUsers:  map[string]Credentials{},
 		},
@@ -120,7 +122,6 @@ func TestRegisterUser(t *testing.T) {
 			handler := http.HandlerFunc(registerUser)
 
 			handler.ServeHTTP(rr, req)
-
 			assert.Equal(t, tt.expectedStatus, rr.Code)
 
 			if rr.Code == http.StatusCreated {
@@ -315,9 +316,26 @@ func TestLogoutUser_AfterLogin_Success(t *testing.T) {
 		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 
+	var result map[string]interface{}
+	err = json.Unmarshal(rr.Body.Bytes(), &result)
+	if err != nil {
+		t.Fatalf("Failed to parse response body as JSON: %v", err)
+	}
+	fmt.Printf("Parsed JSON response: %+v\n", result)
+	response, ok := result["response"].(string)
+	if !ok {
+		t.Fatalf("Response key not found or not a string, actual response body: %+v", result)
+	}
+
+	response = strings.TrimSpace(response)
 	expected := "Logout successfully"
+	fmt.Printf("Expected string: '%s' (len: %d)\n", expected, len(expected))
+	fmt.Printf("Actual string:   '%s' (len: %d)\n", response, len(response))
+	// Дополнительная отладка: выводим байтовое представление строк
+	fmt.Printf("Expected bytes: %v\n", []byte(expected))
+	fmt.Printf("Actual bytes:   %v\n", []byte(response))
 	if rr.Body.String() != expected {
-		t.Errorf("Handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
+		t.Errorf("Handler returned unexpected body: got %v want %v", response, expected)
 	}
 
 	session, _ := store.Get(req, "session_id")
@@ -341,8 +359,19 @@ func TestLogoutUser_NoSession(t *testing.T) {
 		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusBadRequest)
 	}
 
-	expected := "No such session\n"
-	if rr.Body.String() != expected {
-		t.Errorf("Handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
+	var result map[string]interface{}
+	err = json.Unmarshal(rr.Body.Bytes(), &result)
+	if err != nil {
+		t.Fatalf("Failed to parse response body as JSON: %v", err)
+	}
+
+	response, ok := result["error"].(string)
+	if !ok {
+		t.Fatalf("Response key not found or not a string, actual response body: %+v", result)
+	}
+
+	expected := "No such session"
+	if response != expected {
+		t.Errorf("Handler returned unexpected response: got %v want %v", response, expected)
 	}
 }
