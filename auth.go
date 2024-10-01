@@ -39,7 +39,6 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-
 	if creds.Username == "" || creds.Password == "" || creds.Email == "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
@@ -50,6 +49,32 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	errorResponse := map[string]interface{}{
+		"error":       "Incorrect data forms",
+		"wrongFields": []string{},
+	}
+	var wrongFields []string
+	if !ValidateLogin(creds.Username) {
+		wrongFields = append(wrongFields, "username")
+	}
+	if !ValidateEmail(creds.Email) {
+		wrongFields = append(wrongFields, "email")
+	}
+	if !ValidatePassword(creds.Password) {
+		wrongFields = append(wrongFields, "password")
+	}
+	if !ValidateName(creds.Name) {
+		wrongFields = append(wrongFields, "name")
+	}
+	if len(wrongFields) != 0 {
+		errorResponse["wrongFields"] = wrongFields
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
 	if _, foundUser := findUserByUsername(creds.Username); foundUser {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
@@ -109,6 +134,27 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+
+	errorResponse := map[string]interface{}{
+		"error":       "Incorrect data forms",
+		"wrongFields": []string{},
+	}
+	var wrongFields []string
+	if !ValidateLogin(creds.Username) {
+		wrongFields = append(wrongFields, "username")
+	}
+	if !ValidatePassword(creds.Password) {
+		wrongFields = append(wrongFields, "password")
+	}
+	if len(wrongFields) != 0 {
+		errorResponse["wrongFields"] = wrongFields
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
 	}
 
 	requestedUser, foundUser := findUserByUsername(creds.Username)
