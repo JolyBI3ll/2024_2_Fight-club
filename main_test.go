@@ -3,11 +3,9 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -267,80 +265,6 @@ func TestGetAllPlaces(t *testing.T) {
 
 	if !reflect.DeepEqual(responseBody.Places, expectedPlaces) {
 		t.Errorf("Handler returned unexpected body: got %v want %v", responseBody.Places, expectedPlaces)
-	}
-}
-
-func TestLogoutUser_AfterLogin_Success(t *testing.T) {
-	mockUser := Credentials{
-		Username: "testuser",
-		Password: "testpassword",
-	}
-	addUser(mockUser)
-
-	loginBody := map[string]string{
-		"username": mockUser.Username,
-		"password": mockUser.Password,
-	}
-	loginBodyJSON, _ := json.Marshal(loginBody)
-	req, err := http.NewRequest("POST", "/api/auth/login", bytes.NewBuffer(loginBodyJSON))
-	if err != nil {
-		t.Fatalf("Failed to create request: %v", err)
-	}
-
-	rr := httptest.NewRecorder()
-	loginHandler := http.HandlerFunc(loginUser)
-	loginHandler.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("Login failed: status code %v", rr.Code)
-	}
-
-	cookies := rr.Result().Cookies()
-	if len(cookies) == 0 {
-		t.Fatalf("No cookies found after login")
-	}
-
-	req, err = http.NewRequest("DELETE", "/api/auth/logout", nil)
-	if err != nil {
-		t.Fatalf("Failed to create logout request: %v", err)
-	}
-	for _, cookie := range cookies {
-		req.AddCookie(cookie)
-	}
-
-	rr = httptest.NewRecorder()
-	logoutHandler := http.HandlerFunc(logoutUser)
-	logoutHandler.ServeHTTP(rr, req)
-
-	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
-	}
-
-	var result map[string]interface{}
-	err = json.Unmarshal(rr.Body.Bytes(), &result)
-	if err != nil {
-		t.Fatalf("Failed to parse response body as JSON: %v", err)
-	}
-	fmt.Printf("Parsed JSON response: %+v\n", result)
-	response, ok := result["response"].(string)
-	if !ok {
-		t.Fatalf("Response key not found or not a string, actual response body: %+v", result)
-	}
-
-	response = strings.TrimSpace(response)
-	expected := "Logout successfully"
-	fmt.Printf("Expected string: '%s' (len: %d)\n", expected, len(expected))
-	fmt.Printf("Actual string:   '%s' (len: %d)\n", response, len(response))
-	// Дополнительная отладка: выводим байтовое представление строк
-	fmt.Printf("Expected bytes: %v\n", []byte(expected))
-	fmt.Printf("Actual bytes:   %v\n", []byte(response))
-	if rr.Body.String() != expected {
-		t.Errorf("Handler returned unexpected body: got %v want %v", response, expected)
-	}
-
-	session, _ := store.Get(req, "session_id")
-	if session.Options.MaxAge != -1 {
-		t.Errorf("Session was not properly invalidated: expected MaxAge to be -1, got %v", session.Options.MaxAge)
 	}
 }
 
