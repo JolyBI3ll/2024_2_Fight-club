@@ -54,6 +54,7 @@ func TestRegisterUser(t *testing.T) {
 			name: "Successful Registration",
 			input: Credentials{
 				Username: "newuser",
+				Name:     "aboba123",
 				Email:    "newuser@example.com",
 				Password: "password",
 			},
@@ -63,6 +64,7 @@ func TestRegisterUser(t *testing.T) {
 				"user": map[string]interface{}{
 					"id":       1,
 					"username": "newuser",
+					"name":     "aboba123",
 					"email":    "newuser@example.com",
 				},
 			},
@@ -72,6 +74,7 @@ func TestRegisterUser(t *testing.T) {
 			name: "User Already Exists",
 			input: Credentials{
 				Username: "existinguser",
+				Name:     "existinguser",
 				Email:    "existinguser@example.com",
 				Password: "password",
 			},
