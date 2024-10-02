@@ -28,8 +28,20 @@ paths:
                 $ref: "#/components/schemas/AuthResponse"
         "400":
           description: Некорректные данные запроса
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuthErrorResponse"
         "409":
           description: Пользователь уже существует
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ErrorResponse"
 
   /api/auth/login:
     post:
@@ -51,8 +63,21 @@ paths:
                 $ref: "#/components/schemas/AuthResponse"
         "400":
           description: Некорректные данные запроса
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuthErrorResponse"
         "401":
           description: Неправильные учетные данные
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ErrorResponse"
+
 
   /api/auth/logout:
     delete:
@@ -64,6 +89,13 @@ paths:
           description: Успешный выход
         "401":
           description: Неавторизованный запрос
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ErrorResponse"
+
 
   /api/ads:
     get:
@@ -81,9 +113,49 @@ paths:
                   $ref: "#/components/schemas/Ad"
         "500":
           description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ErrorResponse"
+
+
+  /api/getSessionsData:
+    get:
+      summary: Получение данных о сессии
+      tags:
+        - Сессии
+      responses:
+        "200":
+          description: Информация о сессии
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SessionData"
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ErrorResponse"
 
 components:
   schemas:
+    SessionData:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 2
+        avatar:
+          type: string
+          example: /images/avatar1.jpg
+
     RegisterRequest:
       type: object
       required:
@@ -199,3 +271,22 @@ components:
             type: string
             format: date
           example: ["2024-05-01"]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: No active session
+
+    AuthErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Incorect data forms
+        wrongFields:
+          type: array
+          items:
+            type: string
+          example: ["password","username"]
