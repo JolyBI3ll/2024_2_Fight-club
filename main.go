@@ -1,10 +1,15 @@
 package main
 
 import (
+	"2024_2_FIGHT-CLUB/dsn"
 	"fmt"
+	"github.com/joho/godotenv"
+	"gorm.io/driver/postgres"
+	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"gorm.io/gorm"
 )
 
 func enableCORS(next http.Handler) http.Handler {
@@ -23,7 +28,17 @@ func enableCORS(next http.Handler) http.Handler {
 	})
 }
 
+var db *gorm.DB
+
 func main() {
+	_ = godotenv.Load()
+	var err error
+	db, err = gorm.Open(postgres.Open(dsn.FromEnv()), &gorm.Config{})
+	if err != nil {
+		log.Fatal("Failed to connect to database:", err)
+	}
+	fmt.Println("Connected to database")
+
 	store.Options.HttpOnly = true
 	store.Options.Secure = false
 	store.Options.SameSite = http.SameSiteStrictMode
@@ -40,8 +55,8 @@ func main() {
 	router.HandleFunc(api+"/getSessionData", getSessionData).Methods("GET")
 
 	http.Handle("/", enableCORS(router))
-	fmt.Println("Starting server on port 8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	fmt.Println("Starting server on port 8008")
+	if err := http.ListenAndServe(":8008", nil); err != nil {
 		fmt.Printf("Error on starting server: %s", err)
 	}
 }
