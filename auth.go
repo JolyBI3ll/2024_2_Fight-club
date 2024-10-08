@@ -1,6 +1,7 @@
 package main
 
 import (
+	"2024_2_FIGHT-CLUB/ds"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -34,7 +35,7 @@ func generateSessionID() (string, error) {
 }
 
 func registerUser(w http.ResponseWriter, r *http.Request) {
-	var creds Credentials
+	var creds ds.User
 
 	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -75,22 +76,26 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if _, foundUser := findUserByUsername(creds.Username); foundUser {
+
+	var existingUser ds.User
+	if err := db.Where("username = ?", creds.Username).First(&existingUser).Error; err == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
-		errorResponse := map[string]string{"error": "User already exist"}
+		errorResponse := map[string]string{"error": "User already exists"}
 		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
 	}
 
-	creds.ID = userIDCounter
-	userIDCounter++
-	addUser(creds)
+	if err := db.Create(&creds).Error; err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	session, _ := store.Get(r, "session_id")
 
-	session.Values["id"] = creds.ID
+	session.Values["id"] = creds.UUID
 	session.Values["username"] = creds.Username
 	session.Values["email"] = creds.Email
 	if creds.Name != "" {
@@ -116,7 +121,7 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 	body := map[string]interface{}{
 		"session_id": sessionID,
 		"user": map[string]interface{}{
-			"id":       creds.ID,
+			"id":       creds.UUID,
 			"username": creds.Username,
 			"email":    creds.Email,
 		},
@@ -130,7 +135,7 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func loginUser(w http.ResponseWriter, r *http.Request) {
-	var creds Credentials
+	var creds ds.User
 
 	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -157,8 +162,18 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requestedUser, foundUser := findUserByUsername(creds.Username)
-	if !foundUser || requestedUser.Password != creds.Password {
+	var requestedUser ds.User
+	if err := db.Where("username = ?", creds.Username).First(&requestedUser).Error; err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		errorResponse := map[string]string{"error": "Invalid credentials"}
+		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if requestedUser.Password != creds.Password {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		errorResponse := map[string]string{"error": "Invalid credentials"}
@@ -170,7 +185,7 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 
 	session, _ := store.Get(r, "session_id")
 
-	session.Values["id"] = requestedUser.ID
+	session.Values["id"] = requestedUser.UUID
 	session.Values["username"] = requestedUser.Username
 	session.Values["email"] = requestedUser.Email
 	if requestedUser.Name != "" {
@@ -196,7 +211,7 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 	response := map[string]interface{}{
 		"session_id": sessionID,
 		"user": map[string]interface{}{
-			"id":       requestedUser.ID,
+			"id":       requestedUser.UUID,
 			"username": requestedUser.Username,
 			"email":    requestedUser.Email,
 		},

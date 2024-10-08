@@ -1,7 +1,7 @@
 package ds
 
 type User struct {
-	UUID       string `gorm:"primaryKey"`
+	UUID       string `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	Username   string
 	Password   string
 	Email      string
