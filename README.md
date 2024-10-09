@@ -14,6 +14,7 @@
 📎 [Лукьянов Кирилл](https://github.com/Antihoman), backend  
 📎 [Лапшин Никита](https://github.com/Nikita-hub000), frontend  
 📎 [Ирина Кабаева](https://t.me/IrrraaaKK), ux  
+📎 [Роман Фильченков](https://github.com/rmnfl), db  
 
 ## Ссылки на деплой
 
