@@ -180,7 +180,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	updatedUser, err := h.authUseCase.PutUser(&user, userID)
+	err = h.authUseCase.PutUser(&user, userID)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
@@ -192,7 +192,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(updatedUser); err != nil {
+	if err := json.NewEncoder(w).Encode("Update successful"); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 

@@ -22,12 +22,11 @@ func (r *authRepository) CreateUser(creds *domain.User) error {
 	return nil
 }
 
-func (r *authRepository) PutUser(creds *domain.User, userID string) (*domain.User, error) {
+func (r *authRepository) PutUser(creds *domain.User, userID string) error {
 	if err := r.db.Model(&domain.User{}).Where("UUID = ?", userID).Updates(creds).Error; err != nil {
-		return nil, err
+		return err
 	}
-	user, _ := r.GetUserById(userID)
-	return user, nil
+	return nil
 }
 
 func (r *authRepository) GetAllUser() ([]domain.User, error) {

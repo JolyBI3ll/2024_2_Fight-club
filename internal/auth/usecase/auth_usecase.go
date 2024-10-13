@@ -10,7 +10,7 @@ import (
 type AuthUseCase interface {
 	RegisterUser(creds *domain.User) error
 	LoginUser(creds *domain.User) (*domain.User, error)
-	PutUser(creds *domain.User, userID string) (*domain.User, error)
+	PutUser(creds *domain.User, userID string) error
 	GetAllUser() ([]domain.User, error)
 	GetUserById(userID string) (*domain.User, error)
 }
@@ -95,12 +95,12 @@ func (uc *authUseCase) LoginUser(creds *domain.User) (*domain.User, error) {
 	return requestedUser, nil
 }
 
-func (uc *authUseCase) PutUser(creds *domain.User, userID string) (*domain.User, error) {
-	updatedUser, err := uc.authRepository.PutUser(creds, userID)
-	if err != nil || updatedUser == nil {
-		return nil, errors.New("user not found")
+func (uc *authUseCase) PutUser(creds *domain.User, userID string) error {
+	err := uc.authRepository.PutUser(creds, userID)
+	if err != nil {
+		return errors.New("user not found")
 	}
-	return updatedUser, nil
+	return nil
 }
 
 func (uc *authUseCase) GetAllUser() ([]domain.User, error) {
