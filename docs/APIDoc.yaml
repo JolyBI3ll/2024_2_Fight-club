@@ -228,12 +228,12 @@ components:
           type: array
           items:
             type: number
-          example: [2.3213, 3.3213]
+          example: [ 2.3213, 3.3213 ]
         images:
           type: array
           items:
             type: string
-          example: ["images/1.jpg", "images/2.jpg", "images/3.jpg"]
+          example: [ "images/1.jpg", "images/2.jpg", "images/3.jpg" ]
         author:
           type: object
           properties:
@@ -252,7 +252,7 @@ components:
               example: "" # Ссылка на аву
             sex:
               type: string
-              enum: ["M", "F"]
+              enum: [ "M", "F" ]
               example: M # 0 женщина, 1 мужчина
             guestsCount:
               type: integer
@@ -270,7 +270,7 @@ components:
           items:
             type: string
             format: date
-          example: ["2024-05-01"]
+          example: [ "2024-05-01" ]
 
     ErrorResponse:
       type: object
@@ -289,4 +289,4 @@ components:
           type: array
           items:
             type: string
-          example: ["password","username"]
+          example: [ "password","username" ]

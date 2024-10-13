@@ -11,7 +11,6 @@ func FromEnv() string {
 	if host == "" {
 		return ""
 	}
-
 	port := os.Getenv("DB_PORT")
 	user := os.Getenv("DB_USER")
 	pass := os.Getenv("DB_PASS")

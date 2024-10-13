@@ -1,8 +1,8 @@
 package main
 
 import (
-	"2024_2_FIGHT-CLUB/ds"
-	"2024_2_FIGHT-CLUB/dsn"
+	"2024_2_FIGHT-CLUB/domain"
+	"2024_2_FIGHT-CLUB/module/dsn"
 	"fmt"
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
@@ -16,7 +16,7 @@ func migrate() (err error) {
 	if err != nil {
 		return err
 	}
-	err = db.AutoMigrate(&ds.User{}, &ds.Ad{}, &ds.Request{}, &ds.Review{})
+	err = db.AutoMigrate(&domain.User{}, &domain.Ad{}, &domain.Request{}, &domain.Review{})
 	if err != nil {
 		return err
 	}
