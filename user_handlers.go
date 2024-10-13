@@ -47,7 +47,6 @@ func GetOneUserData(w http.ResponseWriter, r *http.Request) {
 }
 
 func PutUserData(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
 	var creds ds.User
 	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -68,7 +67,7 @@ func PutUserData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(creds); err != nil {
+	if err := json.NewEncoder(w).Encode("Update successful"); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

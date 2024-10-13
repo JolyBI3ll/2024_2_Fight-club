@@ -55,7 +55,7 @@ func main() {
 	router.HandleFunc(api+"/getSessionData", getSessionData).Methods("GET")
 	router.HandleFunc(api+"/getAllUserData", GetAllUserData).Methods("GET")
 	router.HandleFunc(api+"/getOneUserData", GetOneUserData).Methods("GET")
-	router.HandleFunc(api+"/putUSerData", PutUserData).Methods("GET")
+	router.HandleFunc(api+"/putUserData", PutUserData).Methods("PUT")
 
 	http.Handle("/", enableCORS(router))
 	fmt.Println("Starting server on port 8008")
