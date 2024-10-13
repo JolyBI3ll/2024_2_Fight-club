@@ -19,12 +19,7 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	places, err := h.adUseCase.GetAllPlaces()
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		errorResponse := map[string]string{"error": err.Error()}
-		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		h.handleError(w, err)
 		return
 	}
 	body := map[string]interface{}{
@@ -33,5 +28,19 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+}
+
+func (h *AdHandler) handleError(w http.ResponseWriter, err error) {
+	w.Header().Set("Content-Type", "application/json")
+	errorResponse := map[string]string{"error": err.Error()}
+
+	switch err.Error() {
+	default:
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
+		http.Error(w, jsonErr.Error(), http.StatusInternalServerError)
 	}
 }

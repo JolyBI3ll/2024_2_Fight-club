@@ -20,7 +20,7 @@ func NewSessionService(store *sessions.CookieStore) *ServiceSession {
 func (s *ServiceSession) LogoutSession(r *http.Request, w http.ResponseWriter) error {
 	session, _ := s.store.Get(r, "session_id")
 	if session.IsNew {
-		return errors.New("no such session")
+		return errors.New("no active session")
 	}
 	session.Options.MaxAge = -1
 

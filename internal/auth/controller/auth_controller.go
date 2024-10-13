@@ -26,42 +26,16 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	err := h.authUseCase.RegisterUser(&creds)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		errorResponse := map[string]string{"error": err.Error()}
-		if err.Error() == "username, password, and email are required" {
-			w.WriteHeader(http.StatusBadRequest)
-		} else if err.Error() == "user already exists" {
-			w.WriteHeader(http.StatusConflict)
-		} else if err.Error() == "failed to generate error response" {
-			w.WriteHeader(http.StatusInternalServerError)
-		} else {
-			w.WriteHeader(http.StatusBadRequest)
-			if err := json.NewEncoder(w).Encode(err.Error()); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-			return
-		}
-		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		h.handleError(w, err)
 		return
 	}
+
 	sessionID, err := h.sessionService.CreateSession(r, w, &creds)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		errorResponse := map[string]string{"error": err.Error()}
-		if err.Error() == "session already exists" {
-			w.WriteHeader(http.StatusConflict)
-		} else if err.Error() == "failed to generate session id" {
-			w.WriteHeader(http.StatusInternalServerError)
-		} else if err.Error() == "failed to save session id" {
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		h.handleError(w, err)
 		return
 	}
 
@@ -86,44 +60,16 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	requestedUser, err := h.authUseCase.LoginUser(&creds)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		errorResponse := map[string]string{"error": err.Error()}
-		if err.Error() == "invalid credentials" {
-			w.WriteHeader(http.StatusBadRequest)
-		} else if err.Error() == "username and password are required" {
-			w.WriteHeader(http.StatusBadRequest)
-		} else if err.Error() == "user not found" {
-			w.WriteHeader(http.StatusNotFound)
-		} else if err.Error() == "failed to generate error response" {
-			w.WriteHeader(http.StatusInternalServerError)
-		} else {
-			w.WriteHeader(http.StatusBadRequest)
-			if err := json.NewEncoder(w).Encode(err.Error()); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-			return
-		}
-		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		h.handleError(w, err)
 		return
 	}
+
 	sessionID, err := h.sessionService.CreateSession(r, w, requestedUser)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		errorResponse := map[string]string{"error": err.Error()}
-		if err.Error() == "session already exists" {
-			w.WriteHeader(http.StatusConflict)
-		} else if err.Error() == "failed to generate session id" {
-			w.WriteHeader(http.StatusInternalServerError)
-		} else if err.Error() == "failed to save session id" {
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		h.handleError(w, err)
 		return
 	}
 
@@ -144,18 +90,11 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
-	err := h.sessionService.LogoutSession(r, w)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		errorResponse := map[string]string{"error": err.Error()}
-		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+	if err := h.sessionService.LogoutSession(r, w); err != nil {
+		h.handleError(w, err)
 		return
 	}
 
-	// Успешный ответ
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	logoutResponse := map[string]string{"response": "Logout successfully"}
@@ -170,54 +109,35 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	userID, err := h.sessionService.GetUserID(r, w)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		errorResponse := map[string]string{"error": err.Error()}
-		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		h.handleError(w, err)
 		return
 	}
-	err = h.authUseCase.PutUser(&user, userID)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		errorResponse := map[string]string{"error": err.Error()}
-		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+
+	if err := h.authUseCase.PutUser(&user, userID); err != nil {
+		h.handleError(w, err)
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode("Update successful"); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-
 }
 
 func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	userID, err := h.sessionService.GetUserID(r, w)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		errorResponse := map[string]string{"error": err.Error()}
-		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		h.handleError(w, err)
 		return
 	}
 	user, err := h.authUseCase.GetUserById(userID)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		errorResponse := map[string]string{"error": err.Error()}
-		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		h.handleError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -231,12 +151,7 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	users, err := h.authUseCase.GetAllUser()
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		errorResponse := map[string]string{"error": err.Error()}
-		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		h.handleError(w, err)
 		return
 	}
 	response := map[string]interface{}{
@@ -251,12 +166,7 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 	sessionData, err := h.sessionService.GetSessionData(r)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		errorResponse := map[string]string{"error": err.Error()}
-		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		h.handleError(w, err)
 		return
 	}
 
@@ -264,5 +174,35 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(sessionData); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *AuthHandler) handleError(w http.ResponseWriter, err error) {
+	w.Header().Set("Content-Type", "application/json")
+	errorResponse := map[string]string{"error": err.Error()}
+
+	switch err.Error() {
+	case "username, password, and email are required",
+		"username and password are required",
+		"invalid credentials":
+		w.WriteHeader(http.StatusBadRequest)
+	case "user already exists",
+		"session already exists":
+		w.WriteHeader(http.StatusConflict)
+	case "no active session":
+		w.WriteHeader(http.StatusUnauthorized)
+	case "user not found":
+		w.WriteHeader(http.StatusNotFound)
+	case "failed to generate error response",
+		"there is none user in db",
+		"failed to generate session id",
+		"failed to save sessions":
+		w.WriteHeader(http.StatusInternalServerError)
+	default:
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
+		http.Error(w, jsonErr.Error(), http.StatusInternalServerError)
 	}
 }
