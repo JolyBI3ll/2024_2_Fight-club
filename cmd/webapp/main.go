@@ -1,10 +1,14 @@
 package main
 
 import (
+	adHttpDelivery "2024_2_FIGHT-CLUB/internal/ads/controller"
+	adRepository "2024_2_FIGHT-CLUB/internal/ads/repository"
+	adUseCase "2024_2_FIGHT-CLUB/internal/ads/usecase"
 	authHttpDelivery "2024_2_FIGHT-CLUB/internal/auth/controller"
 	authRepository "2024_2_FIGHT-CLUB/internal/auth/repository"
 	authUseCase "2024_2_FIGHT-CLUB/internal/auth/usecase"
-	"2024_2_FIGHT-CLUB/internal/service"
+	"2024_2_FIGHT-CLUB/internal/service/router"
+	"2024_2_FIGHT-CLUB/internal/service/session"
 	"2024_2_FIGHT-CLUB/module/dsn"
 	"fmt"
 	"github.com/gorilla/sessions"
@@ -35,59 +39,29 @@ func main() {
 	_ = godotenv.Load()
 	store := sessions.NewCookieStore([]byte("super-secret-key"))
 	db := DbConnect()
+
+	sessionService := session.NewSessionService(store)
+
 	auRepository := authRepository.NewAuthRepository(db)
 	auUserCase := authUseCase.NewAuthUseCase(auRepository)
-	sessionService := service.NewSessionService(store)
 	authHandler := authHttpDelivery.NewAuthHandler(auUserCase, sessionService)
+
+	adsRepository := adRepository.NewAdRepository(db)
+	adsUserCase := adUseCase.NewAdUseCase(adsRepository)
+	adsHandler := adHttpDelivery.NewAdHandler(adsUserCase)
+
 	store.Options.HttpOnly = true
 	store.Options.Secure = false
 	store.Options.SameSite = http.SameSiteStrictMode
-	router := authHttpDelivery.SetUpRoutes(authHandler)
-	http.Handle("/", enableCORS(router))
+
+	mainRouter := router.SetUpRoutes(authHandler, adsHandler)
+
+	http.Handle("/", enableCORS(mainRouter))
 	fmt.Println("Starting server on port 8008")
 	if err := http.ListenAndServe(":8008", nil); err != nil {
 		fmt.Printf("Error on starting server: %s", err)
 	}
 }
-
-//func main() {
-//	_ = godotenv.Load()
-//	store := sessions.NewCookieStore([]byte("super-secret-key"))
-//	db := DbConnect()
-//
-//	auRepository := authRepository.NewAuthRepository(db)
-//	auUserCase := authUseCase.NewAuthUseCase(auRepository)
-//	sessionService := service.NewSessionService(store)
-//	authHandler := authHttpDelivery.NewAuthHandler(auUserCase, sessionService)
-//
-//	store.Options.HttpOnly = true
-//	store.Options.Secure = false
-//	store.Options.SameSite = http.SameSiteStrictMode
-//
-//	router := authHttpDelivery.SetUpRoutes(authHandler)
-//
-//	router := mux.NewRouter()
-//	authRepo := authRepository.NewAuthRepository(db)
-//	authUCase := authUseCase.NewAuthUseCase(authRepo)
-//	authHttpDelivery.NewAuthHandler(router, authUCase)
-//	api := "/api"
-//
-//	router.HandleFunc(api+"/ads", controller.GetAllPlaces).Methods("GET")
-//
-//	router.HandleFunc(api+"/auth/register", controller.RegisterUser).Methods("POST")
-//	router.HandleFunc(api+"/auth/login", controller.LoginUser).Methods("POST")
-//	router.HandleFunc(api+"/auth/logout", controller.LogoutUser).Methods("DELETE")
-//	router.HandleFunc(api+"/getAllUserData", controller.GetAllUserData).Methods("GET")
-//	router.HandleFunc(api+"/getOneUserData", controller.GetOneUserData).Methods("GET")
-//	router.HandleFunc(api+"/putUserData", controller.PutUserData).Methods("PUT")
-//	router.HandleFunc(api+"/getSessionData", controller.GetSessionData).Methods("GET")
-//
-//	http.Handle("/", enableCORS(router))
-//	fmt.Println("Starting server on port 8008")
-//	if err := http.ListenAndServe(":8008", nil); err != nil {
-//		fmt.Printf("Error on starting server: %s", err)
-//	}
-//}
 
 func DbConnect() *gorm.DB {
 	db, err := gorm.Open(postgres.Open(dsn.FromEnv()), &gorm.Config{})

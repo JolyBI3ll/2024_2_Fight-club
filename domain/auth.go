@@ -24,8 +24,8 @@ type User struct {
 
 type AuthRepository interface {
 	CreateUser(creds *User) error
-	PutUser(creds *User, userID string) error
+	PutUser(creds *User, userID string) (*User, error)
 	GetAllUser() ([]User, error)
-	GetUserById(userID string) (User, error)
+	GetUserById(userID string) (*User, error)
 	GetUserByName(username string) (*User, error)
 }

@@ -12,3 +12,7 @@ type Ad struct {
 	Distance        float32
 	Requests        []Request `gorm:"foreignKey:AdID"`
 }
+
+type AdRepository interface {
+	GetAllPlaces() ([]Ad, error)
+}

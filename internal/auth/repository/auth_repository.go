@@ -22,11 +22,12 @@ func (r *authRepository) CreateUser(creds *domain.User) error {
 	return nil
 }
 
-func (r *authRepository) PutUser(creds *domain.User, userID string) error {
+func (r *authRepository) PutUser(creds *domain.User, userID string) (*domain.User, error) {
 	if err := r.db.Model(&domain.User{}).Where("UUID = ?", userID).Updates(creds).Error; err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	user, _ := r.GetUserById(userID)
+	return user, nil
 }
 
 func (r *authRepository) GetAllUser() ([]domain.User, error) {
@@ -37,12 +38,12 @@ func (r *authRepository) GetAllUser() ([]domain.User, error) {
 	return users, nil
 }
 
-func (r *authRepository) GetUserById(userID string) (domain.User, error) {
+func (r *authRepository) GetUserById(userID string) (*domain.User, error) {
 	var user domain.User
 	if err := r.db.Where("UUID = ?", userID).First(&user).Error; err != nil {
-		return user, err
+		return nil, err
 	}
-	return user, nil
+	return &user, nil
 }
 
 func (r *authRepository) GetUserByName(username string) (*domain.User, error) {
