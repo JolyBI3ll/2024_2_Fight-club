@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # Go migrator
+  migrator:
+    image: golang:1.23.1
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: sh -c "dockerize -wait tcp://postgres:5432 -timeout 30s && go run ./cmd/migrator"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=admin
+      - DB_PASSWORD=12345
+      - DB_NAME=db
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
+  # Go backend
+  backend:
+    image: golang:1.23.1
+    working_dir: /app
+    ports:
+      - "8008:8008"
+    volumes:
+      - .:/app
+    command: go run ./cmd/webapp
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=admin
+      - DB_PASSWORD=12345
+      - DB_NAME=db
+    depends_on:
+      - migrator
+      - postgres
+    networks:
+      - app-network
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: 12345
+      POSTGRES_DB: db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  # Adminer for DB management
+  adminer:
+    image: adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge
