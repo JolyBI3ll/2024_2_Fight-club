@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-func GetAllUserData(w http.ResponseWriter, r *http.Request) {
+func GetAllUserData(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	var users []ds.User
 	if err := db.Find(&users).Error; err != nil {
