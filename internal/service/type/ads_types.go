@@ -1,4 +1,4 @@
-package _type
+package new_type
 
 import (
 	"database/sql/driver"
