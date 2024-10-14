@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Go migrator
   migrator:
@@ -7,7 +5,7 @@ services:
     working_dir: /app
     volumes:
       - .:/app
-    command: sh -c "dockerize -wait tcp://postgres:5432 -timeout 30s && go run ./cmd/migrator"
+    command: sh -c "go run ./cmd/migrator"
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -34,9 +32,13 @@ services:
       - DB_USER=admin
       - DB_PASSWORD=12345
       - DB_NAME=db
+      - MINIO_HOST=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
     depends_on:
-      - migrator
       - postgres
+      - minio
     networks:
       - app-network
 
@@ -64,8 +66,24 @@ services:
     networks:
       - app-network
 
+  # MinIO for object storage
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server  /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - app-network
+
 volumes:
   postgres_data:
+  minio_data:
 
 networks:
   app-network:
