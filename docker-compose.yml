@@ -1,0 +1,90 @@
+services:
+  # Go migrator
+  migrator:
+    image: golang:1.23.1
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: sh -c "go run ./cmd/migrator"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=admin
+      - DB_PASSWORD=12345
+      - DB_NAME=db
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
+  # Go backend
+  backend:
+    image: golang:1.23.1
+    working_dir: /app
+    ports:
+      - "8008:8008"
+    volumes:
+      - .:/app
+    command: go run ./cmd/webapp
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=admin
+      - DB_PASSWORD=12345
+      - DB_NAME=db
+      - MINIO_HOST=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+    depends_on:
+      - postgres
+      - minio
+    networks:
+      - app-network
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: 12345
+      POSTGRES_DB: db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  # Adminer for DB management
+  adminer:
+    image: adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
+  # MinIO for object storage
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server  /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+  minio_data:
+
+networks:
+  app-network:
+    driver: bridge
