@@ -20,7 +20,11 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler) *mux.
 	router.HandleFunc(api+"/getUserById", authHandler.GetUserById).Methods("GET")
 	router.HandleFunc(api+"/getAllUsers", authHandler.GetAllUsers).Methods("GET")
 	router.HandleFunc(api+"/getSessionData", authHandler.GetSessionData).Methods("GET")
-	router.HandleFunc(api+"/ads", adsHandler.GetAllPlaces).Methods("GET")
 
+	router.HandleFunc(api+"/ads", adsHandler.GetAllPlaces).Methods("GET")
+	router.HandleFunc(api+"/ads/{adId}", adsHandler.GetOnePlace).Methods("GET")
+	router.HandleFunc(api+"/createAd", adsHandler.CreatePlace).Methods("POST")
+	router.HandleFunc(api+"/updateAd/{adId}", adsHandler.UpdatePlace).Methods("PUT")
+	router.HandleFunc(api+"/deleteAd/{adId}", adsHandler.DeletePlace).Methods("DELETE")
 	return router
 }

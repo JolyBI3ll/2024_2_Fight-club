@@ -19,4 +19,9 @@ type Ad struct {
 
 type AdRepository interface {
 	GetAllPlaces() ([]Ad, error)
+	GetPlaceById(adId string) (Ad, error)
+	CreatePlace(ad *Ad) error
+	SavePlace(ad *Ad) error
+	UpdatePlace(ad *Ad, adId string, userId string) error
+	DeletePlace(adId string, userId string) error
 }
