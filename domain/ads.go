@@ -12,7 +12,7 @@ type Ad struct {
 	Images          ntype.StringArray  `gorm:"type:text[]"`
 	AuthorUUID      string             `json:"author_uuid"`
 	PublicationDate string             `json:"publication_date"`
-	AvailableDates  []string           `gorm:"type:text[]" json:"available_dates"`
+	AvailableDates  ntype.StringArray  `gorm:"type:text[]" json:"available_dates"`
 	Distance        float32            `json:"distance"`
 	Requests        []Request          `gorm:"foreignKey:AdID" json:"requests"`
 }
@@ -24,4 +24,5 @@ type AdRepository interface {
 	SavePlace(ad *Ad) error
 	UpdatePlace(ad *Ad, adId string, userId string) error
 	DeletePlace(adId string, userId string) error
+	GetPlacesPerCity(city string) ([]Ad, error)
 }

@@ -77,3 +77,11 @@ func (r *adRepository) DeletePlace(adId string, userId string) error {
 	}
 	return nil
 }
+
+func (r *adRepository) GetPlacesPerCity(city string) ([]domain.Ad, error) {
+	var ads []domain.Ad
+	if err := r.db.Where("location_main = ?", city).Find(&ads).Error; err != nil {
+		return nil, err
+	}
+	return ads, nil
+}
