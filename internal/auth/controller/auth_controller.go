@@ -3,9 +3,13 @@ package controller
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/auth/usecase"
+	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
 	"encoding/json"
+	"go.uber.org/zap"
 	"net/http"
+	"time"
 )
 
 type AuthHandler struct {
@@ -21,21 +25,42 @@ func NewAuthHandler(authUseCase usecase.AuthUseCase, sessionService *session.Ser
 }
 
 func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+
+	logger.AccessLogger.Info("Received RegisterUser request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
+
 	var creds domain.User
 	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+		logger.AccessLogger.Error("Failed to decode request body",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	err := h.authUseCase.RegisterUser(&creds)
+	err := h.authUseCase.RegisterUser(r.Context(), &creds)
 	if err != nil {
-		h.handleError(w, err)
+		logger.AccessLogger.Error("Failed to register user",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
 		return
 	}
 
-	sessionID, err := h.sessionService.CreateSession(r, w, &creds)
+	sessionID, err := h.sessionService.CreateSession(r.Context(), r, w, &creds)
 	if err != nil {
-		h.handleError(w, err)
+		logger.AccessLogger.Error("Failed create session",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -48,28 +73,62 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.AccessLogger.Error("Failed to encode response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed RegisterUser request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusCreated),
+	)
 }
 
 func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+
+	logger.AccessLogger.Info("Received LoginUser request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
+
 	var creds domain.User
 	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+		logger.AccessLogger.Error("Failed to decode request body",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	requestedUser, err := h.authUseCase.LoginUser(&creds)
+	requestedUser, err := h.authUseCase.LoginUser(r.Context(), &creds)
 	if err != nil {
-		h.handleError(w, err)
+		logger.AccessLogger.Error("Failed to login user",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
 		return
 	}
 
-	sessionID, err := h.sessionService.CreateSession(r, w, requestedUser)
+	sessionID, err := h.sessionService.CreateSession(r.Context(), r, w, requestedUser)
 	if err != nil {
-		h.handleError(w, err)
+		logger.AccessLogger.Error("Failed create session",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -85,13 +144,38 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.AccessLogger.Error("Failed to encode response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed LoginUser request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
 }
 
 func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
-	if err := h.sessionService.LogoutSession(r, w); err != nil {
-		h.handleError(w, err)
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+
+	logger.AccessLogger.Info("Received LogoutUser request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
+
+	if err := h.sessionService.LogoutSession(r.Context(), r, w); err != nil {
+		logger.AccessLogger.Error("Failed to logout user",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -99,85 +183,217 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	logoutResponse := map[string]string{"response": "Logout successfully"}
 	if err := json.NewEncoder(w).Encode(logoutResponse); err != nil {
+		logger.AccessLogger.Error("Failed to encode logout response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed LogoutUser request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
 }
 
 func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+
+	logger.AccessLogger.Info("Received PutUser request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
+
 	var user domain.User
 	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		logger.AccessLogger.Error("Failed to decode request body",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	userID, err := h.sessionService.GetUserID(r, w)
+	userID, err := h.sessionService.GetUserID(r.Context(), r, w)
 	if err != nil {
-		h.handleError(w, err)
+		logger.AccessLogger.Warn("Failed to get user ID from session",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
 		return
 	}
 
-	if err := h.authUseCase.PutUser(&user, userID); err != nil {
-		h.handleError(w, err)
+	if err := h.authUseCase.PutUser(r.Context(), &user, userID); err != nil {
+		logger.AccessLogger.Error("Failed to update user data",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode("Update successful"); err != nil {
+		logger.AccessLogger.Error("Failed to encode update response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed PutUser request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
 }
 
 func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+
+	logger.AccessLogger.Info("Received GetUserById request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
+
 	w.Header().Set("Content-Type", "application/json")
-	userID, err := h.sessionService.GetUserID(r, w)
+	userID, err := h.sessionService.GetUserID(r.Context(), r, w)
 	if err != nil {
-		h.handleError(w, err)
+		logger.AccessLogger.Error("Failed to get user ID from session",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
 		return
 	}
-	user, err := h.authUseCase.GetUserById(userID)
+
+	user, err := h.authUseCase.GetUserById(r.Context(), userID)
 	if err != nil {
-		h.handleError(w, err)
+		logger.AccessLogger.Error("Failed to get user by id",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
 		return
 	}
+
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(user); err != nil {
+		logger.AccessLogger.Error("Failed to encode user data",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed GetUserById request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
 }
 
 func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+
+	logger.AccessLogger.Info("Received GetAllUsers request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
+
 	w.Header().Set("Content-Type", "application/json")
-	users, err := h.authUseCase.GetAllUser()
+	users, err := h.authUseCase.GetAllUser(r.Context())
 	if err != nil {
-		h.handleError(w, err)
+		logger.AccessLogger.Error("Failed to get all users data",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
 		return
 	}
+
 	response := map[string]interface{}{
 		"users": users,
 	}
+
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.AccessLogger.Error("Failed to encode users response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed GetAllUsers request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
 }
 
 func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
-	sessionData, err := h.sessionService.GetSessionData(r)
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+
+	logger.AccessLogger.Info("Received GetSessionData request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
+
+	sessionData, err := h.sessionService.GetSessionData(r.Context(), r)
 	if err != nil {
-		h.handleError(w, err)
+		logger.AccessLogger.Error("Failed to get session data",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(sessionData); err != nil {
+		logger.AccessLogger.Error("Failed to encode session data",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed GetSessionData request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
 }
 
-func (h *AuthHandler) handleError(w http.ResponseWriter, err error) {
+func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID string) {
+	logger.AccessLogger.Error("Handling error",
+		zap.String("request_id", requestID),
+		zap.Error(err),
+	)
+
 	w.Header().Set("Content-Type", "application/json")
 	errorResponse := map[string]string{"error": err.Error()}
 
@@ -203,6 +419,10 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error) {
 	}
 
 	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
+		logger.AccessLogger.Error("Failed to encode error response",
+			zap.String("request_id", requestID),
+			zap.Error(jsonErr),
+		)
 		http.Error(w, jsonErr.Error(), http.StatusInternalServerError)
 	}
 }

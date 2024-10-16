@@ -3,16 +3,17 @@ package usecase
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/auth/validation"
+	"context"
 	"encoding/json"
 	"errors"
 )
 
 type AuthUseCase interface {
-	RegisterUser(creds *domain.User) error
-	LoginUser(creds *domain.User) (*domain.User, error)
-	PutUser(creds *domain.User, userID string) error
-	GetAllUser() ([]domain.User, error)
-	GetUserById(userID string) (*domain.User, error)
+	RegisterUser(ctx context.Context, creds *domain.User) error
+	LoginUser(ctx context.Context, creds *domain.User) (*domain.User, error)
+	PutUser(ctx context.Context, creds *domain.User, userID string) error
+	GetAllUser(ctx context.Context) ([]domain.User, error)
+	GetUserById(ctx context.Context, userID string) (*domain.User, error)
 }
 
 type authUseCase struct {
@@ -25,7 +26,7 @@ func NewAuthUseCase(authRepository domain.AuthRepository) AuthUseCase {
 	}
 }
 
-func (uc *authUseCase) RegisterUser(creds *domain.User) error {
+func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User) error {
 	if creds.Username == "" || creds.Password == "" || creds.Email == "" {
 		return errors.New("username, password, and email are required")
 	}
@@ -54,15 +55,15 @@ func (uc *authUseCase) RegisterUser(creds *domain.User) error {
 		}
 		return errors.New(string(errorResponseJSON))
 	}
-	existingUser, _ := uc.authRepository.GetUserByName(creds.Username)
+	existingUser, _ := uc.authRepository.GetUserByName(ctx, creds.Username)
 	if existingUser != nil {
 		return errors.New("user already exists")
 	}
 
-	return uc.authRepository.CreateUser(creds)
+	return uc.authRepository.CreateUser(ctx, creds)
 }
 
-func (uc *authUseCase) LoginUser(creds *domain.User) (*domain.User, error) {
+func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*domain.User, error) {
 	if creds.Username == "" || creds.Password == "" {
 		return nil, errors.New("username and password are required")
 	}
@@ -85,7 +86,7 @@ func (uc *authUseCase) LoginUser(creds *domain.User) (*domain.User, error) {
 		}
 		return nil, errors.New(string(errorResponseJSON))
 	}
-	requestedUser, err := uc.authRepository.GetUserByName(creds.Username)
+	requestedUser, err := uc.authRepository.GetUserByName(ctx, creds.Username)
 	if err != nil || requestedUser == nil {
 		return nil, errors.New("user not found")
 	}
@@ -95,24 +96,24 @@ func (uc *authUseCase) LoginUser(creds *domain.User) (*domain.User, error) {
 	return requestedUser, nil
 }
 
-func (uc *authUseCase) PutUser(creds *domain.User, userID string) error {
-	err := uc.authRepository.PutUser(creds, userID)
+func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID string) error {
+	err := uc.authRepository.PutUser(ctx, creds, userID)
 	if err != nil {
 		return errors.New("user not found")
 	}
 	return nil
 }
 
-func (uc *authUseCase) GetAllUser() ([]domain.User, error) {
-	users, err := uc.authRepository.GetAllUser()
+func (uc *authUseCase) GetAllUser(ctx context.Context) ([]domain.User, error) {
+	users, err := uc.authRepository.GetAllUser(ctx)
 	if err != nil {
 		return nil, errors.New("there is none user in db")
 	}
 	return users, nil
 }
 
-func (uc *authUseCase) GetUserById(userID string) (*domain.User, error) {
-	user, err := uc.authRepository.GetUserById(userID)
+func (uc *authUseCase) GetUserById(ctx context.Context, userID string) (*domain.User, error) {
+	user, err := uc.authRepository.GetUserById(ctx, userID)
 	if err != nil {
 		return nil, errors.New("user not found")
 	}
