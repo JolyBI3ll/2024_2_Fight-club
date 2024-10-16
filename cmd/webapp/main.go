@@ -48,7 +48,7 @@ func main() {
 
 	adsRepository := adRepository.NewAdRepository(db)
 	adsUserCase := adUseCase.NewAdUseCase(adsRepository)
-	adsHandler := adHttpDelivery.NewAdHandler(adsUserCase)
+	adsHandler := adHttpDelivery.NewAdHandler(adsUserCase, sessionService)
 
 	store.Options.HttpOnly = true
 	store.Options.Secure = false
