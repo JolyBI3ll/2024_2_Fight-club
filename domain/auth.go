@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"context"
 	"time"
 )
 
@@ -23,9 +24,9 @@ type User struct {
 }
 
 type AuthRepository interface {
-	CreateUser(creds *User) error
-	PutUser(creds *User, userID string) error
-	GetAllUser() ([]User, error)
-	GetUserById(userID string) (*User, error)
-	GetUserByName(username string) (*User, error)
+	CreateUser(ctx context.Context, creds *User) error
+	PutUser(ctx context.Context, creds *User, userID string) error
+	GetAllUser(ctx context.Context) ([]User, error)
+	GetUserById(ctx context.Context, userID string) (*User, error)
+	GetUserByName(ctx context.Context, username string) (*User, error)
 }

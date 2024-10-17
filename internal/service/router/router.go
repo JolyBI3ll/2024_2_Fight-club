@@ -12,11 +12,9 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler) *mux.
 
 	router.HandleFunc(api+"/auth/register", authHandler.RegisterUser).Methods("POST")
 	router.HandleFunc(api+"/auth/login", authHandler.LoginUser).Methods("POST")
-
 	router.HandleFunc(api+"/auth/logout", authHandler.LogoutUser).Methods("DELETE")
 
 	router.HandleFunc(api+"/putUser", authHandler.PutUser).Methods("PUT")
-
 	router.HandleFunc(api+"/getUserById", authHandler.GetUserById).Methods("GET")
 	router.HandleFunc(api+"/getAllUsers", authHandler.GetAllUsers).Methods("GET")
 	router.HandleFunc(api+"/getSessionData", authHandler.GetSessionData).Methods("GET")

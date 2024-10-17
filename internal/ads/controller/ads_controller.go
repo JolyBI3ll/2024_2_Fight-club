@@ -3,11 +3,15 @@ package controller
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/ads/usecase"
+	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
+	"go.uber.org/zap"
 	"net/http"
+	"time"
 )
 
 type AdHandler struct {
@@ -21,126 +25,221 @@ func NewAdHandler(adUseCase usecase.AdUseCase, sessionService *session.ServiceSe
 		sessionService: sessionService,
 	}
 }
+
 func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+
+	logger.AccessLogger.Info("Received GetAllPlaces request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
+
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	places, err := h.adUseCase.GetAllPlaces()
+	places, err := h.adUseCase.GetAllPlaces(r.Context())
 	if err != nil {
-		h.handleError(w, err)
+		h.handleError(w, err, requestID)
 		return
 	}
 	body := map[string]interface{}{
 		"places": places,
 	}
+	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
+		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed GetAllPlaces request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
 }
 
 func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	adId := mux.Vars(r)["adId"]
+
+	logger.AccessLogger.Info("Received GetOnePlace request",
+		zap.String("request_id", requestID),
+		zap.String("adId", adId),
+	)
+
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	vars := mux.Vars(r)
-	adId := vars["adId"]
-	place, err := h.adUseCase.GetOnePlace(adId)
+	place, err := h.adUseCase.GetOnePlace(r.Context(), adId)
 	if err != nil {
-		h.handleError(w, err)
+		h.handleError(w, err, requestID)
 		return
 	}
 	body := map[string]interface{}{
 		"place": place,
 	}
 	if err := json.NewEncoder(w).Encode(body); err != nil {
+		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed GetOnePlace request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
 }
 
 func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+
+	logger.AccessLogger.Info("Received CreatePlace request",
+		zap.String("request_id", requestID),
+	)
+
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	var place domain.Ad
 	if err := json.NewDecoder(r.Body).Decode(&place); err != nil {
+		logger.AccessLogger.Error("Failed to decode request body", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	userID, err := h.sessionService.GetUserID(r, w)
+	userID, err := h.sessionService.GetUserID(r.Context(), r, w)
 	if err != nil {
-		h.handleError(w, errors.New("no active session"))
+		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("no active session"), requestID)
 		return
 	}
 	place.AuthorUUID = userID
-	err = h.adUseCase.CreatePlace(&place)
+
+	err = h.adUseCase.CreatePlace(r.Context(), &place)
 	if err != nil {
-		h.handleError(w, err)
+		logger.AccessLogger.Error("Failed to create place", zap.String("request_id", requestID), zap.Error(err))
+		h.handleError(w, err, requestID)
 		return
 	}
 	body := map[string]interface{}{
 		"place": place,
 	}
 	if err := json.NewEncoder(w).Encode(body); err != nil {
+		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed CreatePlace request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
 }
 
 func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	adId := mux.Vars(r)["adId"]
+
+	// Логирование начала обработки запроса
+	logger.AccessLogger.Info("Received UpdatePlace request",
+		zap.String("request_id", requestID),
+		zap.String("adId", adId),
+	)
+
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	var place domain.Ad
 	if err := json.NewDecoder(r.Body).Decode(&place); err != nil {
+		logger.AccessLogger.Error("Failed to decode request body", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	vars := mux.Vars(r)
-	adId := vars["adId"]
-
-	userID, err := h.sessionService.GetUserID(r, w)
+	userID, err := h.sessionService.GetUserID(r.Context(), r, w)
 	if err != nil {
-		h.handleError(w, errors.New("no active session"))
+		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("no active session"), requestID)
 		return
 	}
 
-	err = h.adUseCase.UpdatePlace(&place, adId, userID)
+	err = h.adUseCase.UpdatePlace(r.Context(), &place, adId, userID)
 	if err != nil {
-		h.handleError(w, err)
+		logger.AccessLogger.Error("Failed to update place", zap.String("request_id", requestID), zap.Error(err))
+		h.handleError(w, err, requestID)
 		return
 	}
 	body := map[string]interface{}{
 		"place": place,
 	}
 	if err := json.NewEncoder(w).Encode(body); err != nil {
+		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed UpdatePlace request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
 }
 
 func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	adId := mux.Vars(r)["adId"]
+
+	logger.AccessLogger.Info("Received DeletePlace request",
+		zap.String("request_id", requestID),
+		zap.String("adId", adId),
+	)
+
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	vars := mux.Vars(r)
-	adId := vars["adId"]
 
-	userID, err := h.sessionService.GetUserID(r, w)
+	userID, err := h.sessionService.GetUserID(r.Context(), r, w)
 	if err != nil {
-		h.handleError(w, errors.New("no active session"))
-	}
-
-	err = h.adUseCase.DeletePlace(adId, userID)
-	if err != nil {
-		h.handleError(w, err)
+		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("no active session"), requestID)
 		return
 	}
+
+	err = h.adUseCase.DeletePlace(r.Context(), adId, userID)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to delete place", zap.String("request_id", requestID), zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
-	return
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed DeletePlace request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
 }
 
 func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	city := mux.Vars(r)["city"]
+
+	// Логирование начала обработки запроса
+	logger.AccessLogger.Info("Received GetPlacesPerCity request",
+		zap.String("request_id", requestID),
+		zap.String("city", city),
+	)
+
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	vars := mux.Vars(r)
-	city := vars["city"]
-	var ads []domain.Ad
-	ads, err := h.adUseCase.GetPlacesPerCity(city)
+	ads, err := h.adUseCase.GetPlacesPerCity(r.Context(), city)
 	if err != nil {
-		h.handleError(w, err)
+		logger.AccessLogger.Error("Failed to get places per city", zap.String("request_id", requestID), zap.Error(err))
+		h.handleError(w, err, requestID)
 		return
 	}
 	body := map[string]interface{}{
@@ -148,12 +247,25 @@ func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
+		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed GetPlacesPerCity request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
 }
 
-func (h *AdHandler) handleError(w http.ResponseWriter, err error) {
+func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID string) {
+	logger.AccessLogger.Error("Handling error",
+		zap.String("request_id", requestID),
+		zap.Error(err),
+	)
+
 	w.Header().Set("Content-Type", "application/json")
 	errorResponse := map[string]string{"error": err.Error()}
 
@@ -169,6 +281,10 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error) {
 	}
 
 	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
+		logger.AccessLogger.Error("Failed to encode error response",
+			zap.String("request_id", requestID),
+			zap.Error(jsonErr),
+		)
 		http.Error(w, jsonErr.Error(), http.StatusInternalServerError)
 	}
 }

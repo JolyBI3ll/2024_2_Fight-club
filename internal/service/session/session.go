@@ -2,10 +2,14 @@ package session
 
 import (
 	"2024_2_FIGHT-CLUB/domain"
+	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/middleware"
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"github.com/gorilla/sessions"
+	"go.uber.org/zap"
 	"net/http"
 )
 
@@ -17,64 +21,111 @@ func NewSessionService(store *sessions.CookieStore) *ServiceSession {
 	return &ServiceSession{store: store}
 }
 
-func (s *ServiceSession) LogoutSession(r *http.Request, w http.ResponseWriter) error {
-	session, _ := s.store.Get(r, "session_id")
-	if session.IsNew {
-		return errors.New("no active session")
-	}
-	session.Options.MaxAge = -1
+func (s *ServiceSession) LogoutSession(ctx context.Context, r *http.Request, w http.ResponseWriter) error {
+	requestID := middleware.GetRequestID(ctx)
+	logger.AccessLogger.Info("LogoutSession called", zap.String("request_id", requestID))
 
-	if err := session.Save(r, w); err != nil {
+	session, err := s.store.Get(r, "session_id")
+	if err != nil {
+		logger.AccessLogger.Error("Error retrieving session", zap.String("request_id", requestID), zap.Error(err))
 		return err
 	}
 
+	if session.IsNew {
+		logger.AccessLogger.Warn("Attempted to logout with no active session", zap.String("request_id", requestID))
+		return errors.New("no active session")
+	}
+
+	session.Options.MaxAge = -1
+	if err := session.Save(r, w); err != nil {
+		logger.AccessLogger.Error("Error saving session during logout", zap.String("request_id", requestID), zap.Error(err))
+		return err
+	}
+
+	logger.AccessLogger.Info("Successfully logged out session", zap.String("request_id", requestID))
 	return nil
 }
 
-func (s *ServiceSession) GetUserID(r *http.Request, w http.ResponseWriter) (string, error) {
-	session, _ := s.store.Get(r, "session_id")
+func (s *ServiceSession) GetUserID(ctx context.Context, r *http.Request, w http.ResponseWriter) (string, error) {
+	requestID := middleware.GetRequestID(ctx)
+	logger.AccessLogger.Info("GetUserID called", zap.String("request_id", requestID))
+
+	session, err := s.store.Get(r, "session_id")
+	if err != nil {
+		logger.AccessLogger.Error("Error retrieving session", zap.String("request_id", requestID), zap.Error(err))
+		return "", err
+	}
+
 	if session.IsNew {
+		logger.AccessLogger.Warn("No active session found when getting user ID", zap.String("request_id", requestID))
 		return "", errors.New("no active session")
 	}
-	return session.Values["id"].(string), nil
+
+	userID, ok := session.Values["id"].(string)
+	if !ok {
+		logger.AccessLogger.Error("User ID not found or invalid type in session", zap.String("request_id", requestID))
+		return "", errors.New("user ID not found in session")
+	}
+
+	logger.AccessLogger.Info("Successfully retrieved user ID from session", zap.String("request_id", requestID), zap.String("userID", userID))
+	return userID, nil
 }
 
-func (s *ServiceSession) GetSessionData(r *http.Request) (*map[string]interface{}, error) {
-	session, _ := s.store.Get(r, "session_id")
+func (s *ServiceSession) GetSessionData(ctx context.Context, r *http.Request) (*map[string]interface{}, error) {
+	requestID := middleware.GetRequestID(ctx)
+	logger.AccessLogger.Info("GetSessionData called", zap.String("request_id", requestID))
+
+	session, err := s.store.Get(r, "session_id")
+	if err != nil {
+		logger.AccessLogger.Error("Error retrieving session", zap.String("request_id", requestID), zap.Error(err))
+		return nil, err
+	}
 
 	if session.IsNew {
+		logger.AccessLogger.Warn("No active session found when getting session data", zap.String("request_id", requestID))
 		return nil, errors.New("no active session")
 	}
 
-	userID := session.Values["id"].(string)
-	Avatar, okAvatar := session.Values["avatar"].(string)
+	userID, okID := session.Values["id"].(string)
+	avatar, okAvatar := session.Values["avatar"].(string)
 
-	sessionData := map[string]interface{}{}
-	if okAvatar {
-		sessionData = map[string]interface{}{
-			"id":     userID,
-			"avatar": Avatar,
-		}
-	} else {
-		sessionData = map[string]interface{}{
-			"id":     userID,
-			"avatar": "",
-		}
+	if !okID {
+		logger.AccessLogger.Error("User ID not found or invalid type in session", zap.String("request_id", requestID))
+		return nil, errors.New("user ID not found in session")
 	}
 
+	sessionData := map[string]interface{}{
+		"id":     userID,
+		"avatar": "",
+	}
+
+	if okAvatar {
+		sessionData["avatar"] = avatar
+	}
+
+	logger.AccessLogger.Info("Successfully retrieved session data", zap.String("request_id", requestID), zap.Any("sessionData", sessionData))
 	return &sessionData, nil
 }
 
-func (s *ServiceSession) CreateSession(r *http.Request, w http.ResponseWriter, user *domain.User) (string, error) {
-	session, _ := s.store.Get(r, "session_id")
+func (s *ServiceSession) CreateSession(ctx context.Context, r *http.Request, w http.ResponseWriter, user *domain.User) (string, error) {
+	requestID := middleware.GetRequestID(ctx)
+	logger.AccessLogger.Info("CreateSession called", zap.String("request_id", requestID), zap.String("userID", user.UUID))
+
+	session, err := s.store.Get(r, "session_id")
+	if err != nil {
+		logger.AccessLogger.Error("Error retrieving session for creation", zap.String("request_id", requestID), zap.Error(err))
+		return "", err
+	}
 
 	if !session.IsNew {
+		logger.AccessLogger.Warn("Attempted to create a session when one already exists", zap.String("request_id", requestID), zap.String("userID", user.UUID))
 		return "", errors.New("session already exists")
 	}
 
 	session.Values["id"] = user.UUID
 	session.Values["username"] = user.Username
 	session.Values["email"] = user.Email
+
 	if user.Name != "" {
 		session.Values["name"] = user.Name
 	}
@@ -82,29 +133,36 @@ func (s *ServiceSession) CreateSession(r *http.Request, w http.ResponseWriter, u
 		session.Values["avatar"] = user.Avatar
 	}
 
-	sessionID, err := GenerateSessionID()
+	sessionID, err := GenerateSessionID(ctx)
 	if err != nil {
+		logger.AccessLogger.Error("Failed to generate session ID", zap.String("request_id", requestID), zap.Error(err))
 		return "", errors.New("failed to generate session id")
 	}
 
 	session.Values["session_id"] = sessionID
 
-	// Сохраняем сессию
-	err = session.Save(r, w)
-	if err != nil {
-		return "", errors.New("failed to save sessions")
+	if err := session.Save(r, w); err != nil {
+		logger.AccessLogger.Error("Failed to save session", zap.String("request_id", requestID), zap.Error(err))
+		return "", errors.New("failed to save session")
 	}
 
+	logger.AccessLogger.Info("Successfully created session", zap.String("request_id", requestID), zap.String("session_id", sessionID), zap.String("userID", user.UUID))
 	return sessionID, nil
 }
 
-func GenerateSessionID() (string, error) {
-	b := make([]byte, 32)
+func GenerateSessionID(ctx context.Context) (string, error) {
+	// Включаем логирование при генерации session ID
+	requestID := middleware.GetRequestID(ctx)
+	logger.AccessLogger.Info("GenerateSessionID called", zap.String("request_id", requestID))
 
+	b := make([]byte, 32)
 	_, err := rand.Read(b)
 	if err != nil {
+		logger.AccessLogger.Error("Error generating random bytes for session ID", zap.String("request_id", requestID), zap.Error(err))
 		return "", err
 	}
 
-	return base64.StdEncoding.EncodeToString(b), nil
+	sessionID := base64.StdEncoding.EncodeToString(b)
+	logger.AccessLogger.Info("Successfully generated session ID", zap.String("request_id", requestID), zap.String("session_id", sessionID))
+	return sessionID, nil
 }

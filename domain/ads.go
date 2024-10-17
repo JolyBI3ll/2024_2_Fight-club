@@ -2,6 +2,7 @@ package domain
 
 import (
 	"2024_2_FIGHT-CLUB/internal/service/type"
+	"context"
 )
 
 type Ad struct {
@@ -18,11 +19,11 @@ type Ad struct {
 }
 
 type AdRepository interface {
-	GetAllPlaces() ([]Ad, error)
-	GetPlaceById(adId string) (Ad, error)
-	CreatePlace(ad *Ad) error
-	SavePlace(ad *Ad) error
-	UpdatePlace(ad *Ad, adId string, userId string) error
-	DeletePlace(adId string, userId string) error
-	GetPlacesPerCity(city string) ([]Ad, error)
+	GetAllPlaces(ctx context.Context) ([]Ad, error)
+	GetPlaceById(ctx context.Context, adId string) (Ad, error)
+	CreatePlace(ctx context.Context, ad *Ad) error
+	SavePlace(ctx context.Context, ad *Ad) error
+	UpdatePlace(ctx context.Context, ad *Ad, adId string, userId string) error
+	DeletePlace(ctx context.Context, adId string, userId string) error
+	GetPlacesPerCity(ctx context.Context, city string) ([]Ad, error)
 }

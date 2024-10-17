@@ -7,6 +7,8 @@ import (
 	authHttpDelivery "2024_2_FIGHT-CLUB/internal/auth/controller"
 	authRepository "2024_2_FIGHT-CLUB/internal/auth/repository"
 	authUseCase "2024_2_FIGHT-CLUB/internal/auth/usecase"
+	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/router"
 	"2024_2_FIGHT-CLUB/internal/service/session"
 	"2024_2_FIGHT-CLUB/module/dsn"
@@ -39,23 +41,27 @@ func main() {
 	_ = godotenv.Load()
 	store := sessions.NewCookieStore([]byte("super-secret-key"))
 	db := DbConnect()
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer logger.SyncLoggers()
 
 	sessionService := session.NewSessionService(store)
 
 	auRepository := authRepository.NewAuthRepository(db)
-	auUserCase := authUseCase.NewAuthUseCase(auRepository)
-	authHandler := authHttpDelivery.NewAuthHandler(auUserCase, sessionService)
+	auUseCase := authUseCase.NewAuthUseCase(auRepository)
+	authHandler := authHttpDelivery.NewAuthHandler(auUseCase, sessionService)
 
 	adsRepository := adRepository.NewAdRepository(db)
-	adsUserCase := adUseCase.NewAdUseCase(adsRepository)
-	adsHandler := adHttpDelivery.NewAdHandler(adsUserCase, sessionService)
+	adsUseCase := adUseCase.NewAdUseCase(adsRepository)
+	adsHandler := adHttpDelivery.NewAdHandler(adsUseCase, sessionService)
 
 	store.Options.HttpOnly = true
 	store.Options.Secure = false
 	store.Options.SameSite = http.SameSiteStrictMode
 
 	mainRouter := router.SetUpRoutes(authHandler, adsHandler)
-
+	mainRouter.Use(middleware.RequestIDMiddleware)
 	http.Handle("/", enableCORS(mainRouter))
 	fmt.Println("Starting server on port 8008")
 	if err := http.ListenAndServe(":8008", nil); err != nil {
