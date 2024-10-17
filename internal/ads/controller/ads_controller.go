@@ -133,6 +133,26 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	vars := mux.Vars(r)
+	city := vars["city"]
+	var ads []domain.Ad
+	ads, err := h.adUseCase.GetPlacesPerCity(city)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	body := map[string]interface{}{
+		"places": ads,
+	}
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
 func (h *AdHandler) handleError(w http.ResponseWriter, err error) {
 	w.Header().Set("Content-Type", "application/json")
 	errorResponse := map[string]string{"error": err.Error()}
@@ -144,7 +164,6 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error) {
 		w.WriteHeader(http.StatusConflict)
 	case "not owner of ad", "no active session":
 		w.WriteHeader(http.StatusUnauthorized)
-
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}

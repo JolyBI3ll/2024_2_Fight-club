@@ -11,6 +11,7 @@ type AdUseCase interface {
 	CreatePlace(place *domain.Ad) error
 	UpdatePlace(place *domain.Ad, adId string, userId string) error
 	DeletePlace(adId string, userId string) error
+	GetPlacesPerCity(city string) ([]domain.Ad, error)
 }
 
 type adUseCase struct {
@@ -61,4 +62,12 @@ func (uc *adUseCase) DeletePlace(adId string, userId string) error {
 		return err
 	}
 	return nil
+}
+
+func (uc *adUseCase) GetPlacesPerCity(city string) ([]domain.Ad, error) {
+	places, err := uc.adRepository.GetPlacesPerCity(city)
+	if err != nil || len(places) == 0 {
+		return nil, errors.New("ad not found")
+	}
+	return places, nil
 }

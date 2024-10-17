@@ -26,5 +26,7 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler) *mux.
 	router.HandleFunc(api+"/createAd", adsHandler.CreatePlace).Methods("POST")
 	router.HandleFunc(api+"/updateAd/{adId}", adsHandler.UpdatePlace).Methods("PUT")
 	router.HandleFunc(api+"/deleteAd/{adId}", adsHandler.DeletePlace).Methods("DELETE")
+	router.HandleFunc(api+"/getPlacesPerCity/{city}", adsHandler.GetPlacesPerCity).Methods("GET")
+
 	return router
 }
