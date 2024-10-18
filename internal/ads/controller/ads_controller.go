@@ -277,10 +277,6 @@ func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-func (h *AdHandler) SearchPlace(w http.ResponseWriter, r *http.Request) {
-
-}
-
 func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID string) {
 	logger.AccessLogger.Error("Handling error",
 		zap.String("request_id", requestID),
