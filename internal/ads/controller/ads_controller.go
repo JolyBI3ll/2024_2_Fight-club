@@ -10,6 +10,7 @@ import (
 	"errors"
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
+	"mime/multipart"
 	"net/http"
 	"time"
 )
@@ -120,11 +121,18 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	)
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	r.ParseMultipartForm(10 << 20) // 10 mb
+
+	metadata := r.FormValue("metadata")
 	var place domain.Ad
-	if err := json.NewDecoder(r.Body).Decode(&place); err != nil {
-		logger.AccessLogger.Error("Failed to decode request body", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := json.Unmarshal([]byte(metadata), &place); err != nil {
+		logger.AccessLogger.Error("Failed to decode metadata", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, "Invalid metadata JSON", http.StatusBadRequest)
 		return
+	}
+	var files []*multipart.FileHeader
+	if len(r.MultipartForm.File["images"]) > 0 {
+		files = r.MultipartForm.File["images"]
 	}
 
 	userID, err := h.sessionService.GetUserID(r.Context(), r, w)
@@ -135,7 +143,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	}
 	place.AuthorUUID = userID
 
-	err = h.adUseCase.CreatePlace(r.Context(), &place)
+	err = h.adUseCase.CreatePlace(r.Context(), &place, files)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to create place", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
@@ -163,18 +171,31 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	adId := mux.Vars(r)["adId"]
 
-	// Логирование начала обработки запроса
 	logger.AccessLogger.Info("Received UpdatePlace request",
 		zap.String("request_id", requestID),
 		zap.String("adId", adId),
 	)
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	var place domain.Ad
-	if err := json.NewDecoder(r.Body).Decode(&place); err != nil {
-		logger.AccessLogger.Error("Failed to decode request body", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, err.Error(), http.StatusBadRequest)
+
+	err := r.ParseMultipartForm(10 << 20)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to parse multipart form", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, "Invalid multipart form", http.StatusBadRequest)
 		return
+	}
+
+	metadata := r.FormValue("metadata")
+	var place domain.Ad
+	if err := json.Unmarshal([]byte(metadata), &place); err != nil {
+		logger.AccessLogger.Error("Failed to decode metadata", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, "Invalid metadata JSON", http.StatusBadRequest)
+		return
+	}
+
+	var files []*multipart.FileHeader
+	if len(r.MultipartForm.File["images"]) > 0 {
+		files = r.MultipartForm.File["images"]
 	}
 
 	userID, err := h.sessionService.GetUserID(r.Context(), r, w)
@@ -184,12 +205,13 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.adUseCase.UpdatePlace(r.Context(), &place, adId, userID)
+	err = h.adUseCase.UpdatePlace(r.Context(), &place, adId, userID, files)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to update place", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
 		return
 	}
+
 	w.WriteHeader(http.StatusOK)
 	updateResponse := map[string]string{"response": "Update successfully"}
 	if err := json.NewEncoder(w).Encode(updateResponse); err != nil {

@@ -10,7 +10,7 @@ type User struct {
 	Username   string
 	Password   string
 	Email      string
-	Name       string
+	Name       string `json:"name"`
 	Score      float32
 	Avatar     string
 	Sex        rune
@@ -25,6 +25,7 @@ type User struct {
 
 type AuthRepository interface {
 	CreateUser(ctx context.Context, creds *User) error
+	SaveUser(ctx context.Context, creds *User) error
 	PutUser(ctx context.Context, creds *User, userID string) error
 	GetAllUser(ctx context.Context) ([]User, error)
 	GetUserById(ctx context.Context, userID string) (*User, error)

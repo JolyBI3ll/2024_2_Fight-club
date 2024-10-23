@@ -101,12 +101,7 @@ func (r *adRepository) CreatePlace(ctx context.Context, ad *domain.Ad) error {
 		return err
 	}
 
-	if err := r.SavePlace(ctx, ad); err != nil {
-		logger.DBLogger.Error("Error saving place after creation", zap.String("adId", ad.ID), zap.String("request_id", requestID), zap.Error(err))
-		return err
-	}
-
-	logger.DBLogger.Info("Successfully created and saved place", zap.String("adId", ad.ID), zap.String("request_id", requestID))
+	logger.DBLogger.Info("Successfully place", zap.String("adId", ad.ID), zap.String("request_id", requestID))
 	return nil
 }
 
