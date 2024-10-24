@@ -8,6 +8,7 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/session"
 	"encoding/json"
 	"go.uber.org/zap"
+	"mime/multipart"
 	"net/http"
 	"time"
 )
@@ -33,18 +34,22 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		zap.String("method", r.Method),
 		zap.String("url", r.URL.String()),
 	)
+	r.ParseMultipartForm(10 << 20)
+
+	metadata := r.FormValue("metadata")
 
 	var creds domain.User
-	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
-		logger.AccessLogger.Error("Failed to decode request body",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := json.Unmarshal([]byte(metadata), &creds); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		http.Error(w, "Invalid metadata JSON", http.StatusBadRequest)
 		return
 	}
+	var avatar *multipart.FileHeader
+	if len(r.MultipartForm.File["avatar"]) > 0 {
+		avatar = r.MultipartForm.File["avatar"][0]
+	}
 
-	err := h.authUseCase.RegisterUser(r.Context(), &creds)
+	err := h.authUseCase.RegisterUser(r.Context(), &creds, avatar)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to register user",
 			zap.String("request_id", requestID),
@@ -209,14 +214,19 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
-	var user domain.User
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
-		logger.AccessLogger.Error("Failed to decode request body",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	r.ParseMultipartForm(10 << 20)
+
+	metadata := r.FormValue("metadata")
+
+	var creds domain.User
+	if err := json.Unmarshal([]byte(metadata), &creds); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		http.Error(w, "Invalid metadata JSON", http.StatusBadRequest)
 		return
+	}
+	var avatar *multipart.FileHeader
+	if len(r.MultipartForm.File["avatar"]) > 0 {
+		avatar = r.MultipartForm.File["avatar"][0]
 	}
 
 	userID, err := h.sessionService.GetUserID(r.Context(), r, w)
@@ -228,8 +238,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err, requestID)
 		return
 	}
-
-	if err := h.authUseCase.PutUser(r.Context(), &user, userID); err != nil {
+	if err := h.authUseCase.PutUser(r.Context(), &creds, userID, avatar); err != nil {
 		logger.AccessLogger.Error("Failed to update user data",
 			zap.String("request_id", requestID),
 			zap.Error(err),

@@ -32,7 +32,7 @@ services:
       - DB_USER=admin
       - DB_PASSWORD=12345
       - DB_NAME=db
-      - MINIO_HOST=minio
+      - MINIO_HOST=images
       - MINIO_PORT=9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin123

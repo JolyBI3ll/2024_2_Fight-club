@@ -3,30 +3,35 @@ package usecase
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/auth/validation"
+	"2024_2_FIGHT-CLUB/internal/service/images"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"mime/multipart"
 )
 
 type AuthUseCase interface {
-	RegisterUser(ctx context.Context, creds *domain.User) error
+	RegisterUser(ctx context.Context, creds *domain.User, avatar *multipart.FileHeader) error
 	LoginUser(ctx context.Context, creds *domain.User) (*domain.User, error)
-	PutUser(ctx context.Context, creds *domain.User, userID string) error
+	PutUser(ctx context.Context, creds *domain.User, userID string, avatar *multipart.FileHeader) error
 	GetAllUser(ctx context.Context) ([]domain.User, error)
 	GetUserById(ctx context.Context, userID string) (*domain.User, error)
 }
 
 type authUseCase struct {
 	authRepository domain.AuthRepository
+	minioService   *images.MinioService
 }
 
-func NewAuthUseCase(authRepository domain.AuthRepository) AuthUseCase {
+func NewAuthUseCase(authRepository domain.AuthRepository, minioService *images.MinioService) AuthUseCase {
 	return &authUseCase{
 		authRepository: authRepository,
+		minioService:   minioService,
 	}
 }
 
-func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User) error {
+func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User, avatar *multipart.FileHeader) error {
 	if creds.Username == "" || creds.Password == "" || creds.Email == "" {
 		return errors.New("username, password, and email are required")
 	}
@@ -59,8 +64,22 @@ func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User) err
 	if existingUser != nil {
 		return errors.New("user already exists")
 	}
+	err := uc.authRepository.CreateUser(ctx, creds)
+	if err != nil {
+		return nil
+	}
+	if avatar != nil {
+		filePath := fmt.Sprintf("user/%s/%s", creds.UUID, avatar.Filename)
 
-	return uc.authRepository.CreateUser(ctx, creds)
+		uploadedPath, err := uc.minioService.UploadFile(avatar, filePath)
+		if err != nil {
+			return err
+		}
+
+		creds.Avatar = "http://localhost:9001/" + uploadedPath
+	}
+
+	return uc.authRepository.SaveUser(ctx, creds)
 }
 
 func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*domain.User, error) {
@@ -96,10 +115,21 @@ func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*doma
 	return requestedUser, nil
 }
 
-func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID string) error {
+func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID string, avatar *multipart.FileHeader) error {
+	if avatar != nil {
+		filePath := fmt.Sprintf("user/%s/%s", userID, avatar.Filename)
+
+		uploadedPath, err := uc.minioService.UploadFile(avatar, filePath)
+		if err != nil {
+			return err
+		}
+
+		creds.Avatar = "http://localhost:9001/" + uploadedPath
+	}
+
 	err := uc.authRepository.PutUser(ctx, creds, userID)
 	if err != nil {
-		return errors.New("user not found")
+		_ = uc.minioService.DeleteFile(creds.Avatar)
 	}
 	return nil
 }

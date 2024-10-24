@@ -33,6 +33,18 @@ func (r *authRepository) CreateUser(ctx context.Context, creds *domain.User) err
 	return nil
 }
 
+func (r *authRepository) SaveUser(ctx context.Context, creds *domain.User) error {
+	requestID := middleware.GetRequestID(ctx)
+	logger.DBLogger.Info("SaveUser called", zap.String("request_id", requestID), zap.String("username", creds.Username))
+	if err := r.db.Save(creds).Error; err != nil {
+		logger.DBLogger.Error("Error saving user", zap.String("request_id", requestID), zap.String("username", creds.Username), zap.Error(err))
+		return err
+	}
+
+	logger.DBLogger.Info("Successfully saved user", zap.String("request_id", requestID), zap.String("username", creds.Username))
+	return nil
+}
+
 func (r *authRepository) PutUser(ctx context.Context, creds *domain.User, userID string) error {
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("PutUser called", zap.String("request_id", requestID), zap.String("userID", userID))
