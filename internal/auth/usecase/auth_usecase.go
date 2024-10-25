@@ -114,7 +114,7 @@ func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID s
 			return err
 		}
 
-		creds.Avatar = "http://localhost:9001/browser/images/" + uploadedPath
+		creds.Avatar = "http://localhost:9000/images/" + uploadedPath
 	}
 
 	err := uc.authRepository.PutUser(ctx, creds, userID)

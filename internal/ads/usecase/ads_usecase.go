@@ -66,7 +66,7 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHead
 				}
 				return err
 			}
-			uploadedPaths = append(uploadedPaths, "http://localhost:9001/browser/images/"+uploadedPath)
+			uploadedPaths = append(uploadedPaths, "http://localhost:9000/images/"+uploadedPath)
 		}
 	}
 
@@ -101,7 +101,7 @@ func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId str
 				return err
 			}
 
-			newUploadedPaths = append(newUploadedPaths, "http://localhost:9001/browser/images/"+uploadedPath)
+			newUploadedPaths = append(newUploadedPaths, "http://localhost:9000/images/"+uploadedPath)
 		}
 	}
 
