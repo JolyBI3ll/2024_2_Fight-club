@@ -14,7 +14,7 @@ type Ad struct {
 	AuthorUUID      string             `json:"author_uuid"`
 	PublicationDate string             `json:"publication_date"`
 	AvailableDates  ntype.StringArray  `gorm:"type:text[]" json:"available_dates"`
-	Distance        float32            `json:"distance"`
+	Distance        float64            `json:"distance"`
 	Requests        []Request          `gorm:"foreignKey:AdID" json:"requests"`
 }
 

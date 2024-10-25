@@ -9,12 +9,17 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
+type MinioServiceInterface interface {
+	UploadFile(file *multipart.FileHeader, path string) (string, error)
+	DeleteFile(path string) error
+}
+
 type MinioService struct {
 	Client     *minio.Client
 	BucketName string
 }
 
-func NewMinioService(endpoint, accessKey, secretKey, bucketName string, useSSL bool) (*MinioService, error) {
+func NewMinioService(endpoint, accessKey, secretKey, bucketName string, useSSL bool) (MinioServiceInterface, error) {
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,

@@ -11,7 +11,7 @@ type User struct {
 	Password   string
 	Email      string
 	Name       string `json:"name"`
-	Score      float32
+	Score      float64
 	Avatar     string
 	Sex        rune
 	GuestCount int

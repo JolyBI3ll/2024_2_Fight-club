@@ -15,10 +15,10 @@ import (
 
 type AuthHandler struct {
 	authUseCase    usecase.AuthUseCase
-	sessionService *session.ServiceSession
+	sessionService session.InterfaceSession
 }
 
-func NewAuthHandler(authUseCase usecase.AuthUseCase, sessionService *session.ServiceSession) *AuthHandler {
+func NewAuthHandler(authUseCase usecase.AuthUseCase, sessionService session.InterfaceSession) *AuthHandler {
 	return &AuthHandler{
 		authUseCase:    authUseCase,
 		sessionService: sessionService,
