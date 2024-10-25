@@ -1,6 +1,6 @@
-.env
 .idea/workspace.xml
 .idea/2024_2_Fight-club.iml
 .idea/vcs.xml
 access.log
 db.log
+.env

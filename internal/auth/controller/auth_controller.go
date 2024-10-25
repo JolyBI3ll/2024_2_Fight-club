@@ -16,12 +16,14 @@ import (
 type AuthHandler struct {
 	authUseCase    usecase.AuthUseCase
 	sessionService *session.ServiceSession
+	jwtToken       *middleware.JwtToken
 }
 
-func NewAuthHandler(authUseCase usecase.AuthUseCase, sessionService *session.ServiceSession) *AuthHandler {
+func NewAuthHandler(authUseCase usecase.AuthUseCase, sessionService *session.ServiceSession, jwtToken *middleware.JwtToken) *AuthHandler {
 	return &AuthHandler{
 		authUseCase:    authUseCase,
 		sessionService: sessionService,
+		jwtToken:       jwtToken,
 	}
 }
 
@@ -34,22 +36,18 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		zap.String("method", r.Method),
 		zap.String("url", r.URL.String()),
 	)
-	r.ParseMultipartForm(10 << 20)
-
-	metadata := r.FormValue("metadata")
 
 	var creds domain.User
-	if err := json.Unmarshal([]byte(metadata), &creds); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		http.Error(w, "Invalid metadata JSON", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+		logger.AccessLogger.Error("Failed to decode request body",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	var avatar *multipart.FileHeader
-	if len(r.MultipartForm.File["avatar"]) > 0 {
-		avatar = r.MultipartForm.File["avatar"][0]
-	}
 
-	err := h.authUseCase.RegisterUser(r.Context(), &creds, avatar)
+	err := h.authUseCase.RegisterUser(r.Context(), &creds)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to register user",
 			zap.String("request_id", requestID),
@@ -59,7 +57,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID, err := h.sessionService.CreateSession(r.Context(), r, w, &creds)
+	userSession, err := h.sessionService.CreateSession(r.Context(), r, w, &creds)
 	if err != nil {
 		logger.AccessLogger.Error("Failed create session",
 			zap.String("request_id", requestID),
@@ -69,8 +67,26 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tokenExpTime := time.Now().Add(24 * time.Hour).Unix() // например, срок действия 24 часа
+	jwtToken, err := h.jwtToken.Create(userSession, tokenExpTime)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to create JWT token",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "csrf_token",
+		Value:    jwtToken,
+		HttpOnly: true,
+		Secure:   true,
+	})
+
 	response := map[string]interface{}{
-		"session_id": sessionID,
+		"session_id": userSession.Values["session_id"],
 		"user": map[string]string{
 			"id":       creds.UUID,
 			"username": creds.Username,
@@ -127,7 +143,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID, err := h.sessionService.CreateSession(r.Context(), r, w, requestedUser)
+	userSession, err := h.sessionService.CreateSession(r.Context(), r, w, requestedUser)
 	if err != nil {
 		logger.AccessLogger.Error("Failed create session",
 			zap.String("request_id", requestID),
@@ -137,8 +153,26 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tokenExpTime := time.Now().Add(24 * time.Hour).Unix() // срок действия 24 часа
+	jwtToken, err := h.jwtToken.Create(userSession, tokenExpTime)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to create JWT token",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "csrf_token",
+		Value:    jwtToken,
+		HttpOnly: true,
+		Secure:   true,
+	})
+
 	response := map[string]interface{}{
-		"session_id": sessionID,
+		"session_id": userSession.Values["session_id"],
 		"user": map[string]interface{}{
 			"id":       requestedUser.UUID,
 			"username": requestedUser.Username,
@@ -174,6 +208,20 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 		zap.String("method", r.Method),
 		zap.String("url", r.URL.String()),
 	)
+
+	//authHeader := r.Header.Get("X-CSRF-Token")
+	//if authHeader == "" {
+	//	http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
+	//	return
+	//}
+	//
+	//tokenString := authHeader[len("Bearer "):]
+	//_, err := h.jwtToken.Validate(tokenString)
+	//if err != nil {
+	//	logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+	//	http.Error(w, "Invalid token", http.StatusUnauthorized)
+	//	return
+	//}
 
 	if err := h.sessionService.LogoutSession(r.Context(), r, w); err != nil {
 		logger.AccessLogger.Error("Failed to logout user",

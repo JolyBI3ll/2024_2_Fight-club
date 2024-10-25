@@ -12,7 +12,7 @@ import (
 )
 
 type AuthUseCase interface {
-	RegisterUser(ctx context.Context, creds *domain.User, avatar *multipart.FileHeader) error
+	RegisterUser(ctx context.Context, creds *domain.User) error
 	LoginUser(ctx context.Context, creds *domain.User) (*domain.User, error)
 	PutUser(ctx context.Context, creds *domain.User, userID string, avatar *multipart.FileHeader) error
 	GetAllUser(ctx context.Context) ([]domain.User, error)
@@ -31,7 +31,7 @@ func NewAuthUseCase(authRepository domain.AuthRepository, minioService *images.M
 	}
 }
 
-func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User, avatar *multipart.FileHeader) error {
+func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User) error {
 	if creds.Username == "" || creds.Password == "" || creds.Email == "" {
 		return errors.New("username, password, and email are required")
 	}
@@ -67,16 +67,6 @@ func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User, ava
 	err := uc.authRepository.CreateUser(ctx, creds)
 	if err != nil {
 		return nil
-	}
-	if avatar != nil {
-		filePath := fmt.Sprintf("user/%s/%s", creds.UUID, avatar.Filename)
-
-		uploadedPath, err := uc.minioService.UploadFile(avatar, filePath)
-		if err != nil {
-			return err
-		}
-
-		creds.Avatar = "http://localhost:9001/" + uploadedPath
 	}
 
 	return uc.authRepository.SaveUser(ctx, creds)

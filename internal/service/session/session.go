@@ -107,19 +107,19 @@ func (s *ServiceSession) GetSessionData(ctx context.Context, r *http.Request) (*
 	return &sessionData, nil
 }
 
-func (s *ServiceSession) CreateSession(ctx context.Context, r *http.Request, w http.ResponseWriter, user *domain.User) (string, error) {
+func (s *ServiceSession) CreateSession(ctx context.Context, r *http.Request, w http.ResponseWriter, user *domain.User) (*sessions.Session, error) {
 	requestID := middleware.GetRequestID(ctx)
 	logger.AccessLogger.Info("CreateSession called", zap.String("request_id", requestID), zap.String("userID", user.UUID))
 
 	session, err := s.store.Get(r, "session_id")
 	if err != nil {
 		logger.AccessLogger.Error("Error retrieving session for creation", zap.String("request_id", requestID), zap.Error(err))
-		return "", err
+		return nil, err
 	}
 
 	if !session.IsNew {
 		logger.AccessLogger.Warn("Attempted to create a session when one already exists", zap.String("request_id", requestID), zap.String("userID", user.UUID))
-		return "", errors.New("session already exists")
+		return nil, errors.New("session already exists")
 	}
 
 	session.Values["id"] = user.UUID
@@ -136,18 +136,18 @@ func (s *ServiceSession) CreateSession(ctx context.Context, r *http.Request, w h
 	sessionID, err := GenerateSessionID(ctx)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to generate session ID", zap.String("request_id", requestID), zap.Error(err))
-		return "", errors.New("failed to generate session id")
+		return nil, errors.New("failed to generate session id")
 	}
 
 	session.Values["session_id"] = sessionID
 
 	if err := session.Save(r, w); err != nil {
 		logger.AccessLogger.Error("Failed to save session", zap.String("request_id", requestID), zap.Error(err))
-		return "", errors.New("failed to save session")
+		return nil, errors.New("failed to save session")
 	}
 
 	logger.AccessLogger.Info("Successfully created session", zap.String("request_id", requestID), zap.String("session_id", sessionID), zap.String("userID", user.UUID))
-	return sessionID, nil
+	return session, nil
 }
 
 func GenerateSessionID(ctx context.Context) (string, error) {
