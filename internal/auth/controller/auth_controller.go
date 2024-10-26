@@ -7,6 +7,8 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
 	"encoding/json"
+	"errors"
+	"github.com/microcosm-cc/bluemonday"
 	"go.uber.org/zap"
 	"mime/multipart"
 	"net/http"
@@ -29,6 +31,7 @@ func NewAuthHandler(authUseCase usecase.AuthUseCase, sessionService *session.Ser
 
 func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
 
 	logger.AccessLogger.Info("Received RegisterUser request",
@@ -46,6 +49,14 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	creds.Avatar = sanitizer.Sanitize(creds.Avatar)
+	creds.Username = sanitizer.Sanitize(creds.Username)
+	creds.Email = sanitizer.Sanitize(creds.Email)
+	creds.Password = sanitizer.Sanitize(creds.Password)
+	creds.UUID = sanitizer.Sanitize(creds.UUID)
+	creds.Address = sanitizer.Sanitize(creds.Address)
+	creds.Name = sanitizer.Sanitize(creds.Name)
 
 	err := h.authUseCase.RegisterUser(r.Context(), &creds)
 	if err != nil {
@@ -115,6 +126,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
 
 	logger.AccessLogger.Info("Received LoginUser request",
@@ -132,6 +144,14 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	creds.Avatar = sanitizer.Sanitize(creds.Avatar)
+	creds.Username = sanitizer.Sanitize(creds.Username)
+	creds.Email = sanitizer.Sanitize(creds.Email)
+	creds.Password = sanitizer.Sanitize(creds.Password)
+	creds.UUID = sanitizer.Sanitize(creds.UUID)
+	creds.Address = sanitizer.Sanitize(creds.Address)
+	creds.Name = sanitizer.Sanitize(creds.Name)
 
 	requestedUser, err := h.authUseCase.LoginUser(r.Context(), &creds)
 	if err != nil {
@@ -153,7 +173,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenExpTime := time.Now().Add(24 * time.Hour).Unix() // срок действия 24 часа
+	tokenExpTime := time.Now().Add(24 * time.Hour).Unix()
 	jwtToken, err := h.jwtToken.Create(userSession, tokenExpTime)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to create JWT token",
@@ -169,6 +189,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		Value:    jwtToken,
 		HttpOnly: true,
 		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	response := map[string]interface{}{
@@ -209,19 +230,19 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
-	//authHeader := r.Header.Get("X-CSRF-Token")
-	//if authHeader == "" {
-	//	http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
-	//	return
-	//}
-	//
-	//tokenString := authHeader[len("Bearer "):]
-	//_, err := h.jwtToken.Validate(tokenString)
-	//if err != nil {
-	//	logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-	//	http.Error(w, "Invalid token", http.StatusUnauthorized)
-	//	return
-	//}
+	authHeader := r.Header.Get("X-CSRF-Token")
+	if authHeader == "" {
+		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
+		return
+	}
+
+	tokenString := authHeader[len("Bearer "):]
+	_, err := h.jwtToken.Validate(tokenString)
+	if err != nil {
+		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
 
 	if err := h.sessionService.LogoutSession(r.Context(), r, w); err != nil {
 		logger.AccessLogger.Error("Failed to logout user",
@@ -254,6 +275,7 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
 
 	logger.AccessLogger.Info("Received PutUser request",
@@ -262,6 +284,24 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
+	authHeader := r.Header.Get("X-CSRF-Token")
+	if authHeader == "" {
+		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
+			zap.String("request_id", requestID),
+			zap.Error(errors.New("Missing X-CSRF-Token header")),
+		)
+		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
+		return
+	}
+
+	tokenString := authHeader[len("Bearer "):]
+	_, err := h.jwtToken.Validate(tokenString)
+	if err != nil {
+		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
+
 	r.ParseMultipartForm(10 << 20)
 
 	metadata := r.FormValue("metadata")
@@ -269,9 +309,22 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	var creds domain.User
 	if err := json.Unmarshal([]byte(metadata), &creds); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		logger.AccessLogger.Warn("Failed to parse metadat",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		http.Error(w, "Invalid metadata JSON", http.StatusBadRequest)
 		return
 	}
+
+	creds.Avatar = sanitizer.Sanitize(creds.Avatar)
+	creds.Username = sanitizer.Sanitize(creds.Username)
+	creds.Email = sanitizer.Sanitize(creds.Email)
+	creds.Password = sanitizer.Sanitize(creds.Password)
+	creds.UUID = sanitizer.Sanitize(creds.UUID)
+	creds.Address = sanitizer.Sanitize(creds.Address)
+	creds.Name = sanitizer.Sanitize(creds.Name)
+
 	var avatar *multipart.FileHeader
 	if len(r.MultipartForm.File["avatar"]) > 0 {
 		avatar = r.MultipartForm.File["avatar"][0]
@@ -324,6 +377,24 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
+	authHeader := r.Header.Get("X-CSRF-Token")
+	if authHeader == "" {
+		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
+			zap.String("request_id", requestID),
+			zap.Error(errors.New("Missing X-CSRF-Token header")),
+		)
+		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
+		return
+	}
+
+	tokenString := authHeader[len("Bearer "):]
+	_, err := h.jwtToken.Validate(tokenString)
+	if err != nil {
+		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	userID, err := h.sessionService.GetUserID(r.Context(), r, w)
 	if err != nil {
@@ -373,6 +444,24 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
+	authHeader := r.Header.Get("X-CSRF-Token")
+	if authHeader == "" {
+		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
+			zap.String("request_id", requestID),
+			zap.Error(errors.New("Missing X-CSRF-Token header")),
+		)
+		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
+		return
+	}
+
+	tokenString := authHeader[len("Bearer "):]
+	_, err := h.jwtToken.Validate(tokenString)
+	if err != nil {
+		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	users, err := h.authUseCase.GetAllUser(r.Context())
 	if err != nil {
@@ -416,6 +505,24 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
+	authHeader := r.Header.Get("X-CSRF-Token")
+	if authHeader == "" {
+		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
+			zap.String("request_id", requestID),
+			zap.Error(errors.New("Missing X-CSRF-Token header")),
+		)
+		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
+		return
+	}
+
+	tokenString := authHeader[len("Bearer "):]
+	_, err := h.jwtToken.Validate(tokenString)
+	if err != nil {
+		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
+
 	sessionData, err := h.sessionService.GetSessionData(r.Context(), r)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get session data",
@@ -439,6 +546,54 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 
 	duration := time.Since(start)
 	logger.AccessLogger.Info("Completed GetSessionData request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
+}
+
+func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+
+	logger.AccessLogger.Info("Received GetSessionData request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
+
+	userSession, err := h.sessionService.GetSession(r.Context(), r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to session",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	newCsrfToken, err := h.jwtToken.Create(userSession, time.Now().Add(1*time.Hour).Unix())
+	if err != nil {
+		logger.AccessLogger.Error("Failed to generate CSRF",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		http.Error(w, "Failed to create CSRF token", http.StatusInternalServerError)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "csrf_token",
+		Value:    newCsrfToken,
+		Path:     "/",
+		HttpOnly: false,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"csrf_token": newCsrfToken})
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed RefreshCsrfToken request",
 		zap.String("request_id", requestID),
 		zap.Duration("duration", duration),
 		zap.Int("status", http.StatusOK),

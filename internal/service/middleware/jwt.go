@@ -41,11 +41,16 @@ func (tk *JwtToken) Validate(tokenString string) (*JwtCsrfClaims, error) {
 		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 
-	if claims, ok := token.Claims.(*JwtCsrfClaims); ok && token.Valid {
-		return claims, nil
+	claims, ok := token.Claims.(*JwtCsrfClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid token")
 	}
 
-	return nil, fmt.Errorf("invalid token")
+	if claims.ExpiresAt < time.Now().Unix() {
+		return nil, fmt.Errorf("token has expired")
+	}
+
+	return claims, nil
 }
 
 func (tk *JwtToken) parseSecretGetter(token *jwt.Token) (interface{}, error) {

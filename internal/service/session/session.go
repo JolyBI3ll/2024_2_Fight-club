@@ -166,3 +166,18 @@ func GenerateSessionID(ctx context.Context) (string, error) {
 	logger.AccessLogger.Info("Successfully generated session ID", zap.String("request_id", requestID), zap.String("session_id", sessionID))
 	return sessionID, nil
 }
+
+func (s *ServiceSession) GetSession(ctx context.Context, r *http.Request) (*sessions.Session, error) {
+	requestID := middleware.GetRequestID(ctx)
+	logger.AccessLogger.Info("GetSession called", zap.String("request_id", requestID))
+	session, err := s.store.Get(r, "session_id")
+	if err != nil {
+		logger.AccessLogger.Error("Error retrieving session", zap.String("request_id", requestID), zap.Error(err))
+		return nil, err
+	}
+	if session.IsNew {
+		logger.AccessLogger.Warn("No active session found when getting session data", zap.String("request_id", requestID))
+		return nil, errors.New("no active session")
+	}
+	return session, nil
+}

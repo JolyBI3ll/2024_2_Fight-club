@@ -62,7 +62,7 @@ func main() {
 
 	adsRepository := adRepository.NewAdRepository(db)
 	adsUseCase := adUseCase.NewAdUseCase(adsRepository, minioService)
-	adsHandler := adHttpDelivery.NewAdHandler(adsUseCase, sessionService)
+	adsHandler := adHttpDelivery.NewAdHandler(adsUseCase, sessionService, jwtToken)
 
 	store.Options.HttpOnly = true
 	store.Options.Secure = false
