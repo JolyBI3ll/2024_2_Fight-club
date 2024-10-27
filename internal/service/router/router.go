@@ -26,5 +26,6 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler) *mux.
 	router.HandleFunc(api+"/deleteAd/{adId}", adsHandler.DeletePlace).Methods("DELETE")
 	router.HandleFunc(api+"/getPlacesPerCity/{city}", adsHandler.GetPlacesPerCity).Methods("GET")
 
+	router.HandleFunc(api+"/refreshCSRF", authHandler.RefreshCsrfToken).Methods("GET")
 	return router
 }

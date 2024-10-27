@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
+	"github.com/microcosm-cc/bluemonday"
 	"go.uber.org/zap"
 	"mime/multipart"
 	"net/http"
@@ -18,13 +19,15 @@ import (
 
 type AdHandler struct {
 	adUseCase      usecase.AdUseCase
-	sessionService session.InterfaceSession
+	sessionService *session.InterfaceSession
+	jwtToken       *middleware.JwtToken
 }
 
-func NewAdHandler(adUseCase usecase.AdUseCase, sessionService session.InterfaceSession) *AdHandler {
+func NewAdHandler(adUseCase usecase.AdUseCase, sessionService session.InterfaceSession, jwtToken *middleware.JwtToken) *AdHandler {
 	return &AdHandler{
 		adUseCase:      adUseCase,
 		sessionService: sessionService,
+		jwtToken:       jwtToken,
 	}
 }
 
@@ -127,6 +130,7 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 
 func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
 
 	ctx, cancel := withTimeout(r.Context())
@@ -135,6 +139,24 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	logger.AccessLogger.Info("Received CreatePlace request",
 		zap.String("request_id", requestID),
 	)
+
+	authHeader := r.Header.Get("X-CSRF-Token")
+	if authHeader == "" {
+		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
+			zap.String("request_id", requestID),
+			zap.Error(errors.New("Missing X-CSRF-Token header")),
+		)
+		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
+		return
+	}
+
+	tokenString := authHeader[len("Bearer "):]
+	_, err := h.jwtToken.Validate(tokenString)
+	if err != nil {
+		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	r.ParseMultipartForm(10 << 20) // 10 mb
@@ -151,7 +173,14 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		files = r.MultipartForm.File["images"]
 	}
 
+	place.AuthorUUID = sanitizer.Sanitize(place.AuthorUUID)
+	place.ID = sanitizer.Sanitize(place.ID)
+	place.LocationMain = sanitizer.Sanitize(place.ID)
+	place.LocationStreet = sanitizer.Sanitize(place.ID)
+	place.PublicationDate = sanitizer.Sanitize(place.ID)
+
 	userID, err := h.sessionService.GetUserID(ctx, r, w)
+
 	if err != nil {
 		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
 		h.handleError(w, errors.New("no active session"), requestID)
@@ -184,6 +213,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 
 func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
 	adId := mux.Vars(r)["adId"]
 
@@ -195,9 +225,27 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		zap.String("adId", adId),
 	)
 
+	authHeader := r.Header.Get("X-CSRF-Token")
+	if authHeader == "" {
+		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
+			zap.String("request_id", requestID),
+			zap.Error(errors.New("Missing X-CSRF-Token header")),
+		)
+		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
+		return
+	}
+
+	tokenString := authHeader[len("Bearer "):]
+	_, err := h.jwtToken.Validate(tokenString)
+	if err != nil {
+		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	err := r.ParseMultipartForm(10 << 20)
+	err = r.ParseMultipartForm(10 << 20)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to parse multipart form", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, "Invalid multipart form", http.StatusBadRequest)
@@ -211,6 +259,12 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid metadata JSON", http.StatusBadRequest)
 		return
 	}
+
+	place.AuthorUUID = sanitizer.Sanitize(place.AuthorUUID)
+	place.ID = sanitizer.Sanitize(place.ID)
+	place.LocationMain = sanitizer.Sanitize(place.ID)
+	place.LocationStreet = sanitizer.Sanitize(place.ID)
+	place.PublicationDate = sanitizer.Sanitize(place.ID)
 
 	var files []*multipart.FileHeader
 	if len(r.MultipartForm.File["images"]) > 0 {
@@ -259,6 +313,24 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 		zap.String("request_id", requestID),
 		zap.String("adId", adId),
 	)
+
+	authHeader := r.Header.Get("X-CSRF-Token")
+	if authHeader == "" {
+		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
+			zap.String("request_id", requestID),
+			zap.Error(errors.New("Missing X-CSRF-Token header")),
+		)
+		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
+		return
+	}
+
+	tokenString := authHeader[len("Bearer "):]
+	_, err := h.jwtToken.Validate(tokenString)
+	if err != nil {
+		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 

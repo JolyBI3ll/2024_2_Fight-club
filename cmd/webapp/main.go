@@ -44,6 +44,10 @@ func main() {
 	store := sessions.NewCookieStore([]byte("super-secret-key"))
 	db := DbConnect()
 	minioService := minioConnect()
+	jwtToken, err := middleware.NewJwtToken("secret-key")
+	if err != nil {
+		log.Fatalf("Failed to create JWT token: %v", err)
+	}
 
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
@@ -54,11 +58,11 @@ func main() {
 
 	auRepository := authRepository.NewAuthRepository(db)
 	auUseCase := authUseCase.NewAuthUseCase(auRepository, minioService)
-	authHandler := authHttpDelivery.NewAuthHandler(auUseCase, sessionService)
+	authHandler := authHttpDelivery.NewAuthHandler(auUseCase, sessionService, jwtToken)
 
 	adsRepository := adRepository.NewAdRepository(db)
 	adsUseCase := adUseCase.NewAdUseCase(adsRepository, minioService)
-	adsHandler := adHttpDelivery.NewAdHandler(adsUseCase, sessionService)
+	adsHandler := adHttpDelivery.NewAdHandler(adsUseCase, sessionService, jwtToken)
 
 	store.Options.HttpOnly = true
 	store.Options.Secure = false
