@@ -70,6 +70,7 @@ func main() {
 
 	mainRouter := router.SetUpRoutes(authHandler, adsHandler)
 	mainRouter.Use(middleware.RequestIDMiddleware)
+	mainRouter.Use(middleware.RateLimitMiddleware)
 	http.Handle("/", enableCORS(mainRouter))
 	fmt.Println("Starting server on port 8008")
 	if err := http.ListenAndServe(":8008", nil); err != nil {
@@ -77,15 +78,13 @@ func main() {
 	}
 }
 
-func minioConnect() *images.MinioService {
-	//берем из env
+func minioConnect() images.MinioServiceInterface {
 	endpoint := os.Getenv("MINIO_ENDPOINT")
 	accessKey := os.Getenv("MINIO_ACCESS_KEY")
 	secretKey := os.Getenv("MINIO_SECRET_KEY")
 	bucketName := os.Getenv("MINIO_BUCKET_NAME")
 	useSSL := os.Getenv("MINIO_USE_SSL") == "true"
 
-	// Подключаемся к minio
 	minioService, err := images.NewMinioService(endpoint, accessKey, secretKey, bucketName, useSSL)
 	if err != nil {
 		log.Fatalf("Failed to initialize MinIO: %v", err)

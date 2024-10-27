@@ -22,10 +22,10 @@ type AdUseCase interface {
 
 type adUseCase struct {
 	adRepository domain.AdRepository
-	minioService *images.MinioService
+	minioService images.MinioServiceInterface
 }
 
-func NewAdUseCase(adRepository domain.AdRepository, minioService *images.MinioService) AdUseCase {
+func NewAdUseCase(adRepository domain.AdRepository, minioService images.MinioServiceInterface) AdUseCase {
 	return &adUseCase{
 		adRepository: adRepository,
 		minioService: minioService,

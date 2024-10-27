@@ -6,6 +6,7 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	"context"
 	"encoding/json"
 	"errors"
 	"github.com/microcosm-cc/bluemonday"
@@ -17,11 +18,11 @@ import (
 
 type AuthHandler struct {
 	authUseCase    usecase.AuthUseCase
-	sessionService *session.ServiceSession
+	sessionService *session.InterfaceSession
 	jwtToken       *middleware.JwtToken
 }
 
-func NewAuthHandler(authUseCase usecase.AuthUseCase, sessionService *session.ServiceSession, jwtToken *middleware.JwtToken) *AuthHandler {
+func NewAuthHandler(authUseCase usecase.AuthUseCase, sessionService session.InterfaceSession, jwtToken *middleware.JwtToken) *AuthHandler {
 	return &AuthHandler{
 		authUseCase:    authUseCase,
 		sessionService: sessionService,
@@ -29,10 +30,19 @@ func NewAuthHandler(authUseCase usecase.AuthUseCase, sessionService *session.Ser
 	}
 }
 
+const requestTimeout = 5 * time.Second
+
+func withTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, requestTimeout)
+}
+
 func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
+
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
 
 	logger.AccessLogger.Info("Received RegisterUser request",
 		zap.String("request_id", requestID),
@@ -58,7 +68,8 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	creds.Address = sanitizer.Sanitize(creds.Address)
 	creds.Name = sanitizer.Sanitize(creds.Name)
 
-	err := h.authUseCase.RegisterUser(r.Context(), &creds)
+	err := h.authUseCase.RegisterUser(ctx, &creds, avatar)
+
 	if err != nil {
 		logger.AccessLogger.Error("Failed to register user",
 			zap.String("request_id", requestID),
@@ -68,7 +79,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userSession, err := h.sessionService.CreateSession(r.Context(), r, w, &creds)
+	userSession, err := h.sessionService.CreateSession(ctx, r, w, &creds)
 	if err != nil {
 		logger.AccessLogger.Error("Failed create session",
 			zap.String("request_id", requestID),
@@ -129,6 +140,9 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
 
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
+
 	logger.AccessLogger.Info("Received LoginUser request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
@@ -145,6 +159,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+
 	creds.Avatar = sanitizer.Sanitize(creds.Avatar)
 	creds.Username = sanitizer.Sanitize(creds.Username)
 	creds.Email = sanitizer.Sanitize(creds.Email)
@@ -153,7 +168,8 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	creds.Address = sanitizer.Sanitize(creds.Address)
 	creds.Name = sanitizer.Sanitize(creds.Name)
 
-	requestedUser, err := h.authUseCase.LoginUser(r.Context(), &creds)
+	requestedUser, err := h.authUseCase.LoginUser(ctx, &creds)
+
 	if err != nil {
 		logger.AccessLogger.Error("Failed to login user",
 			zap.String("request_id", requestID),
@@ -163,7 +179,8 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userSession, err := h.sessionService.CreateSession(r.Context(), r, w, requestedUser)
+	userSession, err := h.sessionService.CreateSession(ctx, r, w, requestedUser)
+
 	if err != nil {
 		logger.AccessLogger.Error("Failed create session",
 			zap.String("request_id", requestID),
@@ -224,6 +241,9 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
+
 	logger.AccessLogger.Info("Received LogoutUser request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
@@ -244,7 +264,8 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.sessionService.LogoutSession(r.Context(), r, w); err != nil {
+	if err := h.sessionService.LogoutSession(ctx, r, w); err != nil {
+
 		logger.AccessLogger.Error("Failed to logout user",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -277,6 +298,9 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
+
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
 
 	logger.AccessLogger.Info("Received PutUser request",
 		zap.String("request_id", requestID),
@@ -330,7 +354,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		avatar = r.MultipartForm.File["avatar"][0]
 	}
 
-	userID, err := h.sessionService.GetUserID(r.Context(), r, w)
+	userID, err := h.sessionService.GetUserID(ctx, r, w)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to get user ID from session",
 			zap.String("request_id", requestID),
@@ -339,7 +363,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err, requestID)
 		return
 	}
-	if err := h.authUseCase.PutUser(r.Context(), &creds, userID, avatar); err != nil {
+	if err := h.authUseCase.PutUser(ctx, &creds, userID, avatar); err != nil {
 		logger.AccessLogger.Error("Failed to update user data",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -371,6 +395,9 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
+
 	logger.AccessLogger.Info("Received GetUserById request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
@@ -396,7 +423,7 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	userID, err := h.sessionService.GetUserID(r.Context(), r, w)
+	userID, err := h.sessionService.GetUserID(ctx, r, w)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get user ID from session",
 			zap.String("request_id", requestID),
@@ -406,7 +433,7 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.authUseCase.GetUserById(r.Context(), userID)
+	user, err := h.authUseCase.GetUserById(ctx, userID)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get user by id",
 			zap.String("request_id", requestID),
@@ -438,6 +465,9 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
+
 	logger.AccessLogger.Info("Received GetAllUsers request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
@@ -463,7 +493,7 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	users, err := h.authUseCase.GetAllUser(r.Context())
+	users, err := h.authUseCase.GetAllUser(ctx)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get all users data",
 			zap.String("request_id", requestID),
@@ -499,6 +529,9 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
+
 	logger.AccessLogger.Info("Received GetSessionData request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
@@ -523,7 +556,8 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionData, err := h.sessionService.GetSessionData(r.Context(), r)
+	sessionData, err := h.sessionService.GetSessionData(ctx, r)
+
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get session data",
 			zap.String("request_id", requestID),

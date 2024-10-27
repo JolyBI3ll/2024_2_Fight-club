@@ -21,10 +21,10 @@ type AuthUseCase interface {
 
 type authUseCase struct {
 	authRepository domain.AuthRepository
-	minioService   *images.MinioService
+	minioService   images.MinioServiceInterface
 }
 
-func NewAuthUseCase(authRepository domain.AuthRepository, minioService *images.MinioService) AuthUseCase {
+func NewAuthUseCase(authRepository domain.AuthRepository, minioService images.MinioServiceInterface) AuthUseCase {
 	return &authUseCase{
 		authRepository: authRepository,
 		minioService:   minioService,

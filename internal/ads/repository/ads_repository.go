@@ -8,6 +8,7 @@ import (
 	"errors"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"strconv"
 	"time"
 )
 
@@ -40,7 +41,12 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 	}
 
 	if filter.Rating != "" {
-		query = query.Where("users.score >= ?", filter.Rating)
+		rating, err := strconv.ParseInt(filter.Rating, 10, 64)
+		if err != nil {
+			logger.DBLogger.Error("Invalid rating value", zap.String("request_id", requestID))
+			return nil, err
+		}
+		query = query.Where("users.score >= ?", rating)
 	}
 
 	if filter.NewThisWeek == "true" {
