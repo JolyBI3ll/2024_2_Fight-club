@@ -13,12 +13,21 @@ import (
 	"net/http"
 )
 
+type InterfaceSession interface {
+	GetUserID(ctx context.Context, r *http.Request, w http.ResponseWriter) (string, error)
+	LogoutSession(ctx context.Context, r *http.Request, w http.ResponseWriter) error
+	CreateSession(ctx context.Context, r *http.Request, w http.ResponseWriter, user *domain.User) (string, error)
+	GetSessionData(ctx context.Context, r *http.Request) (*map[string]interface{}, error)
+}
+
 type ServiceSession struct {
 	store *sessions.CookieStore
 }
 
-func NewSessionService(store *sessions.CookieStore) *ServiceSession {
-	return &ServiceSession{store: store}
+func NewSessionService(store *sessions.CookieStore) InterfaceSession {
+	return &ServiceSession{
+		store: store,
+	}
 }
 
 func (s *ServiceSession) LogoutSession(ctx context.Context, r *http.Request, w http.ResponseWriter) error {
@@ -151,7 +160,6 @@ func (s *ServiceSession) CreateSession(ctx context.Context, r *http.Request, w h
 }
 
 func GenerateSessionID(ctx context.Context) (string, error) {
-	// Включаем логирование при генерации session ID
 	requestID := middleware.GetRequestID(ctx)
 	logger.AccessLogger.Info("GenerateSessionID called", zap.String("request_id", requestID))
 

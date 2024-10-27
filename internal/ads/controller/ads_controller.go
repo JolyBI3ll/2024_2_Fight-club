@@ -17,10 +17,10 @@ import (
 
 type AdHandler struct {
 	adUseCase      usecase.AdUseCase
-	sessionService *session.ServiceSession
+	sessionService session.InterfaceSession
 }
 
-func NewAdHandler(adUseCase usecase.AdUseCase, sessionService *session.ServiceSession) *AdHandler {
+func NewAdHandler(adUseCase usecase.AdUseCase, sessionService session.InterfaceSession) *AdHandler {
 	return &AdHandler{
 		adUseCase:      adUseCase,
 		sessionService: sessionService,

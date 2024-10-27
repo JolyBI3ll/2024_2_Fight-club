@@ -11,7 +11,6 @@ var (
 )
 
 func InitLoggers() error {
-	// Конфигурация для Access логов
 	accessConfig := zap.NewProductionConfig()
 	accessConfig.OutputPaths = []string{
 		"access.log",
@@ -25,7 +24,6 @@ func InitLoggers() error {
 		return err
 	}
 
-	// Конфигурация для DB логов
 	dbConfig := zap.NewProductionConfig()
 	dbConfig.OutputPaths = []string{
 		"db.log",
