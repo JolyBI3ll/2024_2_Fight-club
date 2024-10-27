@@ -3,7 +3,9 @@ package middleware
 import (
 	"context"
 	"github.com/google/uuid"
+	"golang.org/x/time/rate"
 	"net/http"
+	"sync"
 )
 
 type key int
@@ -24,4 +26,35 @@ func GetRequestID(ctx context.Context) string {
 		return reqID
 	}
 	return ""
+}
+
+const (
+	requestsPerSecond = 5  // Лимит запросов в секунду для каждого IP
+	burstLimit        = 10 // Максимальный «всплеск» запросов
+)
+
+var clientLimiters = sync.Map{}
+
+func getLimiter(ip string) *rate.Limiter {
+	limiter, exists := clientLimiters.Load(ip)
+	if !exists {
+		limiter = rate.NewLimiter(rate.Limit(requestsPerSecond), burstLimit)
+		clientLimiters.Store(ip, limiter)
+	}
+	return limiter.(*rate.Limiter)
+}
+
+func RateLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip := r.RemoteAddr
+
+		limiter := getLimiter(ip)
+
+		if !limiter.Allow() {
+			http.Error(w, "Too many requests", http.StatusTooManyRequests)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }

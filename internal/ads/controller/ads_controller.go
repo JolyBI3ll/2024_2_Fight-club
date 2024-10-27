@@ -6,6 +6,7 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	"context"
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
@@ -27,9 +28,18 @@ func NewAdHandler(adUseCase usecase.AdUseCase, sessionService session.InterfaceS
 	}
 }
 
+const requestTimeout = 5 * time.Second
+
+func withTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, requestTimeout)
+}
+
 func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
+
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
 
 	logger.AccessLogger.Info("Received GetAllPlaces request",
 		zap.String("request_id", requestID),
@@ -56,7 +66,7 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 		GuestCount:  guestCounter,
 	}
 
-	places, err := h.adUseCase.GetAllPlaces(r.Context(), filter)
+	places, err := h.adUseCase.GetAllPlaces(ctx, filter)
 	if err != nil {
 		h.handleError(w, err, requestID)
 		return
@@ -84,13 +94,16 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	adId := mux.Vars(r)["adId"]
 
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
+
 	logger.AccessLogger.Info("Received GetOnePlace request",
 		zap.String("request_id", requestID),
 		zap.String("adId", adId),
 	)
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	place, err := h.adUseCase.GetOnePlace(r.Context(), adId)
+	place, err := h.adUseCase.GetOnePlace(ctx, adId)
 	if err != nil {
 		h.handleError(w, err, requestID)
 		return
@@ -116,6 +129,9 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
+
 	logger.AccessLogger.Info("Received CreatePlace request",
 		zap.String("request_id", requestID),
 	)
@@ -135,7 +151,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		files = r.MultipartForm.File["images"]
 	}
 
-	userID, err := h.sessionService.GetUserID(r.Context(), r, w)
+	userID, err := h.sessionService.GetUserID(ctx, r, w)
 	if err != nil {
 		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
 		h.handleError(w, errors.New("no active session"), requestID)
@@ -143,7 +159,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	}
 	place.AuthorUUID = userID
 
-	err = h.adUseCase.CreatePlace(r.Context(), &place, files)
+	err = h.adUseCase.CreatePlace(ctx, &place, files)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to create place", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
@@ -170,6 +186,9 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	adId := mux.Vars(r)["adId"]
+
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
 
 	logger.AccessLogger.Info("Received UpdatePlace request",
 		zap.String("request_id", requestID),
@@ -198,14 +217,14 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		files = r.MultipartForm.File["images"]
 	}
 
-	userID, err := h.sessionService.GetUserID(r.Context(), r, w)
+	userID, err := h.sessionService.GetUserID(ctx, r, w)
 	if err != nil {
 		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
 		h.handleError(w, errors.New("no active session"), requestID)
 		return
 	}
 
-	err = h.adUseCase.UpdatePlace(r.Context(), &place, adId, userID, files)
+	err = h.adUseCase.UpdatePlace(ctx, &place, adId, userID, files)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to update place", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
@@ -233,6 +252,9 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	adId := mux.Vars(r)["adId"]
 
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
+
 	logger.AccessLogger.Info("Received DeletePlace request",
 		zap.String("request_id", requestID),
 		zap.String("adId", adId),
@@ -240,14 +262,14 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	userID, err := h.sessionService.GetUserID(r.Context(), r, w)
+	userID, err := h.sessionService.GetUserID(ctx, r, w)
 	if err != nil {
 		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
 		h.handleError(w, errors.New("no active session"), requestID)
 		return
 	}
 
-	err = h.adUseCase.DeletePlace(r.Context(), adId, userID)
+	err = h.adUseCase.DeletePlace(ctx, adId, userID)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to delete place", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
@@ -268,14 +290,16 @@ func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	city := mux.Vars(r)["city"]
 
-	// Логирование начала обработки запроса
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
+
 	logger.AccessLogger.Info("Received GetPlacesPerCity request",
 		zap.String("request_id", requestID),
 		zap.String("city", city),
 	)
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	ads, err := h.adUseCase.GetPlacesPerCity(r.Context(), city)
+	ads, err := h.adUseCase.GetPlacesPerCity(ctx, city)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get places per city", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
