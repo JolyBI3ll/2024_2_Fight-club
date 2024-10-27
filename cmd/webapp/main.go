@@ -66,6 +66,7 @@ func main() {
 
 	mainRouter := router.SetUpRoutes(authHandler, adsHandler)
 	mainRouter.Use(middleware.RequestIDMiddleware)
+	mainRouter.Use(middleware.RateLimitMiddleware)
 	http.Handle("/", enableCORS(mainRouter))
 	fmt.Println("Starting server on port 8008")
 	if err := http.ListenAndServe(":8008", nil); err != nil {
