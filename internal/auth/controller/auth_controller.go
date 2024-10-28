@@ -18,7 +18,7 @@ import (
 
 type AuthHandler struct {
 	authUseCase    usecase.AuthUseCase
-	sessionService *session.InterfaceSession
+	sessionService session.InterfaceSession
 	jwtToken       *middleware.JwtToken
 }
 
@@ -68,7 +68,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	creds.Address = sanitizer.Sanitize(creds.Address)
 	creds.Name = sanitizer.Sanitize(creds.Name)
 
-	err := h.authUseCase.RegisterUser(ctx, &creds, avatar)
+	err := h.authUseCase.RegisterUser(ctx, &creds)
 
 	if err != nil {
 		logger.AccessLogger.Error("Failed to register user",
@@ -158,7 +158,6 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
 
 	creds.Avatar = sanitizer.Sanitize(creds.Avatar)
 	creds.Username = sanitizer.Sanitize(creds.Username)
@@ -354,7 +353,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		avatar = r.MultipartForm.File["avatar"][0]
 	}
 
-	userID, err := h.sessionService.GetUserID(ctx, r, w)
+	userID, err := h.sessionService.GetUserID(ctx, r)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to get user ID from session",
 			zap.String("request_id", requestID),
@@ -423,7 +422,7 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	userID, err := h.sessionService.GetUserID(ctx, r, w)
+	userID, err := h.sessionService.GetUserID(ctx, r)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get user ID from session",
 			zap.String("request_id", requestID),

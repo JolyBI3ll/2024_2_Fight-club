@@ -14,10 +14,11 @@ import (
 )
 
 type InterfaceSession interface {
-	GetUserID(ctx context.Context, r *http.Request, w http.ResponseWriter) (string, error)
+	GetUserID(ctx context.Context, r *http.Request) (string, error)
 	LogoutSession(ctx context.Context, r *http.Request, w http.ResponseWriter) error
-	CreateSession(ctx context.Context, r *http.Request, w http.ResponseWriter, user *domain.User) (string, error)
+	CreateSession(ctx context.Context, r *http.Request, w http.ResponseWriter, user *domain.User) (*sessions.Session, error)
 	GetSessionData(ctx context.Context, r *http.Request) (*map[string]interface{}, error)
+	GetSession(ctx context.Context, r *http.Request) (*sessions.Session, error)
 }
 
 type ServiceSession struct {
@@ -55,7 +56,7 @@ func (s *ServiceSession) LogoutSession(ctx context.Context, r *http.Request, w h
 	return nil
 }
 
-func (s *ServiceSession) GetUserID(ctx context.Context, r *http.Request, w http.ResponseWriter) (string, error) {
+func (s *ServiceSession) GetUserID(ctx context.Context, r *http.Request) (string, error) {
 	requestID := middleware.GetRequestID(ctx)
 	logger.AccessLogger.Info("GetUserID called", zap.String("request_id", requestID))
 

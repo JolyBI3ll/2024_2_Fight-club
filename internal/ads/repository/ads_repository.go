@@ -41,7 +41,7 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 	}
 
 	if filter.Rating != "" {
-		rating, err := strconv.ParseInt(filter.Rating, 10, 64)
+		rating, err := strconv.ParseFloat(filter.Rating, 1)
 		if err != nil {
 			logger.DBLogger.Error("Invalid rating value", zap.String("request_id", requestID))
 			return nil, err

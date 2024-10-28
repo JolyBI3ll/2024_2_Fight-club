@@ -19,7 +19,7 @@ import (
 
 type AdHandler struct {
 	adUseCase      usecase.AdUseCase
-	sessionService *session.InterfaceSession
+	sessionService session.InterfaceSession
 	jwtToken       *middleware.JwtToken
 }
 
@@ -179,7 +179,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	place.LocationStreet = sanitizer.Sanitize(place.ID)
 	place.PublicationDate = sanitizer.Sanitize(place.ID)
 
-	userID, err := h.sessionService.GetUserID(ctx, r, w)
+	userID, err := h.sessionService.GetUserID(ctx, r)
 
 	if err != nil {
 		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
@@ -271,7 +271,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		files = r.MultipartForm.File["images"]
 	}
 
-	userID, err := h.sessionService.GetUserID(ctx, r, w)
+	userID, err := h.sessionService.GetUserID(ctx, r)
 	if err != nil {
 		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
 		h.handleError(w, errors.New("no active session"), requestID)
@@ -334,7 +334,7 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	userID, err := h.sessionService.GetUserID(ctx, r, w)
+	userID, err := h.sessionService.GetUserID(ctx, r)
 	if err != nil {
 		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
 		h.handleError(w, errors.New("no active session"), requestID)
