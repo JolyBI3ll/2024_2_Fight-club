@@ -362,6 +362,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err, requestID)
 		return
 	}
+
 	if err := h.authUseCase.PutUser(ctx, &creds, userID, avatar); err != nil {
 		logger.AccessLogger.Error("Failed to update user data",
 			zap.String("request_id", requestID),

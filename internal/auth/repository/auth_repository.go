@@ -53,6 +53,11 @@ func (r *authRepository) PutUser(ctx context.Context, creds *domain.User, userID
 		logger.DBLogger.Error("Error updating user", zap.String("request_id", requestID), zap.String("userID", userID), zap.Error(err))
 		return err
 	}
+	//для булевых false
+	if err := r.db.Model(&domain.User{}).Where("UUID = ?", userID).Update("is_host", creds.IsHost).Error; err != nil {
+		logger.DBLogger.Error("Error updating user", zap.String("request_id", requestID), zap.String("userID", userID), zap.Error(err))
+		return err
+	}
 
 	logger.DBLogger.Info("Successfully updated user", zap.String("request_id", requestID), zap.String("userID", userID))
 	return nil
