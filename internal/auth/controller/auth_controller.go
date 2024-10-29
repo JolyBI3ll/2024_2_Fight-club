@@ -190,6 +190,15 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err, requestID)
 		return
 	}
+	authHeader := r.Header.Get("X-CSRF-Token")
+	if authHeader != "" {
+		logger.AccessLogger.Error("Already logged in",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
+		return
+	}
 
 	tokenExpTime := time.Now().Add(24 * time.Hour).Unix()
 	jwtToken, err := h.jwtToken.Create(userSession, tokenExpTime)
@@ -407,24 +416,6 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
-	authHeader := r.Header.Get("X-CSRF-Token")
-	if authHeader == "" {
-		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
-			zap.String("request_id", requestID),
-			zap.Error(errors.New("Missing X-CSRF-Token header")),
-		)
-		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
-		return
-	}
-
-	tokenString := authHeader[len("Bearer "):]
-	_, err := h.jwtToken.Validate(tokenString)
-	if err != nil {
-		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	userID, err := h.sessionService.GetUserID(ctx, r)
 	if err != nil {
@@ -477,24 +468,6 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
-	authHeader := r.Header.Get("X-CSRF-Token")
-	if authHeader == "" {
-		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
-			zap.String("request_id", requestID),
-			zap.Error(errors.New("Missing X-CSRF-Token header")),
-		)
-		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
-		return
-	}
-
-	tokenString := authHeader[len("Bearer "):]
-	_, err := h.jwtToken.Validate(tokenString)
-	if err != nil {
-		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	users, err := h.authUseCase.GetAllUser(ctx)
 	if err != nil {
@@ -540,24 +513,6 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 		zap.String("method", r.Method),
 		zap.String("url", r.URL.String()),
 	)
-
-	authHeader := r.Header.Get("X-CSRF-Token")
-	if authHeader == "" {
-		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
-			zap.String("request_id", requestID),
-			zap.Error(errors.New("missing X-CSRF-Token header")),
-		)
-		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
-		return
-	}
-
-	tokenString := authHeader[len("Bearer "):]
-	_, err := h.jwtToken.Validate(tokenString)
-	if err != nil {
-		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
-		return
-	}
 
 	sessionData, err := h.sessionService.GetSessionData(ctx, r)
 
