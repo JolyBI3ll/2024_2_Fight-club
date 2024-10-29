@@ -1,21 +1,19 @@
 package domain
 
 import (
-	"2024_2_FIGHT-CLUB/internal/service/type"
 	"context"
+	"time"
 )
 
 type Ad struct {
-	ID              string             `gorm:"primaryKey" json:"id"`
-	LocationMain    string             `json:"location_main"`
-	LocationStreet  string             `json:"location_street"`
-	Position        ntype.Float64Array `gorm:"type:float[]" json:"position"`
-	Images          ntype.StringArray  `gorm:"type:text[]"`
-	AuthorUUID      string             `json:"author_uuid"`
-	PublicationDate string             `json:"publication_date"`
-	AvailableDates  ntype.StringArray  `gorm:"type:text[]" json:"available_dates"`
-	Distance        float64            `json:"distance"`
-	Requests        []Request          `gorm:"foreignKey:AdID" json:"requests"`
+	UUID            string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid();column:uuid" json:"id"`
+	CityID          int       `gorm:"column:cityId;not null" json:"cityId"`
+	AuthorUUID      string    `gorm:"column:authorUUID;not null" json:"authorUUID"`
+	Address         string    `gorm:"type:varchar(255);column:address" json:"address"`
+	PublicationDate time.Time `gorm:"type:date;column:publicationDate" json:"publicationDate"`
+	Distance        float64   `gorm:"type:numeric;column:distance" json:"distance"`
+	City            City      `gorm:"foreignKey:CityID;references:ID"`
+	Author          User      `gorm:"foreignKey:AuthorUUID;references:UUID"`
 }
 
 type AdFilter struct {
