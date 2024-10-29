@@ -542,7 +542,7 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 	if authHeader == "" {
 		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
 			zap.String("request_id", requestID),
-			zap.Error(errors.New("Missing X-CSRF-Token header")),
+			zap.Error(errors.New("missing X-CSRF-Token header")),
 		)
 		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
 		return
@@ -590,7 +590,7 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 
-	logger.AccessLogger.Info("Received GetSessionData request",
+	logger.AccessLogger.Info("Received RefreshCsrfToken request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
 		zap.String("url", r.URL.String()),

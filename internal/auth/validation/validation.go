@@ -10,7 +10,7 @@ func ValidateEmail(email string) bool {
 }
 
 func ValidateLogin(login string) bool {
-	re := regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-_.]{3,16}[A-Za-z0-9]$`)
+	re := regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-_.]{3,20}[A-Za-z0-9]$`)
 	return re.MatchString(login)
 }
 
