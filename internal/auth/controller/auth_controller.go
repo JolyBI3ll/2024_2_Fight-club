@@ -188,13 +188,10 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err, requestID)
 		return
 	}
-	authHeader := r.Header.Get("X-CSRF-Token")
-	if authHeader != "" {
-		logger.AccessLogger.Error("Already logged in",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		h.handleError(w, err, requestID)
+
+	csrf_token, _ := r.Cookie("csrf_token")
+	if csrf_token != nil {
+		http.Error(w, "Invalid CSRF token", http.StatusBadRequest)
 		return
 	}
 
@@ -603,7 +600,7 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 	case "user already exists",
 		"session already exists":
 		w.WriteHeader(http.StatusConflict)
-	case "no active session":
+	case "no active session", "already logged in":
 		w.WriteHeader(http.StatusUnauthorized)
 	case "user not found":
 		w.WriteHeader(http.StatusNotFound)
