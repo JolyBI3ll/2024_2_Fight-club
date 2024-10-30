@@ -28,6 +28,7 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler) *mux.
 	router.HandleFunc(api+"/ads/{adId}", adsHandler.UpdatePlace).Methods("PUT")             // Update ad by ID
 	router.HandleFunc(api+"/ads/{adId}", adsHandler.DeletePlace).Methods("DELETE")          // Delete ad by ID
 	router.HandleFunc(api+"/ads/cities/{city}", adsHandler.GetPlacesPerCity).Methods("GET") // Get ads by city
+	router.HandleFunc(api+"/ads/user/{userId}", adsHandler.GetUserPlaces).Methods("GET")    // Get User Ads
 
 	// CSRF Token Route
 	router.HandleFunc(api+"/csrf/refresh", authHandler.RefreshCsrfToken).Methods("GET") // Refresh CSRF token

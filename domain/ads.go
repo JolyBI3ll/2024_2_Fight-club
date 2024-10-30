@@ -58,11 +58,13 @@ type AdFilter struct {
 
 type AdRepository interface {
 	GetAllPlaces(ctx context.Context, filter AdFilter) ([]GetAllAdsResponse, error)
-	GetPlaceById(ctx context.Context, adId string) (Ad, error)
+	GetPlaceById(ctx context.Context, adId string) (GetAllAdsResponse, error)
 	CreatePlace(ctx context.Context, ad *Ad, newAd CreateAdRequest) error
 	SavePlace(ctx context.Context, ad *Ad) error
 	UpdatePlace(ctx context.Context, ad *Ad, adId string, userId string, updatedAd UpdateAdRequest) error
 	DeletePlace(ctx context.Context, adId string, userId string) error
-	GetPlacesPerCity(ctx context.Context, city string) ([]Ad, error)
+	GetPlacesPerCity(ctx context.Context, city string) ([]GetAllAdsResponse, error)
 	SaveImages(ctx context.Context, adUUID string, imagePaths []string) error
+	GetAdImages(ctx context.Context, adId string) ([]string, error)
+	GetUserPlaces(ctx context.Context, userId string) ([]GetAllAdsResponse, error)
 }

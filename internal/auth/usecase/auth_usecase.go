@@ -65,7 +65,7 @@ func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User) err
 	}
 	err := uc.authRepository.CreateUser(ctx, creds)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	return uc.authRepository.SaveUser(ctx, creds)

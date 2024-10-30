@@ -345,6 +345,12 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+	updateResponse := map[string]string{"response": "Delete successfully"}
+	if err := json.NewEncoder(w).Encode(updateResponse); err != nil {
+		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	duration := time.Since(start)
 	logger.AccessLogger.Info("Completed DeletePlace request",
 		zap.String("request_id", requestID),
@@ -385,6 +391,42 @@ func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 
 	duration := time.Since(start)
 	logger.AccessLogger.Info("Completed GetPlacesPerCity request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
+}
+
+func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	userId := mux.Vars(r)["userId"]
+
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
+
+	logger.AccessLogger.Info("Received GetUserPlaces request",
+		zap.String("request_id", requestID),
+		zap.String("userId", userId),
+	)
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	places, err := h.adUseCase.GetUserPlaces(ctx, userId)
+	if err != nil {
+		h.handleError(w, err, requestID)
+		return
+	}
+	body := map[string]interface{}{
+		"places": places,
+	}
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed GetUserPlaces request",
 		zap.String("request_id", requestID),
 		zap.Duration("duration", duration),
 		zap.Int("status", http.StatusOK),
