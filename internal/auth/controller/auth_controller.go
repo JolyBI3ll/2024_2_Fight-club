@@ -189,9 +189,13 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	csrf_token, _ := r.Cookie("csrf_token")
-	if csrf_token != nil {
-		http.Error(w, "Invalid CSRF token", http.StatusBadRequest)
+	csrfToken, _ := r.Cookie("csrf_token")
+	if csrfToken != nil {
+		logger.AccessLogger.Error("csrf_token already exists",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, errors.New("csrf_token already exists"), requestID)
 		return
 	}
 
@@ -605,7 +609,7 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 	switch err.Error() {
 	case "username, password, and email are required",
 		"username and password are required",
-		"invalid credentials":
+		"invalid credentials", "csrf_token already exists":
 		w.WriteHeader(http.StatusBadRequest)
 	case "user already exists",
 		"session already exists":
