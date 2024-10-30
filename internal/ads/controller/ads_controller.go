@@ -80,7 +80,7 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -116,7 +116,7 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -146,7 +146,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("Missing X-CSRF-Token header")),
 		)
-		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
+		h.handleError(w, errors.New("Missing X-CSRF-Token header"), requestID)
 		return
 	}
 
@@ -154,7 +154,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	_, err := h.jwtToken.Validate(tokenString)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		h.handleError(w, errors.New("Invalid JWT token"), requestID)
 		return
 	}
 
@@ -162,10 +162,11 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(10 << 20) // 10 mb
 
 	metadata := r.FormValue("metadata")
+	var newPlace domain.CreateAdRequest
 	var place domain.Ad
-	if err := json.Unmarshal([]byte(metadata), &place); err != nil {
+	if err := json.Unmarshal([]byte(metadata), &newPlace); err != nil {
 		logger.AccessLogger.Error("Failed to decode metadata", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid metadata JSON", http.StatusBadRequest)
+		h.handleError(w, errors.New("Failed to decode metadata"), requestID)
 		return
 	}
 	var files []*multipart.FileHeader
@@ -173,14 +174,11 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		files = r.MultipartForm.File["images"]
 	}
 
-	place.AuthorUUID = sanitizer.Sanitize(place.AuthorUUID)
-	place.ID = sanitizer.Sanitize(place.ID)
-	place.LocationMain = sanitizer.Sanitize(place.LocationMain)
-	place.LocationStreet = sanitizer.Sanitize(place.LocationStreet)
-	place.PublicationDate = sanitizer.Sanitize(place.PublicationDate)
+	newPlace.CityName = sanitizer.Sanitize(newPlace.CityName)
+	newPlace.Description = sanitizer.Sanitize(newPlace.Description)
+	newPlace.Address = sanitizer.Sanitize(newPlace.Address)
 
 	userID, err := h.sessionService.GetUserID(ctx, r)
-
 	if err != nil {
 		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
 		h.handleError(w, errors.New("no active session"), requestID)
@@ -188,7 +186,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	}
 	place.AuthorUUID = userID
 
-	err = h.adUseCase.CreatePlace(ctx, &place, files)
+	err = h.adUseCase.CreatePlace(ctx, &place, files, newPlace)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to create place", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
@@ -199,7 +197,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, errors.New("Failed to decode response"), requestID)
 		return
 	}
 
@@ -239,7 +237,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	_, err := h.jwtToken.Validate(tokenString)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		h.handleError(w, errors.New("Invalid JWT token"), requestID)
 		return
 	}
 
@@ -248,23 +246,21 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	err = r.ParseMultipartForm(10 << 20)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to parse multipart form", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid multipart form", http.StatusBadRequest)
+		h.handleError(w, errors.New("Invalid multipart form"), requestID)
 		return
 	}
 
 	metadata := r.FormValue("metadata")
-	var place domain.Ad
-	if err := json.Unmarshal([]byte(metadata), &place); err != nil {
+	var updatedPlace domain.UpdateAdRequest
+	if err := json.Unmarshal([]byte(metadata), &updatedPlace); err != nil {
 		logger.AccessLogger.Error("Failed to decode metadata", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid metadata JSON", http.StatusBadRequest)
+		h.handleError(w, errors.New("Invalid metadata JSON"), requestID)
 		return
 	}
 
-	place.AuthorUUID = sanitizer.Sanitize(place.AuthorUUID)
-	place.ID = sanitizer.Sanitize(place.ID)
-	place.LocationMain = sanitizer.Sanitize(place.LocationMain)
-	place.LocationStreet = sanitizer.Sanitize(place.LocationStreet)
-	place.PublicationDate = sanitizer.Sanitize(place.PublicationDate)
+	updatedPlace.CityName = sanitizer.Sanitize(updatedPlace.CityName)
+	updatedPlace.Description = sanitizer.Sanitize(updatedPlace.Description)
+	updatedPlace.Address = sanitizer.Sanitize(updatedPlace.Address)
 
 	var files []*multipart.FileHeader
 	if len(r.MultipartForm.File["images"]) > 0 {
@@ -277,8 +273,8 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, errors.New("no active session"), requestID)
 		return
 	}
-
-	err = h.adUseCase.UpdatePlace(ctx, &place, adId, userID, files)
+	var place domain.Ad
+	err = h.adUseCase.UpdatePlace(ctx, &place, adId, userID, files, updatedPlace)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to update place", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
@@ -409,8 +405,10 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 		w.WriteHeader(http.StatusNotFound)
 	case "ad already exists":
 		w.WriteHeader(http.StatusConflict)
-	case "not owner of ad", "no active session":
+	case "not owner of ad", "no active session", "Missing X-CSRF-Token header", "Invalid JWT token":
 		w.WriteHeader(http.StatusUnauthorized)
+	case "Invalid metadata JSON", "Invalid multipart form":
+		w.WriteHeader(http.StatusBadRequest)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}

@@ -16,7 +16,7 @@ func migrate() (err error) {
 	if err != nil {
 		return err
 	}
-	err = db.AutoMigrate(&domain.User{}, &domain.Ad{}, &domain.Request{}, &domain.Review{})
+	err = db.AutoMigrate(&domain.User{}, &domain.City{}, &domain.Ad{}, &domain.AdPosition{}, &domain.AdAvailableDate{}, &domain.Image{}, &domain.Request{}, &domain.Review{})
 	if err != nil {
 		return err
 	}

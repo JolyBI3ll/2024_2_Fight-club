@@ -15,8 +15,8 @@ type User struct {
 	Avatar     string    `gorm:"type:text;column:avatar;size:1000" json:"avatar"`
 	Sex        string    `gorm:"type:varchar(1);column:sex" json:"sex"`
 	GuestCount int       `gorm:"column:guestCount" json:"guestCount"`
-	Birthdate  time.Time `gorm:"type:date;column:birthdate" json:"birthdate"`
-	IsHost     bool      `gorm:"type:boolean;default:false;column:isHost" json:"isHost"`
+	Birthdate  time.Time `gorm:"type:date;column:birthDate" json:"birthDate"`
+	IsHost     bool      `gorm:"type:boolean;default:false;column:isHost" form:"isHost" json:"isHost"`
 }
 
 type AuthRepository interface {

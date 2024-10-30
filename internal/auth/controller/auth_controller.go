@@ -65,7 +65,6 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	creds.Email = sanitizer.Sanitize(creds.Email)
 	creds.Password = sanitizer.Sanitize(creds.Password)
 	creds.UUID = sanitizer.Sanitize(creds.UUID)
-	creds.Address = sanitizer.Sanitize(creds.Address)
 	creds.Name = sanitizer.Sanitize(creds.Name)
 
 	err := h.authUseCase.RegisterUser(ctx, &creds)
@@ -164,7 +163,6 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	creds.Email = sanitizer.Sanitize(creds.Email)
 	creds.Password = sanitizer.Sanitize(creds.Password)
 	creds.UUID = sanitizer.Sanitize(creds.UUID)
-	creds.Address = sanitizer.Sanitize(creds.Address)
 	creds.Name = sanitizer.Sanitize(creds.Name)
 
 	requestedUser, err := h.authUseCase.LoginUser(ctx, &creds)
@@ -364,7 +362,6 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	creds.Email = sanitizer.Sanitize(creds.Email)
 	creds.Password = sanitizer.Sanitize(creds.Password)
 	creds.UUID = sanitizer.Sanitize(creds.UUID)
-	creds.Address = sanitizer.Sanitize(creds.Address)
 	creds.Name = sanitizer.Sanitize(creds.Name)
 
 	var avatar *multipart.FileHeader
