@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"mime/multipart"
 )
 
@@ -107,9 +106,7 @@ func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*doma
 
 func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID string, avatar *multipart.FileHeader) error {
 	if avatar != nil {
-		filePath := fmt.Sprintf("user/%s/%s", userID, avatar.Filename)
-
-		uploadedPath, err := uc.minioService.UploadFile(avatar, filePath)
+		uploadedPath, err := uc.minioService.UploadFile(avatar, "user/"+userID)
 		if err != nil {
 			return err
 		}

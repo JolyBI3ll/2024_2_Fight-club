@@ -11,7 +11,6 @@ type Ad struct {
 	AuthorUUID      string    `gorm:"column:authorUUID;not null" json:"authorUUID"`
 	Address         string    `gorm:"type:varchar(255);column:address" json:"address"`
 	PublicationDate time.Time `gorm:"type:date;column:publicationDate" json:"publicationDate"`
-	Distance        float64   `gorm:"type:numeric;column:distance" json:"distance"`
 	Description     string    `gorm:"type:text;size:1000;column:description" json:"description"`
 	RoomsNumber     int       `gorm:"column:roomsNumber" json:"roomsNumber"`
 	City            City      `gorm:"foreignKey:CityID;references:ID" json:"-"`
@@ -24,7 +23,6 @@ type GetAllAdsResponse struct {
 	AuthorUUID      string    `gorm:"column:authorUUID;not null" json:"authorUUID"`
 	Address         string    `gorm:"type:varchar(255);column:address" json:"address"`
 	PublicationDate time.Time `gorm:"type:date;column:publicationDate" json:"publicationDate"`
-	Distance        float64   `gorm:"type:numeric;column:distance" json:"distance"`
 	Description     string    `gorm:"type:text;size:1000;column:description" json:"description"`
 	RoomsNumber     int       `gorm:"column:roomsNumber" json:"roomsNumber"`
 	City            City      `gorm:"foreignKey:CityID;references:ID" json:"-"`
@@ -32,6 +30,8 @@ type GetAllAdsResponse struct {
 	Rating          float64   `json:"authorRating"`
 	Avatar          string    `json:"authorAvatar"`
 	Name            string    `json:"authorName"`
+	Cityname        string    `json:"cityName"`
+	Images          []string  `json:"images"`
 }
 
 type CreateAdRequest struct {

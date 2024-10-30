@@ -59,7 +59,7 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHead
 
 	for _, fileHeader := range fileHeaders {
 		if fileHeader != nil {
-			uploadedPath, err := uc.minioService.UploadFile(fileHeader, place.UUID)
+			uploadedPath, err := uc.minioService.UploadFile(fileHeader, "ads/"+place.UUID)
 			if err != nil {
 				for _, path := range uploadedPaths {
 					_ = uc.minioService.DeleteFile(path)
@@ -90,7 +90,7 @@ func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId str
 
 	for _, fileHeader := range fileHeaders {
 		if fileHeader != nil {
-			uploadedPath, err := uc.minioService.UploadFile(fileHeader, adId)
+			uploadedPath, err := uc.minioService.UploadFile(fileHeader, "ads/"+adId)
 			if err != nil {
 				for _, path := range newUploadedPaths {
 					_ = uc.minioService.DeleteFile(path)
@@ -100,7 +100,7 @@ func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId str
 			newUploadedPaths = append(newUploadedPaths, "http://localhost:9000/images/"+uploadedPath)
 		}
 	}
-	
+
 	err = uc.adRepository.UpdatePlace(ctx, place, adId, userId, updatedPlace)
 	if err != nil {
 		return err

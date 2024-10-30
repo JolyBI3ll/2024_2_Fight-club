@@ -26,7 +26,9 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("GetAllPlaces called", zap.String("request_id", requestID))
 	var ads []domain.GetAllAdsResponse
-	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON  ads.\"authorUUID\" = users.uuid").Select("ads.*, users.avatar as Avatar, users.name as Name, users.score as Rating")
+
+	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
+		Select("ads.*, users.avatar, users.name, users.score as rating , cities.title as cityName")
 
 	if filter.Location != "" {
 		switch filter.Location {
@@ -52,7 +54,7 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 
 	if filter.NewThisWeek == "true" {
 		lastWeek := time.Now().AddDate(0, 0, -7)
-		query = query.Where("publicationDate >= ?", lastWeek)
+		query = query.Where("\"publicationDate\" >= ?", lastWeek)
 	}
 
 	if filter.HostGender != "" && filter.HostGender != "any" {
@@ -66,19 +68,32 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 	if filter.GuestCount != "" {
 		switch filter.GuestCount {
 		case "5":
-			query = query.Where("users.guestCount > ?", 5)
+			query = query.Where("users.\"guestCount\" > ?", 5)
 		case "10":
-			query = query.Where("users.guestCount > ?", 10)
+			query = query.Where("users.\"guestCount\" > ?", 10)
 		case "20":
-			query = query.Where("users.guestCount > ?", 20)
+			query = query.Where("users.\"guestCount\" > ?", 20)
 		case "50":
-			query = query.Where("users.guestCount > ?", 50)
+			query = query.Where("users.\"guestCount\" > ?", 50)
 		}
 	}
 
 	if err := query.Find(&ads).Error; err != nil {
 		logger.DBLogger.Error("Error fetching all places", zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("Error fetching all places")
+	}
+
+	for i, ad := range ads {
+		var images []domain.Image
+		err := r.db.Model(&domain.Image{}).Where("\"adId\" = ?", ad.UUID).Find(&images).Error
+		if err != nil {
+			logger.DBLogger.Error("Error fetching images for ad", zap.String("request_id", requestID), zap.Error(err))
+			return nil, errors.New("Error fetching images for ad")
+		}
+
+		for _, img := range images {
+			ads[i].Images = append(ads[i].Images, img.ImageUrl)
+		}
 	}
 
 	logger.DBLogger.Info("Successfully fetched all places", zap.String("request_id", requestID), zap.Int("count", len(ads)))

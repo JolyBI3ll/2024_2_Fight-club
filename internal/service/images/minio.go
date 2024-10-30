@@ -47,7 +47,7 @@ func NewMinioService(endpoint, accessKey, secretKey, bucketName string, useSSL b
 	return &MinioService{Client: client, BucketName: bucketName}, nil
 }
 
-func (m *MinioService) UploadFile(file *multipart.FileHeader, adUUID string) (string, error) {
+func (m *MinioService) UploadFile(file *multipart.FileHeader, id string) (string, error) {
 	fileObj, err := file.Open()
 	if err != nil {
 		return "", err
@@ -55,7 +55,7 @@ func (m *MinioService) UploadFile(file *multipart.FileHeader, adUUID string) (st
 	defer fileObj.Close()
 
 	imageUUID := uuid.New().String()
-	filePath := fmt.Sprintf("ads/%s/%s", adUUID, imageUUID)
+	filePath := fmt.Sprintf("%s/%s", id, imageUUID)
 	fmt.Println(filePath)
 	_, err = m.Client.PutObject(context.Background(), m.BucketName, filePath, fileObj, file.Size, minio.PutObjectOptions{ContentType: file.Header.Get("Content-Type")})
 	if err != nil {
