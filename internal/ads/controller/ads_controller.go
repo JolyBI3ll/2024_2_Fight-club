@@ -175,9 +175,9 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 
 	place.AuthorUUID = sanitizer.Sanitize(place.AuthorUUID)
 	place.ID = sanitizer.Sanitize(place.ID)
-	place.LocationMain = sanitizer.Sanitize(place.ID)
-	place.LocationStreet = sanitizer.Sanitize(place.ID)
-	place.PublicationDate = sanitizer.Sanitize(place.ID)
+	place.LocationMain = sanitizer.Sanitize(place.LocationMain)
+	place.LocationStreet = sanitizer.Sanitize(place.LocationStreet)
+	place.PublicationDate = sanitizer.Sanitize(place.PublicationDate)
 
 	userID, err := h.sessionService.GetUserID(ctx, r)
 
@@ -262,9 +262,9 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 
 	place.AuthorUUID = sanitizer.Sanitize(place.AuthorUUID)
 	place.ID = sanitizer.Sanitize(place.ID)
-	place.LocationMain = sanitizer.Sanitize(place.ID)
-	place.LocationStreet = sanitizer.Sanitize(place.ID)
-	place.PublicationDate = sanitizer.Sanitize(place.ID)
+	place.LocationMain = sanitizer.Sanitize(place.LocationMain)
+	place.LocationStreet = sanitizer.Sanitize(place.LocationStreet)
+	place.PublicationDate = sanitizer.Sanitize(place.PublicationDate)
 
 	var files []*multipart.FileHeader
 	if len(r.MultipartForm.File["images"]) > 0 {

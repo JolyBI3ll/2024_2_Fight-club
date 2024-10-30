@@ -1,10 +1,17 @@
 package middleware
 
 import (
+	"2024_2_FIGHT-CLUB/internal/service/images"
+	"2024_2_FIGHT-CLUB/module/dsn"
 	"context"
+	"fmt"
 	"github.com/google/uuid"
 	"golang.org/x/time/rate"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"log"
 	"net/http"
+	"os"
 	"sync"
 )
 
@@ -57,4 +64,44 @@ func RateLimitMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func EnableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Set-Cookie, X-CSRFToken, x-csrftoken, X-CSRF-Token")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func MinioConnect() images.MinioServiceInterface {
+	endpoint := os.Getenv("MINIO_ENDPOINT")
+	accessKey := os.Getenv("MINIO_ACCESS_KEY")
+	secretKey := os.Getenv("MINIO_SECRET_KEY")
+	bucketName := os.Getenv("MINIO_BUCKET_NAME")
+	useSSL := os.Getenv("MINIO_USE_SSL") == "true"
+
+	minioService, err := images.NewMinioService(endpoint, accessKey, secretKey, bucketName, useSSL)
+	if err != nil {
+		log.Fatalf("Failed to initialize MinIO: %v", err)
+	}
+	fmt.Println("Connected to minio")
+	return minioService
+}
+
+func DbConnect() *gorm.DB {
+	db, err := gorm.Open(postgres.Open(dsn.FromEnv()), &gorm.Config{})
+	if err != nil {
+		log.Fatal("Failed to connect to database:", err)
+	}
+	fmt.Println("Connected to database")
+	return db
 }

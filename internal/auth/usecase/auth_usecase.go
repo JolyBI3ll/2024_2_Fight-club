@@ -2,8 +2,8 @@ package usecase
 
 import (
 	"2024_2_FIGHT-CLUB/domain"
-	"2024_2_FIGHT-CLUB/internal/auth/validation"
 	"2024_2_FIGHT-CLUB/internal/service/images"
+	"2024_2_FIGHT-CLUB/internal/service/validation"
 	"context"
 	"encoding/json"
 	"errors"
