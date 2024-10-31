@@ -288,6 +288,19 @@ func (r *adRepository) GetUserPlaces(ctx context.Context, userId string) ([]doma
 		return nil, err
 	}
 
+	for i, ad := range ads {
+		var images []domain.Image
+		err := r.db.Model(&domain.Image{}).Where("\"adId\" = ?", ad.UUID).Find(&images).Error
+		if err != nil {
+			logger.DBLogger.Error("Error fetching images for ad", zap.String("request_id", requestID), zap.Error(err))
+			return nil, errors.New("Error fetching images for ad")
+		}
+
+		for _, img := range images {
+			ads[i].Images = append(ads[i].Images, img.ImageUrl)
+		}
+	}
+
 	logger.DBLogger.Info("Successfully fetched user places", zap.String("city", userId), zap.Int("count", len(ads)), zap.String("request_id", requestID))
 	return ads, nil
 }
