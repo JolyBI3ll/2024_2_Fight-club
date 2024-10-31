@@ -43,6 +43,10 @@ func (h *CityHandler) GetCities(w http.ResponseWriter, r *http.Request) {
 
 	cities, err := h.cityUseCase.GetCities(ctx)
 	if err != nil {
+		logger.AccessLogger.Error("Failed to get cities data",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		h.handleError(w, err, requestID)
 		return
 	}
@@ -51,7 +55,10 @@ func (h *CityHandler) GetCities(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
-		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
+		logger.AccessLogger.Error("Failed to encode response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		h.handleError(w, err, requestID)
 		return
 	}
@@ -74,14 +81,6 @@ func (h *CityHandler) handleError(w http.ResponseWriter, err error, requestID st
 	errorResponse := map[string]string{"error": err.Error()}
 
 	switch err.Error() {
-	case "ad not found":
-		w.WriteHeader(http.StatusNotFound)
-	case "ad already exists":
-		w.WriteHeader(http.StatusConflict)
-	case "not owner of ad", "no active session", "Missing X-CSRF-Token header", "Invalid JWT token":
-		w.WriteHeader(http.StatusUnauthorized)
-	case "Invalid metadata JSON", "Invalid multipart form":
-		w.WriteHeader(http.StatusBadRequest)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}
