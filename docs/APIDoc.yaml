@@ -1,11 +1,11 @@
 openapi: 3.0.0
 info:
   title: Путник API
-  description: API для сервиса каучсерфинга "Путник"
   version: 1.0.0
+  description: API для сервиса каучсерфинга "Путник".
 servers:
-  - url: https://api.putnik.example.com
-    description: Основной сервер
+  - url: http://localhost:8008
+    description: Локальный сервер
 
 paths:
   /api/auth/register:
@@ -18,34 +18,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RegisterRequest"
+              $ref: '#/components/schemas/RegisterUser'
       responses:
-        "201":
+        '201':
           description: Пользователь успешно зарегистрирован
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthResponse"
-        "400":
+                $ref: '#/components/schemas/RegisterUserResponse'
+        '400':
           description: Некорректные данные запроса
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AuthErrorResponse"
-        "409":
+        '409':
           description: Пользователь уже существует
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ErrorResponse"
 
   /api/auth/login:
     post:
-      summary: Авторизация пользователя
+      summary: Вход пользователя
       tags:
         - Аутентификация
       requestBody:
@@ -53,129 +41,401 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LoginRequest"
+              $ref: '#/components/schemas/LoginUser'
       responses:
-        "200":
-          description: Успешная авторизация
+        '200':
+          description: Успешный вход
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthResponse"
-        "400":
+                $ref: '#/components/schemas/RegisterUserResponse'
+        '400':
           description: Некорректные данные запроса
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AuthErrorResponse"
-        "401":
-          description: Неправильные учетные данные
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ErrorResponse"
-
+        '401':
+          description: Неверные учетные данные
 
   /api/auth/logout:
     delete:
-      summary: Выход из системы
+      summary: Выход пользователя
       tags:
         - Аутентификация
+      security:
+        - bearerAuth: []
       responses:
-        "200":
+        '200':
           description: Успешный выход
-        "401":
-          description: Неавторизованный запрос
+        '401':
+          description: Неавторизованный доступ
+
+  /api/users/{userId}:
+    put:
+      summary: Обновление данных пользователя
+      tags:
+        - Управление пользователями
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Идентификатор пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUser'
+      responses:
+        '200':
+          description: Данные пользователя обновлены
+        '400':
+          description: Некорректные данные запроса
+        '404':
+          description: Пользователь не найден
+        '401':
+          description: Неавторизованный доступ
+
+    get:
+      summary: Получение пользователя по ID
+      tags:
+        - Управление пользователями
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Идентификатор пользователя
+      responses:
+        '200':
+          description: Данные пользователя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: Пользователь не найден
+        '401':
+          description: Неавторизованный доступ
+
+  /api/users:
+    get:
+      summary: Получение всех пользователей
+      tags:
+        - Управление пользователями
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список пользователей
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/ErrorResponse"
+                  $ref: '#/components/schemas/User'
+        '401':
+          description: Неавторизованный доступ
 
+  /api/session:
+    get:
+      summary: Получение данных сессии
+      tags:
+        - Аутентификация
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Данные сессии
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '401':
+          description: Неавторизованный доступ
+
+  /api/users/{userId}/ads:
+    get:
+      summary: Получение объявлений пользователя
+      tags:
+        - Управление объявлениями
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Идентификатор пользователя
+      responses:
+        '200':
+          description: Список объявлений пользователя
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GetAllAdsResponse'
+        '404':
+          description: Пользователь не найден
+        '401':
+          description: Неавторизованный доступ
 
   /api/ads:
     get:
       summary: Получение всех объявлений
       tags:
-        - Объявления
+        - Управление объявлениями
+      parameters:
+        - in: query
+          name: location
+          schema:
+            type: string
+            enum: ["1km", "3km", "5km", "10km"]
+          description: "Фильтрация по расстоянию от текущего  местоположения"
+        - in: query
+          name: rating
+          schema:
+            type: string
+          description: "Фильтрация по минимальному рейтингу   автора"
+        - in: query
+          name: new
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: "Фильтрация для объявлений, добавленных на   этой неделе"
+        - in: query
+          name: gender
+          schema:
+            type: string
+            enum: ["male", "female"]
+          description: "Фильтрация по полу автора"
+        - in: query
+          name: guests
+          schema:
+            type: string
+            enum: ["5", "10", "20", "50"]
+          description: "Фильтрация по количеству гостей"
       responses:
-        "200":
+        '200':
           description: Список всех объявлений
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Ad"
-        "500":
-          description: Внутренняя ошибка сервера
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ErrorResponse"
+                  $ref: '#/components/schemas/GetAllAdsResponse'
 
 
-  /api/getSessionsData:
-    get:
-      summary: Получение данных о сессии
+    post:
+      summary: Создание нового объявления
       tags:
-        - Сессии
+        - Управление объявлениями
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAdRequest'
       responses:
-        "200":
-          description: Информация о сессии
+        '201':
+          description: Объявление создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ad'
+        '400':
+          description: Некорректные данные запроса
+        '401':
+          description: Неавторизованный доступ
+
+  /api/ads/{adId}:
+    get:
+      summary: Получение объявления по ID
+      tags:
+        - Управление объявлениями
+      parameters:
+        - name: adId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Идентификатор объявления
+      responses:
+        '200':
+          description: Данные объявления
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetAllAdsResponse'
+        '404':
+          description: Объявление не найдено
+
+    put:
+      summary: Обновление объявления по ID
+      tags:
+        - Управление объявлениями
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: adId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Идентификатор объявления
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAdRequest'
+      responses:
+        '200':
+          description: Объявление обновлено
+        '400':
+          description: Некорректные данные запроса
+        '404':
+          description: Объявление не найдено
+        '401':
+          description: Неавторизованный доступ
+
+    delete:
+      summary: Удаление объявления по ID
+      tags:
+        - Управление объявлениями
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: adId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Идентификатор объявления
+      responses:
+        '200':
+          description: Объявление удалено
+        '404':
+          description: Объявление не найдено
+        '401':
+          description: Неавторизованный доступ
+
+  /api/ads/cities/{city}:
+    get:
+      summary: Получение объявлений по городу
+      tags:
+        - Управление объявлениями
+      parameters:
+        - name: city
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Название города
+      responses:
+        '200':
+          description: Список объявлений в указанном городе
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/SessionData"
-        "500":
-          description: Внутренняя ошибка сервера
+                  $ref: '#/components/schemas/GetAllAdsResponse'
+        '404':
+          description: Город не найден
+
+  /api/csrf/refresh:
+    get:
+      summary: Обновление CSRF токена
+      tags:
+        - Безопасность
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Новый CSRF токен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CsrfToken'
+        '401':
+          description: Неавторизованный доступ
+
+  /api/cities:
+    get:
+      summary: Получение списка всех городов
+      tags:
+        - Управление городами
+      responses:
+        '200':
+          description: Список городов
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/ErrorResponse"
+                  $ref: '#/components/schemas/City'
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
-    SessionData:
-      type: object
-      properties:
-        id:
-          type: integer
-          example: 2
-        avatar:
-          type: string
-          example: /images/avatar1.jpg
-
-    RegisterRequest:
+    RegisterUser:
       type: object
       required:
         - username
-        - email
         - password
+        - email
+        - name
       properties:
         username:
           type: string
           example: johndoe
+        password:
+          type: string
+          format: password
+          example: strongpassword123
         email:
           type: string
           format: email
           example: johndoe@example.com
-        password:
+        name:
           type: string
-          format: password
-          example: StrongPassword123
+          example: johndoe
 
-    LoginRequest:
+    RegisterUserResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+          description: "Идентификатор сессии пользователя"
+          example: sQV/MsfWRQNbbouI71ZKowiZWJg9FoJ5YbqPjQGoNOU=
+        user:
+          type: object
+          properties:
+            email:
+              type: string
+              format: email
+              description: "Электронная почта пользователя"
+            id:
+              type: string
+              format: uuid
+              description: "Уникальный идентификатор пользователя"
+            username:
+              type: string
+              description: "Имя пользователя"
+              example: johndoe
+
+    LoginUser:
       type: object
       required:
         - username
@@ -187,106 +447,239 @@ components:
         password:
           type: string
           format: password
-          example: StrongPassword123
+          example: strongpassword123
 
-    AuthResponse:
+    UpdateUser:
       type: object
       properties:
-        session_id:
-          type: string
-          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-        user:
-          $ref: "#/components/schemas/User"
+        metadata:
+          type: object
+          properties:
+            cityName:
+              type: string
+              description: "Название города"
+            address:
+              type: string
+              description: "Адрес объявления"
+            description:
+              type: string
+              description: "Описание объявления"
+            roomsNumber:
+              type: integer
+              description: "Количество комнат"
+          required:
+            - cityName
+            - address
+            - description
+            - roomsNumber
+        avatar:
+          type: object
+          format: file
+          description: "Файл с изображением для аватара     пользователя"
 
     User:
       type: object
       properties:
         id:
-          type: integer
-          example: 1
+          type: string
+          example: 60d0fe4f5311236168a109ca
         username:
           type: string
           example: johndoe
+        password:
+          type: string
+          format: password
+          example: strongpassword123
         email:
           type: string
           format: email
           example: johndoe@example.com
+        name:
+          type: string
+          example: John Doe
+        score:
+          type: number
+          format: float
+          example: 4.5
+        avatar:
+          type: string
+          example: images/avatar1.png
+        sex:
+          type: string
+          example: M
+        guestCount:
+          type: integer
+          example: 3
+        birthDate:
+          type: string
+          format: date
+          example: 1990-01-01
+        isHost:
+          type: boolean
+          example: true
 
-    Ad:
+    City:
       type: object
       properties:
         id:
           type: integer
-          example: 101
-        locationMain:
+          example: 1
+        title:
           type: string
-          example: Россия, г. Москва
-        locationStreet:
+          example: Москва
+        description:
           type: string
-          example: Малая Ботаническая ул., 10А
-        position:
-          type: array
-          items:
-            type: number
-          example: [ 2.3213, 3.3213 ]
-        images:
-          type: array
-          items:
-            type: string
-          example: [ "images/1.jpg", "images/2.jpg", "images/3.jpg" ]
-        author:
+          example: Столица России, крупнейший город страны.
+
+    Ad:
+      type: object
+      properties:
+        places:
           type: object
           properties:
             id:
-              type: integer
-              example: 1
-            name:
               type: string
-              example: Leo D.
-            score:
+              format: uuid
+              description: "Уникальный идентификатор размещения"
+            cityId:
+              type: integer
+              description: "Идентификатор города"
+            authorUUID:
+              type: string
+              format: uuid
+              description: "Уникальный идентификатор автора"
+            address:
+              type: string
+              description: "Адрес размещения"
+            publicationDate:
+              type: string
+              format: date-time
+              description: "Дата публикации"
+            description:
+              type: string
+              description: "Описание размещения"
+            roomsNumber:
+              type: integer
+              description: "Количество комнат"
+            images:
+              type: array
+              items:
+                type: string
+              nullable: true
+              description: "Список URL изображений для размещения"
+
+    GetAllAdsResponse:
+      type: object
+      properties:
+        places:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: "Уникальный идентификатор размещения"
+            cityId:
+              type: integer
+              description: "Идентификатор города"
+            authorUUID:
+              type: string
+              format: uuid
+              description: "Уникальный идентификатор автора"
+            address:
+              type: string
+              description: "Адрес размещения"
+            publicationDate:
+              type: string
+              format: date-time
+              description: "Дата публикации"
+            description:
+              type: string
+              description: "Описание размещения"
+            roomsNumber:
+              type: integer
+              description: "Количество комнат"
+            authorRating:
               type: number
               format: float
-              example: 4.98
-            avatar:
+              description: "Рейтинг автора"
+            authorAvatar:
               type: string
-              example: "" # Ссылка на аву
-            sex:
+              description: "Ссылка на аватар автора"
+            authorName:
               type: string
-              enum: [ "M", "F" ]
-              example: M # 0 женщина, 1 мужчина
-            guestsCount:
-              type: integer
-              example: 50 # сколько гостей было
-        publicationDate:
-          type: string
-          format: date
-          example: "2022-05-31"
-        distance:
-          type: number
-          format: float
-          example: 1.4 # в км
-        availableDates:
-          type: array
-          items:
-            type: string
-            format: date
-          example: [ "2024-05-01" ]
+              description: "Имя автора"
+            cityName:
+              type: string
+              description: "Название города"
+            images:
+              type: array
+              items:
+                type: string
+              nullable: true
+              description: "Список URL изображений для размещения"
 
-    ErrorResponse:
+    CreateAdRequest:
+      type: object
+      required:
+        - cityName
+        - address
+        - description
+        - roomsNumber
+      properties:
+        cityName:
+          type: string
+          example: Москва
+        address:
+          type: string
+          example: ул. Ленина, д. 10
+        description:
+          type: string
+          example: Отличный велосипед в отличном состоянии.
+        roomsNumber:
+          type: integer
+          example: 3
+
+    UpdateAdRequest:
       type: object
       properties:
-        error:
+        cityName:
           type: string
-          example: No active session
+          example: Санкт-Петербург
+        address:
+          type: string
+          example: ул. Пушкина, д. 20
+        description:
+          type: string
+          example: Обновлённое описание объявления.
+        roomsNumber:
+          type: integer
+          example: 4
 
-    AuthErrorResponse:
+    Session:
       type: object
       properties:
-        error:
+        id:
           type: string
-          example: Incorect data forms
-        wrongFields:
-          type: array
-          items:
-            type: string
-          example: [ "password","username" ]
+          example: 60d0fe4f5311236168a109ca
+        avatar:
+          type: string
+          example: images/avatar1.png
+
+    CsrfToken:
+      type: object
+      properties:
+        csrfToken:
+          type: string
+          example: dGhpc2lzYS1leGFtcGxlLXNlY3JldC10b2tlbg==
+
+tags:
+  - name: Аутентификация
+    description: Маршруты для регистрации, входа и выхода пользователей
+  - name: Управление пользователями
+    description: Маршруты для управления данными пользователей
+  - name: Управление объявлениями
+    description: Маршруты для создания, обновления и удаления объявлений
+  - name: Управление городами
+    description: Маршруты для получения информации о городах
+  - name: Безопасность
+    description: Маршруты, связанные с безопасностью приложения
