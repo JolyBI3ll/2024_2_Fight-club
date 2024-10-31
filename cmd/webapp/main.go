@@ -7,6 +7,9 @@ import (
 	authHttpDelivery "2024_2_FIGHT-CLUB/internal/auth/controller"
 	authRepository "2024_2_FIGHT-CLUB/internal/auth/repository"
 	authUseCase "2024_2_FIGHT-CLUB/internal/auth/usecase"
+	cityHttpDelivery "2024_2_FIGHT-CLUB/internal/cities/controller"
+	cityRepository "2024_2_FIGHT-CLUB/internal/cities/repository"
+	cityUseCase "2024_2_FIGHT-CLUB/internal/cities/usecase"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/router"
@@ -43,11 +46,15 @@ func main() {
 	adsUseCase := adUseCase.NewAdUseCase(adsRepository, minioService)
 	adsHandler := adHttpDelivery.NewAdHandler(adsUseCase, sessionService, jwtToken)
 
+	citiesRepository := cityRepository.NewCityRepository(db)
+	citiesUseCase := cityUseCase.NewCityUSeCase(citiesRepository)
+	cityHandler := cityHttpDelivery.NewCityHandler(citiesUseCase)
+
 	store.Options.HttpOnly = true
 	store.Options.Secure = false
 	store.Options.SameSite = http.SameSiteStrictMode
 
-	mainRouter := router.SetUpRoutes(authHandler, adsHandler)
+	mainRouter := router.SetUpRoutes(authHandler, adsHandler, cityHandler)
 	mainRouter.Use(middleware.RequestIDMiddleware)
 	mainRouter.Use(middleware.RateLimitMiddleware)
 	http.Handle("/", middleware.EnableCORS(mainRouter))

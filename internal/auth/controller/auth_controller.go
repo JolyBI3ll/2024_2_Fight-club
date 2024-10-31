@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/gorilla/mux"
 	"github.com/microcosm-cc/bluemonday"
 	"go.uber.org/zap"
 	"mime/multipart"
@@ -349,7 +350,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	var creds domain.User
 	if err := json.Unmarshal([]byte(metadata), &creds); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		logger.AccessLogger.Warn("Failed to parse metadat",
+		logger.AccessLogger.Warn("Failed to parse metadata",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
@@ -410,7 +411,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
-
+	userId := mux.Vars(r)["userId"]
 	ctx, cancel := withTimeout(r.Context())
 	defer cancel()
 
@@ -421,17 +422,7 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	)
 
 	w.Header().Set("Content-Type", "application/json")
-	userID, err := h.sessionService.GetUserID(ctx, r)
-	if err != nil {
-		logger.AccessLogger.Error("Failed to get user ID from session",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		h.handleError(w, err, requestID)
-		return
-	}
-
-	user, err := h.authUseCase.GetUserById(ctx, userID)
+	user, err := h.authUseCase.GetUserById(ctx, userId)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get user by id",
 			zap.String("request_id", requestID),

@@ -3,10 +3,11 @@ package router
 import (
 	ads "2024_2_FIGHT-CLUB/internal/ads/controller"
 	auth "2024_2_FIGHT-CLUB/internal/auth/controller"
+	city "2024_2_FIGHT-CLUB/internal/cities/controller"
 	"github.com/gorilla/mux"
 )
 
-func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler) *mux.Router {
+func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler, cityHandler *city.CityHandler) *mux.Router {
 	router := mux.NewRouter()
 	api := "/api"
 
@@ -32,6 +33,9 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler) *mux.
 
 	// CSRF Token Route
 	router.HandleFunc(api+"/csrf/refresh", authHandler.RefreshCsrfToken).Methods("GET") // Refresh CSRF token
+
+	// City Management Routes
+	router.HandleFunc(api+"/cities", cityHandler.GetCities).Methods("GET") // Get All Cities
 
 	return router
 }
