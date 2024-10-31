@@ -6,6 +6,7 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	"2024_2_FIGHT-CLUB/internal/service/validation"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"go.uber.org/zap"
 	"mime/multipart"
 	"net/http"
+	"regexp"
 	"time"
 )
 
@@ -169,9 +171,39 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, errors.New("Failed to decode metadata"), requestID)
 		return
 	}
+
 	var files []*multipart.FileHeader
 	if len(r.MultipartForm.File["images"]) > 0 {
 		files = r.MultipartForm.File["images"]
+
+		if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png"}, 2000, 2000); err != nil {
+			logger.AccessLogger.Warn("Invalid image", zap.String("request_id", requestID), zap.Error(err))
+			h.handleError(w, errors.New("Invalid size, type or resolution of image"), requestID)
+			return
+		}
+	}
+
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Z0-9]*$`)
+	if !validCharPattern.MatchString(newPlace.CityName) ||
+		!validCharPattern.MatchString(newPlace.Description) ||
+		!validCharPattern.MatchString(newPlace.Address) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
+		return
+	}
+
+	if len(newPlace.CityName) > maxLen || len(newPlace.Description) > maxLen || len(newPlace.Address) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
+		return
+	}
+
+	const minRooms, maxRooms = 1, 100
+	if newPlace.RoomsNumber < minRooms || newPlace.RoomsNumber > maxRooms {
+		logger.AccessLogger.Warn("RoomsNumber out of range", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("RoomsNumber out of range"), requestID)
+		return
 	}
 
 	newPlace.CityName = sanitizer.Sanitize(newPlace.CityName)
@@ -258,14 +290,43 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedPlace.CityName = sanitizer.Sanitize(updatedPlace.CityName)
-	updatedPlace.Description = sanitizer.Sanitize(updatedPlace.Description)
-	updatedPlace.Address = sanitizer.Sanitize(updatedPlace.Address)
-
 	var files []*multipart.FileHeader
 	if len(r.MultipartForm.File["images"]) > 0 {
 		files = r.MultipartForm.File["images"]
+
+		if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png"}, 2000, 2000); err != nil {
+			logger.AccessLogger.Warn("Invalid image", zap.String("request_id", requestID), zap.Error(err))
+			h.handleError(w, errors.New("Invalid size, type or resolution of image"), requestID)
+			return
+		}
 	}
+
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Z0-9]*$`)
+	if !validCharPattern.MatchString(updatedPlace.CityName) ||
+		!validCharPattern.MatchString(updatedPlace.Description) ||
+		!validCharPattern.MatchString(updatedPlace.Address) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
+		return
+	}
+
+	if len(updatedPlace.CityName) > maxLen || len(updatedPlace.Description) > maxLen || len(updatedPlace.Address) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
+		return
+	}
+
+	const minRooms, maxRooms = 1, 100
+	if updatedPlace.RoomsNumber < minRooms || updatedPlace.RoomsNumber > maxRooms {
+		logger.AccessLogger.Warn("RoomsNumber out of range", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("RoomsNumber out of range"), requestID)
+		return
+	}
+
+	updatedPlace.CityName = sanitizer.Sanitize(updatedPlace.CityName)
+	updatedPlace.Description = sanitizer.Sanitize(updatedPlace.Description)
+	updatedPlace.Address = sanitizer.Sanitize(updatedPlace.Address)
 
 	userID, err := h.sessionService.GetUserID(ctx, r)
 	if err != nil {
@@ -449,7 +510,8 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 		w.WriteHeader(http.StatusConflict)
 	case "not owner of ad", "no active session", "Missing X-CSRF-Token header", "Invalid JWT token":
 		w.WriteHeader(http.StatusUnauthorized)
-	case "Invalid metadata JSON", "Invalid multipart form":
+	case "Invalid metadata JSON", "Invalid multipart form", "Invalid size, type or resolution of image",
+		"Input contains invalid characters", "Input exceeds character limit", "RoomsNumber out of range":
 		w.WriteHeader(http.StatusBadRequest)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
