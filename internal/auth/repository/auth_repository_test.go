@@ -129,7 +129,6 @@ func TestCreateUser_Failure(t *testing.T) {
 	}
 
 	mock.ExpectBegin()
-	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "users" ("username","password","email","name","score","avatar","sex","guest_count","birthdate","address","is_host","uuid") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING "uuid"`)).
 		WithArgs(
 			expectedUser.Username,
@@ -409,6 +408,7 @@ func TestAuthRepository_PutUser(t *testing.T) {
 	// Тест-кейс 1: Успешное обновление пользователя
 	t.Run("Successfully update user", func(t *testing.T) {
 		mock.ExpectBegin()
+
 		mock.ExpectExec(`UPDATE "users" SET`).
 			WithArgs(
 				creds.Username,
@@ -426,11 +426,19 @@ func TestAuthRepository_PutUser(t *testing.T) {
 			).WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
+		mock.ExpectBegin()
+		// Ожидание выполнения второго запроса, который обновляет `is_host`
+		mock.ExpectExec(`UPDATE "users" SET "is_host"`).
+			WithArgs(
+				creds.IsHost,
+				userID,
+			).WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectCommit()
+
 		err := repo.PutUser(ctx, creds, userID)
 		assert.NoError(t, err)
 	})
 
-	// Тест-кейс 2: Ошибка при обновлении пользователя
 	t.Run("Error updating user", func(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectExec(`UPDATE "users" SET`).
@@ -451,6 +459,7 @@ func TestAuthRepository_PutUser(t *testing.T) {
 		mock.ExpectRollback()
 
 		err := repo.PutUser(ctx, creds, userID)
+
 		assert.Error(t, err)
 		assert.Equal(t, "update error", err.Error())
 	})

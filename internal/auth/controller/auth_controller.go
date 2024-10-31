@@ -19,10 +19,10 @@ import (
 type AuthHandler struct {
 	authUseCase    usecase.AuthUseCase
 	sessionService session.InterfaceSession
-	jwtToken       *middleware.JwtToken
+	jwtToken       middleware.JwtTokenService
 }
 
-func NewAuthHandler(authUseCase usecase.AuthUseCase, sessionService session.InterfaceSession, jwtToken *middleware.JwtToken) *AuthHandler {
+func NewAuthHandler(authUseCase usecase.AuthUseCase, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService) *AuthHandler {
 	return &AuthHandler{
 		authUseCase:    authUseCase,
 		sessionService: sessionService,

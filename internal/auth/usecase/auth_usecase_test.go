@@ -35,7 +35,7 @@ func TestRegisterUser(t *testing.T) {
 		return nil
 	}
 
-	err := uc.RegisterUser(ctx, creds, nil)
+	err := uc.RegisterUser(ctx, creds)
 	assert.NoError(t, err)
 
 	// Тест-кейс 2: Ошибка валидации - неправильный логин
@@ -46,7 +46,7 @@ func TestRegisterUser(t *testing.T) {
 		Name:     "Test User",
 	}
 
-	err = uc.RegisterUser(ctx, invalidCreds, nil)
+	err = uc.RegisterUser(ctx, invalidCreds)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "username")
 
@@ -55,7 +55,7 @@ func TestRegisterUser(t *testing.T) {
 		return creds, nil
 	}
 
-	err = uc.RegisterUser(ctx, creds, nil)
+	err = uc.RegisterUser(ctx, creds)
 	assert.Error(t, err)
 	assert.Equal(t, "user already exists", err.Error())
 }

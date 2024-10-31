@@ -20,10 +20,10 @@ import (
 type AdHandler struct {
 	adUseCase      usecase.AdUseCase
 	sessionService session.InterfaceSession
-	jwtToken       *middleware.JwtToken
+	jwtToken       middleware.JwtTokenService
 }
 
-func NewAdHandler(adUseCase usecase.AdUseCase, sessionService session.InterfaceSession, jwtToken *middleware.JwtToken) *AdHandler {
+func NewAdHandler(adUseCase usecase.AdUseCase, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService) *AdHandler {
 	return &AdHandler{
 		adUseCase:      adUseCase,
 		sessionService: sessionService,
