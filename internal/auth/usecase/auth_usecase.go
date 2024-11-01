@@ -105,6 +105,32 @@ func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*doma
 }
 
 func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID string, avatar *multipart.FileHeader) error {
+	var wrongFields []string
+	errorResponse := map[string]interface{}{
+		"error":       "Incorrect data forms",
+		"wrongFields": []string{},
+	}
+	if !validation.ValidateLogin(creds.Username) && len(creds.Username) > 0 {
+		wrongFields = append(wrongFields, "username")
+	}
+	if !validation.ValidateEmail(creds.Email) && len(creds.Email) > 0 {
+		wrongFields = append(wrongFields, "email")
+	}
+	if !validation.ValidatePassword(creds.Password) && len(creds.Password) > 0 {
+		wrongFields = append(wrongFields, "password")
+	}
+	if !validation.ValidateName(creds.Name) && len(creds.Name) > 0 {
+		wrongFields = append(wrongFields, "name")
+	}
+	if len(wrongFields) > 0 {
+		errorResponse["wrongFields"] = wrongFields
+		errorResponseJSON, err := json.Marshal(errorResponse)
+		if err != nil {
+			return errors.New("failed to generate error response")
+		}
+		return errors.New(string(errorResponseJSON))
+	}
+
 	if avatar != nil {
 		uploadedPath, err := uc.minioService.UploadFile(avatar, "user/"+userID)
 		if err != nil {

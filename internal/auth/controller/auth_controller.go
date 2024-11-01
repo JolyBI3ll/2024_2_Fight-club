@@ -64,7 +64,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Z0-9]*$`)
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
 	if !validCharPattern.MatchString(creds.Username) ||
 		!validCharPattern.MatchString(creds.Email) ||
 		!validCharPattern.MatchString(creds.Password) ||
@@ -181,7 +181,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Z0-9]*$`)
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
 	if !validCharPattern.MatchString(creds.Username) ||
 		!validCharPattern.MatchString(creds.Email) ||
 		!validCharPattern.MatchString(creds.Password) ||
@@ -399,7 +399,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Z0-9@.\p{L}\s]*$`)
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
 	if !validCharPattern.MatchString(creds.Username) ||
 		!validCharPattern.MatchString(creds.Email) ||
 		!validCharPattern.MatchString(creds.Password) ||
