@@ -61,7 +61,7 @@ func main() {
 	http.Handle("/", middleware.EnableCORS(mainRouter))
 	if os.Getenv("HTTPS") == "TRUE" {
 		fmt.Println("Starting HTTPS server on port 8008")
-		if err := http.ListenAndServeTLS("0.0.0.0:8008", "/ssl/pootnick.crt", "/ssl/pootnick.key", nil); err != nil {
+		if err := http.ListenAndServeTLS("0.0.0.0:8008", "ssl/pootnick.crt", "ssl/pootnick.key", nil); err != nil {
 			fmt.Printf("Error on starting server: %s", err)
 		}
 	} else {
