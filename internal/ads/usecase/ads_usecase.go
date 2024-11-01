@@ -7,17 +7,17 @@ import (
 
 	"context"
 	"errors"
-	"fmt"
 	"mime/multipart"
 )
 
 type AdUseCase interface {
-	GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.Ad, error)
-	GetOnePlace(ctx context.Context, adId string) (domain.Ad, error)
-	CreatePlace(ctx context.Context, place *domain.Ad, fileHeader []*multipart.FileHeader) error
-	UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeader []*multipart.FileHeader) error
+	GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error)
+	GetOnePlace(ctx context.Context, adId string) (domain.GetAllAdsResponse, error)
+	CreatePlace(ctx context.Context, place *domain.Ad, fileHeader []*multipart.FileHeader, newPlace domain.CreateAdRequest) error
+	UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeader []*multipart.FileHeader, updatedPlace domain.UpdateAdRequest) error
 	DeletePlace(ctx context.Context, adId string, userId string) error
-	GetPlacesPerCity(ctx context.Context, city string) ([]domain.Ad, error)
+	GetPlacesPerCity(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error)
+	GetUserPlaces(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
 }
 
 type adUseCase struct {
@@ -32,7 +32,7 @@ func NewAdUseCase(adRepository domain.AdRepository, minioService images.MinioSer
 	}
 }
 
-func (uc *adUseCase) GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.Ad, error) {
+func (uc *adUseCase) GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error) {
 	ads, err := uc.adRepository.GetAllPlaces(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -40,7 +40,7 @@ func (uc *adUseCase) GetAllPlaces(ctx context.Context, filter domain.AdFilter) (
 	return ads, nil
 }
 
-func (uc *adUseCase) GetOnePlace(ctx context.Context, adId string) (domain.Ad, error) {
+func (uc *adUseCase) GetOnePlace(ctx context.Context, adId string) (domain.GetAllAdsResponse, error) {
 	ad, err := uc.adRepository.GetPlaceById(ctx, adId)
 	if err != nil {
 		return ad, errors.New("ad not found")
@@ -48,8 +48,11 @@ func (uc *adUseCase) GetOnePlace(ctx context.Context, adId string) (domain.Ad, e
 	return ad, nil
 }
 
-func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHeaders []*multipart.FileHeader) error {
-	err := uc.adRepository.CreatePlace(ctx, place)
+func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHeaders []*multipart.FileHeader, newPlace domain.CreateAdRequest) error {
+	place.Description = newPlace.Description
+	place.Address = newPlace.Address
+	place.RoomsNumber = newPlace.RoomsNumber
+	err := uc.adRepository.CreatePlace(ctx, place, newPlace)
 	if err != nil {
 		return err
 	}
@@ -57,71 +60,70 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHead
 
 	for _, fileHeader := range fileHeaders {
 		if fileHeader != nil {
-			filePath := fmt.Sprintf("ads/%s/%s", place.ID, fileHeader.Filename)
-
-			uploadedPath, err := uc.minioService.UploadFile(fileHeader, filePath)
+			uploadedPath, err := uc.minioService.UploadFile(fileHeader, "ads/"+place.UUID)
 			if err != nil {
 				for _, path := range uploadedPaths {
 					_ = uc.minioService.DeleteFile(path)
 				}
 				return err
 			}
-			uploadedPaths = append(uploadedPaths, "http://localhost:9000/images/"+uploadedPath)
+			uploadedPaths = append(uploadedPaths, "images/"+uploadedPath)
 		}
 	}
 
-	place.Images = uploadedPaths
-
-	err = uc.adRepository.SavePlace(ctx, place)
+	err = uc.adRepository.SaveImages(ctx, place.UUID, uploadedPaths)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
-func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeaders []*multipart.FileHeader) error {
-	existingPlace, err := uc.adRepository.GetPlaceById(ctx, adId)
+func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeaders []*multipart.FileHeader, updatedPlace domain.UpdateAdRequest) error {
+	_, err := uc.adRepository.GetPlaceById(ctx, adId)
 	if err != nil {
 		return err
 	}
-
-	oldImages := existingPlace.Images
-
+	place.Description = updatedPlace.Description
+	place.Address = updatedPlace.Address
+	place.RoomsNumber = updatedPlace.RoomsNumber
 	var newUploadedPaths ntype.StringArray
 
 	for _, fileHeader := range fileHeaders {
 		if fileHeader != nil {
-			filePath := fmt.Sprintf("ads/%s/%s", adId, fileHeader.Filename)
-
-			uploadedPath, err := uc.minioService.UploadFile(fileHeader, filePath)
+			uploadedPath, err := uc.minioService.UploadFile(fileHeader, "ads/"+adId)
 			if err != nil {
 				for _, path := range newUploadedPaths {
 					_ = uc.minioService.DeleteFile(path)
 				}
 				return err
 			}
-
-			newUploadedPaths = append(newUploadedPaths, "http://localhost:9000/images/"+uploadedPath)
+			newUploadedPaths = append(newUploadedPaths, "images/"+uploadedPath)
 		}
 	}
 
-	place.Images = append(oldImages, newUploadedPaths...)
-
-	err = uc.adRepository.UpdatePlace(ctx, place, adId, userId)
+	err = uc.adRepository.UpdatePlace(ctx, place, adId, userId, updatedPlace)
 	if err != nil {
 		return err
 	}
 
+	err = uc.adRepository.SaveImages(ctx, adId, newUploadedPaths)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 func (uc *adUseCase) DeletePlace(ctx context.Context, adId string, userId string) error {
-	place, err := uc.adRepository.GetPlaceById(ctx, adId)
+	_, err := uc.adRepository.GetPlaceById(ctx, adId)
 	if err != nil {
 		return err
 	}
-
-	for _, imagePath := range place.Images {
+	imagesPath, err := uc.adRepository.GetAdImages(ctx, adId)
+	if err != nil {
+		return err
+	}
+	for _, imagePath := range imagesPath {
 		_ = uc.minioService.DeleteFile(imagePath)
 	}
 
@@ -133,10 +135,18 @@ func (uc *adUseCase) DeletePlace(ctx context.Context, adId string, userId string
 	return nil
 }
 
-func (uc *adUseCase) GetPlacesPerCity(ctx context.Context, city string) ([]domain.Ad, error) {
+func (uc *adUseCase) GetPlacesPerCity(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error) {
 	places, err := uc.adRepository.GetPlacesPerCity(ctx, city)
 	if err != nil || len(places) == 0 {
 		return nil, errors.New("ad not found")
+	}
+	return places, nil
+}
+
+func (uc *adUseCase) GetUserPlaces(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
+	places, err := uc.adRepository.GetUserPlaces(ctx, userId)
+	if err != nil {
+		return nil, err
 	}
 	return places, nil
 }

@@ -2,6 +2,8 @@ package images
 
 import (
 	"context"
+	"fmt"
+	"github.com/google/uuid"
 	"log"
 	"mime/multipart"
 
@@ -45,13 +47,16 @@ func NewMinioService(endpoint, accessKey, secretKey, bucketName string, useSSL b
 	return &MinioService{Client: client, BucketName: bucketName}, nil
 }
 
-func (m *MinioService) UploadFile(file *multipart.FileHeader, filePath string) (string, error) {
+func (m *MinioService) UploadFile(file *multipart.FileHeader, id string) (string, error) {
 	fileObj, err := file.Open()
 	if err != nil {
 		return "", err
 	}
 	defer fileObj.Close()
 
+	imageUUID := uuid.New().String()
+	filePath := fmt.Sprintf("%s/%s", id, imageUUID)
+	fmt.Println(filePath)
 	_, err = m.Client.PutObject(context.Background(), m.BucketName, filePath, fileObj, file.Size, minio.PutObjectOptions{ContentType: file.Header.Get("Content-Type")})
 	if err != nil {
 		return "", err

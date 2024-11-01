@@ -54,7 +54,7 @@ func (r *authRepository) PutUser(ctx context.Context, creds *domain.User, userID
 		return err
 	}
 	//для булевых false
-	if err := r.db.Model(&domain.User{}).Where("UUID = ?", userID).Update("is_host", creds.IsHost).Error; err != nil {
+	if err := r.db.Model(&domain.User{}).Where("UUID = ?", userID).Update("isHost", creds.IsHost).Error; err != nil {
 		logger.DBLogger.Error("Error updating user", zap.String("request_id", requestID), zap.String("userID", userID), zap.Error(err))
 		return err
 	}
@@ -82,7 +82,7 @@ func (r *authRepository) GetUserById(ctx context.Context, userID string) (*domai
 	logger.DBLogger.Info("GetUserById called", zap.String("request_id", requestID), zap.String("userID", userID))
 
 	var user domain.User
-	if err := r.db.Where("UUID = ?", userID).First(&user).Error; err != nil {
+	if err := r.db.Where("uuid = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			logger.DBLogger.Warn("User not found", zap.String("request_id", requestID), zap.String("userID", userID))
 			return nil, errors.New("user not found")

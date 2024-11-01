@@ -6,21 +6,17 @@ import (
 )
 
 type User struct {
-	UUID       string `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	Username   string
-	Password   string
-	Email      string
-	Name       string `json:"name"`
-	Score      float64
-	Avatar     string
-	Sex        rune
-	GuestCount int
-	Birthdate  time.Time `gorm:"type:timestamptz"`
-	Address    string
-	IsHost     bool
-	Ads        []Ad      `gorm:"foreignKey:AuthorUUID"`
-	Requests   []Request `gorm:"foreignKey:UserID"`
-	Reviews    []Review  `gorm:"foreignKey:UserID"`
+	UUID       string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid();column:uuid" json:"id"`
+	Username   string    `gorm:"type:varchar(20);unique;not null;column:username" json:"username"`
+	Password   string    `gorm:"type:varchar(20);not null;column:password" json:"password"`
+	Email      string    `gorm:"type:varchar(255);unique;not null;column:email" json:"email"`
+	Name       string    `gorm:"type:varchar(50);not null;column:name" json:"name"`
+	Score      float64   `gorm:"type:numeric;column:score" json:"score"`
+	Avatar     string    `gorm:"type:text;column:avatar;size:1000;default:images/default.png" json:"avatar"`
+	Sex        string    `gorm:"type:varchar(1);column:sex" json:"sex"`
+	GuestCount int       `gorm:"column:guestCount" json:"guestCount"`
+	Birthdate  time.Time `gorm:"type:date;column:birthDate" json:"birthDate"`
+	IsHost     bool      `gorm:"type:boolean;default:false;column:isHost" form:"isHost" json:"isHost"`
 }
 
 type AuthRepository interface {

@@ -4,3 +4,5 @@
 access.log
 db.log
 .env
+cover
+cover.out

@@ -1,0 +1,76 @@
+erDiagram
+    User ||--o{ Ad : "1:M"
+    User ||--o{ Request : "1:M"
+    Ad ||--o{ Request : "1:M"
+    User ||--o{ Review : "1:M"
+    City ||--o{ Ad : "1:M"
+    Ad ||--o{ AdPosition : "1:M"
+    Ad ||--o{ AdImage : "1:M"
+    Ad ||--o{ AdAvailableDate : "1:M"
+
+    User {
+        uuid ID PK
+        text Username
+        text Password
+        text Email
+        text Name
+        float Score
+        text Avatar
+        rune Sex
+        int GuestCount
+        Date Birthdate
+        text Address
+        bool IsHost
+    }
+
+    Ad {
+        uuid ID PK
+        text Address
+        uuid AuthorID FK
+        date PublicationDate
+        float Distance
+        uuid CityID FK
+    }
+
+    Request {
+        uuid ID PK
+        uuid AdID FK
+        uuid UserID FK
+        text Status
+        date CreatedDate
+        date UpdateDate
+        date CloseDate
+    }
+
+    Review {
+        uuid ID PK
+        uuid UserID FK
+        uuid HostID FK
+        text Text
+        float Rating
+    }
+
+    City {
+        uuid ID PK
+        text Title
+        text Description
+    }
+
+    AdPosition {
+    uuid ID PK
+    uuid AdID FK
+    float Latitude
+    float Longitude
+}
+
+AdImage {
+    uuid ID PK
+    uuid AdID FK
+    text ImageURL
+}
+
+AdAvailableDate {
+    uuid ID PK
+    uuid AdID FK
+    date AvailableDate
+}

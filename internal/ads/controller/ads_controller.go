@@ -6,6 +6,7 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	"2024_2_FIGHT-CLUB/internal/service/validation"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"go.uber.org/zap"
 	"mime/multipart"
 	"net/http"
+	"regexp"
 	"time"
 )
 
@@ -80,7 +82,7 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -116,7 +118,7 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -146,7 +148,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("Missing X-CSRF-Token header")),
 		)
-		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
+		h.handleError(w, errors.New("Missing X-CSRF-Token header"), requestID)
 		return
 	}
 
@@ -154,7 +156,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	_, err := h.jwtToken.Validate(tokenString)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		h.handleError(w, errors.New("Invalid JWT token"), requestID)
 		return
 	}
 
@@ -162,25 +164,53 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(10 << 20) // 10 mb
 
 	metadata := r.FormValue("metadata")
+	var newPlace domain.CreateAdRequest
 	var place domain.Ad
-	if err := json.Unmarshal([]byte(metadata), &place); err != nil {
+	if err := json.Unmarshal([]byte(metadata), &newPlace); err != nil {
 		logger.AccessLogger.Error("Failed to decode metadata", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid metadata JSON", http.StatusBadRequest)
+		h.handleError(w, errors.New("Failed to decode metadata"), requestID)
 		return
 	}
+
 	var files []*multipart.FileHeader
 	if len(r.MultipartForm.File["images"]) > 0 {
 		files = r.MultipartForm.File["images"]
+
+		if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
+			logger.AccessLogger.Warn("Invalid image", zap.String("request_id", requestID), zap.Error(err))
+			h.handleError(w, errors.New("Invalid size, type or resolution of image"), requestID)
+			return
+		}
 	}
 
-	place.AuthorUUID = sanitizer.Sanitize(place.AuthorUUID)
-	place.ID = sanitizer.Sanitize(place.ID)
-	place.LocationMain = sanitizer.Sanitize(place.LocationMain)
-	place.LocationStreet = sanitizer.Sanitize(place.LocationStreet)
-	place.PublicationDate = sanitizer.Sanitize(place.PublicationDate)
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
+	if !validCharPattern.MatchString(newPlace.CityName) ||
+		!validCharPattern.MatchString(newPlace.Description) ||
+		!validCharPattern.MatchString(newPlace.Address) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
+		return
+	}
+
+	if len(newPlace.CityName) > maxLen || len(newPlace.Description) > maxLen || len(newPlace.Address) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
+		return
+	}
+
+	const minRooms, maxRooms = 1, 100
+	if newPlace.RoomsNumber < minRooms || newPlace.RoomsNumber > maxRooms {
+		logger.AccessLogger.Warn("RoomsNumber out of range", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("RoomsNumber out of range"), requestID)
+		return
+	}
+
+	newPlace.CityName = sanitizer.Sanitize(newPlace.CityName)
+	newPlace.Description = sanitizer.Sanitize(newPlace.Description)
+	newPlace.Address = sanitizer.Sanitize(newPlace.Address)
 
 	userID, err := h.sessionService.GetUserID(ctx, r)
-
 	if err != nil {
 		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
 		h.handleError(w, errors.New("no active session"), requestID)
@@ -188,7 +218,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	}
 	place.AuthorUUID = userID
 
-	err = h.adUseCase.CreatePlace(ctx, &place, files)
+	err = h.adUseCase.CreatePlace(ctx, &place, files, newPlace)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to create place", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
@@ -199,7 +229,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, errors.New("Failed to decode response"), requestID)
 		return
 	}
 
@@ -239,7 +269,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	_, err := h.jwtToken.Validate(tokenString)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		h.handleError(w, errors.New("Invalid JWT token"), requestID)
 		return
 	}
 
@@ -248,28 +278,55 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	err = r.ParseMultipartForm(10 << 20)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to parse multipart form", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid multipart form", http.StatusBadRequest)
+		h.handleError(w, errors.New("Invalid multipart form"), requestID)
 		return
 	}
 
 	metadata := r.FormValue("metadata")
-	var place domain.Ad
-	if err := json.Unmarshal([]byte(metadata), &place); err != nil {
+	var updatedPlace domain.UpdateAdRequest
+	if err := json.Unmarshal([]byte(metadata), &updatedPlace); err != nil {
 		logger.AccessLogger.Error("Failed to decode metadata", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid metadata JSON", http.StatusBadRequest)
+		h.handleError(w, errors.New("Invalid metadata JSON"), requestID)
 		return
 	}
-
-	place.AuthorUUID = sanitizer.Sanitize(place.AuthorUUID)
-	place.ID = sanitizer.Sanitize(place.ID)
-	place.LocationMain = sanitizer.Sanitize(place.LocationMain)
-	place.LocationStreet = sanitizer.Sanitize(place.LocationStreet)
-	place.PublicationDate = sanitizer.Sanitize(place.PublicationDate)
 
 	var files []*multipart.FileHeader
 	if len(r.MultipartForm.File["images"]) > 0 {
 		files = r.MultipartForm.File["images"]
+
+		if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
+			logger.AccessLogger.Warn("Invalid image", zap.String("request_id", requestID), zap.Error(err))
+			h.handleError(w, errors.New("Invalid size, type or resolution of image"), requestID)
+			return
+		}
 	}
+
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
+	if !validCharPattern.MatchString(updatedPlace.CityName) ||
+		!validCharPattern.MatchString(updatedPlace.Description) ||
+		!validCharPattern.MatchString(updatedPlace.Address) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
+		return
+	}
+
+	if len(updatedPlace.CityName) > maxLen || len(updatedPlace.Description) > maxLen || len(updatedPlace.Address) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
+		return
+	}
+
+	const minRooms, maxRooms = 1, 100
+	if updatedPlace.RoomsNumber < minRooms || updatedPlace.RoomsNumber > maxRooms {
+		logger.AccessLogger.Warn("RoomsNumber out of range", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("RoomsNumber out of range"), requestID)
+		return
+	}
+
+	updatedPlace.CityName = sanitizer.Sanitize(updatedPlace.CityName)
+	updatedPlace.Description = sanitizer.Sanitize(updatedPlace.Description)
+	updatedPlace.Address = sanitizer.Sanitize(updatedPlace.Address)
 
 	userID, err := h.sessionService.GetUserID(ctx, r)
 	if err != nil {
@@ -277,8 +334,8 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, errors.New("no active session"), requestID)
 		return
 	}
-
-	err = h.adUseCase.UpdatePlace(ctx, &place, adId, userID, files)
+	var place domain.Ad
+	err = h.adUseCase.UpdatePlace(ctx, &place, adId, userID, files, updatedPlace)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to update place", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
@@ -349,6 +406,12 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+	updateResponse := map[string]string{"response": "Delete successfully"}
+	if err := json.NewEncoder(w).Encode(updateResponse); err != nil {
+		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	duration := time.Since(start)
 	logger.AccessLogger.Info("Completed DeletePlace request",
 		zap.String("request_id", requestID),
@@ -395,6 +458,42 @@ func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
+func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	userId := mux.Vars(r)["userId"]
+
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
+
+	logger.AccessLogger.Info("Received GetUserPlaces request",
+		zap.String("request_id", requestID),
+		zap.String("userId", userId),
+	)
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	places, err := h.adUseCase.GetUserPlaces(ctx, userId)
+	if err != nil {
+		h.handleError(w, err, requestID)
+		return
+	}
+	body := map[string]interface{}{
+		"places": places,
+	}
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed GetUserPlaces request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
+}
+
 func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID string) {
 	logger.AccessLogger.Error("Handling error",
 		zap.String("request_id", requestID),
@@ -409,8 +508,11 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 		w.WriteHeader(http.StatusNotFound)
 	case "ad already exists":
 		w.WriteHeader(http.StatusConflict)
-	case "not owner of ad", "no active session":
+	case "not owner of ad", "no active session", "Missing X-CSRF-Token header", "Invalid JWT token":
 		w.WriteHeader(http.StatusUnauthorized)
+	case "Invalid metadata JSON", "Invalid multipart form", "Invalid size, type or resolution of image",
+		"Input contains invalid characters", "Input exceeds character limit", "RoomsNumber out of range":
+		w.WriteHeader(http.StatusBadRequest)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}

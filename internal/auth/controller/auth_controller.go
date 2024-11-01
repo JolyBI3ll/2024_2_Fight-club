@@ -6,13 +6,16 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	"2024_2_FIGHT-CLUB/internal/service/validation"
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/gorilla/mux"
 	"github.com/microcosm-cc/bluemonday"
 	"go.uber.org/zap"
 	"mime/multipart"
 	"net/http"
+	"regexp"
 	"time"
 )
 
@@ -56,7 +59,26 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
+	if !validCharPattern.MatchString(creds.Username) ||
+		!validCharPattern.MatchString(creds.Email) ||
+		!validCharPattern.MatchString(creds.Password) ||
+		!validCharPattern.MatchString(creds.Name) ||
+		!validCharPattern.MatchString(creds.Avatar) ||
+		!validCharPattern.MatchString(creds.UUID) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
+		return
+	}
+
+	if len(creds.Username) > maxLen || len(creds.Email) > maxLen || len(creds.Password) > maxLen || len(creds.Name) > maxLen || len(creds.Avatar) > maxLen || len(creds.UUID) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
 		return
 	}
 
@@ -65,7 +87,6 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	creds.Email = sanitizer.Sanitize(creds.Email)
 	creds.Password = sanitizer.Sanitize(creds.Password)
 	creds.UUID = sanitizer.Sanitize(creds.UUID)
-	creds.Address = sanitizer.Sanitize(creds.Address)
 	creds.Name = sanitizer.Sanitize(creds.Name)
 
 	err := h.authUseCase.RegisterUser(ctx, &creds)
@@ -123,7 +144,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -155,7 +176,26 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
+	if !validCharPattern.MatchString(creds.Username) ||
+		!validCharPattern.MatchString(creds.Email) ||
+		!validCharPattern.MatchString(creds.Password) ||
+		!validCharPattern.MatchString(creds.Name) ||
+		!validCharPattern.MatchString(creds.Avatar) ||
+		!validCharPattern.MatchString(creds.UUID) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
+		return
+	}
+
+	if len(creds.Username) > maxLen || len(creds.Email) > maxLen || len(creds.Password) > maxLen || len(creds.Name) > maxLen || len(creds.Avatar) > maxLen || len(creds.UUID) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
 		return
 	}
 
@@ -164,7 +204,6 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	creds.Email = sanitizer.Sanitize(creds.Email)
 	creds.Password = sanitizer.Sanitize(creds.Password)
 	creds.UUID = sanitizer.Sanitize(creds.UUID)
-	creds.Address = sanitizer.Sanitize(creds.Address)
 	creds.Name = sanitizer.Sanitize(creds.Name)
 
 	requestedUser, err := h.authUseCase.LoginUser(ctx, &creds)
@@ -260,7 +299,7 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 
 	authHeader := r.Header.Get("X-CSRF-Token")
 	if authHeader == "" {
-		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
+		h.handleError(w, errors.New("Missing X-CSRF-Token header"), requestID)
 		return
 	}
 
@@ -268,7 +307,7 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 	_, err := h.jwtToken.Validate(tokenString)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		h.handleError(w, errors.New("Invalid JWT token"), requestID)
 		return
 	}
 
@@ -300,7 +339,7 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -332,7 +371,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("Missing X-CSRF-Token header")),
 		)
-		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
+		h.handleError(w, errors.New("Missing X-CSRF-Token header"), requestID)
 		return
 	}
 
@@ -340,7 +379,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	_, err := h.jwtToken.Validate(tokenString)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		h.handleError(w, errors.New("Invalid JWT token"), requestID)
 		return
 	}
 
@@ -351,11 +390,30 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	var creds domain.User
 	if err := json.Unmarshal([]byte(metadata), &creds); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		logger.AccessLogger.Warn("Failed to parse metadat",
+		logger.AccessLogger.Warn("Failed to parse metadata",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, "Invalid metadata JSON", http.StatusBadRequest)
+		h.handleError(w, errors.New("Invalid metadata JSON"), requestID)
+		return
+	}
+
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
+	if !validCharPattern.MatchString(creds.Username) ||
+		!validCharPattern.MatchString(creds.Email) ||
+		!validCharPattern.MatchString(creds.Password) ||
+		!validCharPattern.MatchString(creds.Name) ||
+		!validCharPattern.MatchString(creds.Avatar) ||
+		!validCharPattern.MatchString(creds.UUID) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
+		return
+	}
+
+	if len(creds.Username) > maxLen || len(creds.Email) > maxLen || len(creds.Password) > maxLen || len(creds.Name) > maxLen || len(creds.Avatar) > maxLen || len(creds.UUID) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
 		return
 	}
 
@@ -364,12 +422,17 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	creds.Email = sanitizer.Sanitize(creds.Email)
 	creds.Password = sanitizer.Sanitize(creds.Password)
 	creds.UUID = sanitizer.Sanitize(creds.UUID)
-	creds.Address = sanitizer.Sanitize(creds.Address)
 	creds.Name = sanitizer.Sanitize(creds.Name)
 
 	var avatar *multipart.FileHeader
 	if len(r.MultipartForm.File["avatar"]) > 0 {
 		avatar = r.MultipartForm.File["avatar"][0]
+
+		if err := validation.ValidateImage(avatar, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
+			logger.AccessLogger.Warn("Invalid size, type or resolution of image", zap.String("request_id", requestID), zap.Error(err))
+			h.handleError(w, errors.New("Invalid size, type or resolution of image"), requestID)
+			return
+		}
 	}
 
 	userID, err := h.sessionService.GetUserID(ctx, r)
@@ -398,7 +461,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -413,7 +476,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
-
+	userId := mux.Vars(r)["userId"]
 	ctx, cancel := withTimeout(r.Context())
 	defer cancel()
 
@@ -424,17 +487,7 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	)
 
 	w.Header().Set("Content-Type", "application/json")
-	userID, err := h.sessionService.GetUserID(ctx, r)
-	if err != nil {
-		logger.AccessLogger.Error("Failed to get user ID from session",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		h.handleError(w, err, requestID)
-		return
-	}
-
-	user, err := h.authUseCase.GetUserById(ctx, userID)
+	user, err := h.authUseCase.GetUserById(ctx, userId)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get user by id",
 			zap.String("request_id", requestID),
@@ -450,7 +503,7 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -496,7 +549,7 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -539,7 +592,7 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -609,7 +662,8 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 	switch err.Error() {
 	case "username, password, and email are required",
 		"username and password are required",
-		"invalid credentials", "csrf_token already exists":
+		"invalid credentials", "csrf_token already exists", "Input contains invalid characters",
+		"Input exceeds character limit", "Invalid size, type or resolution of image":
 		w.WriteHeader(http.StatusBadRequest)
 	case "user already exists",
 		"session already exists":
