@@ -144,3 +144,33 @@ func TestGetAllUser(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, users)
 }
+
+func TestGetUserById(t *testing.T) {
+	mockAuthRepo := &mocks.MockAuthRepository{}
+	uc := NewAuthUseCase(mockAuthRepo, nil)
+	ctx := context.TODO()
+
+	mockAuthRepo.GetUserByIdFunc = func(ctx context.Context, userID string) (*domain.User, error) {
+		return &domain.User{
+			UUID:     userID,
+			Username: "testuser",
+			Email:    "testuser@example.com",
+		}, nil
+	}
+
+	user, err := uc.GetUserById(ctx, "user123")
+	assert.NoError(t, err)
+	assert.NotNil(t, user)
+	assert.Equal(t, "user123", user.UUID)
+	assert.Equal(t, "testuser", user.Username)
+	assert.Equal(t, "testuser@example.com", user.Email)
+
+	mockAuthRepo.GetUserByIdFunc = func(ctx context.Context, userID string) (*domain.User, error) {
+		return nil, errors.New("repository: user not found")
+	}
+
+	user, err = uc.GetUserById(ctx, "user123")
+	assert.Error(t, err)
+	assert.Nil(t, user)
+	assert.Equal(t, "user not found", err.Error())
+}

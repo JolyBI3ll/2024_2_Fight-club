@@ -17,7 +17,7 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler, cityH
 	router.HandleFunc(api+"/auth/logout", authHandler.LogoutUser).Methods("DELETE")   // Logout user
 
 	// User Management Routes
-	router.HandleFunc(api+"/users/{userId}", authHandler.PutUser).Methods("PUT")          // Update user
+	router.HandleFunc(api+"/users", authHandler.PutUser).Methods("PUT")                   // Update user
 	router.HandleFunc(api+"/users/{userId}", authHandler.GetUserById).Methods("GET")      // Get user by ID
 	router.HandleFunc(api+"/users", authHandler.GetAllUsers).Methods("GET")               // Get all users
 	router.HandleFunc(api+"/session", authHandler.GetSessionData).Methods("GET")          // Get session data
