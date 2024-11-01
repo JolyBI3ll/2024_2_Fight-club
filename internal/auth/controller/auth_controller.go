@@ -399,7 +399,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Z0-9]*$`)
+	validCharPattern := regexp.MustCompile(`^[a-zA-Z0-9@.]*$`)
 	if !validCharPattern.MatchString(creds.Username) ||
 		!validCharPattern.MatchString(creds.Email) ||
 		!validCharPattern.MatchString(creds.Password) ||

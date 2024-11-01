@@ -448,48 +448,55 @@ components:
           type: string
           format: password
           example: strongpassword123
+
     UpdateUser:
       type: object
       properties:
-        username:
-          type: string
-          description: "Имя пользователя"
-          example: "johndoe"
-        email:
-          type: string
-          format: email
-          description: "Электронная почта пользователя"
-          example: "johndoe@example.com"
-        name:
-          type: string
-          description: "Настоящее имя пользователя"
-          example: "John Doe"
-        score:
-          type: number
-          format: float
-          description: "Рейтинг пользователя"
-          example: 4.5
+        metadata:
+          type: object
+          properties:
+            username:
+              type: string
+              description: "Имя пользователя"
+              example: "johndoe"
+            email:
+              type: string
+              format: email
+              description: "Электронная почта пользователя"
+              example: "johndoe@example.com"
+            name:
+              type: string
+              description: "Настоящее имя пользователя"
+              example: "John Doe"
+            score:
+              type: number
+              format: float
+              description: "Рейтинг пользователя"
+              example: 4.5
+            avatar:
+              type: string
+              description: "URL аватара пользователя"
+              example: "images/default.png"
+            sex:
+              type: string
+              description: "Пол пользователя, обозначается одной буквой (М/Ж)"
+              example: "M"
+            guestCount:
+              type: integer
+              description: "Количество гостей, которых пользователь привел"
+              example: 5
+            birthDate:
+              type: string
+              format: date
+              description: "Дата рождения пользователя"
+              example: "1990-01-01"
+            isHost:
+              type: boolean
+              description: "Указывает, является ли пользователь хозяином (host)"
+              example: true
         avatar:
           type: string
-          description: "URL аватара пользователя"
-          example: "images/default.png"
-        sex:
-          type: string
-          description: "Пол пользователя, обозначается одной буквой (М/Ж)"
-          example: "M"
-        guestCount:
-          type: integer
-          description: "Количество гостей, которых пользователь привел"
-          example: 5
-        birthDate:
-          type: string
-          format: date
-          description: "Дата рождения пользователя"
-          example: "1990-01-01"
-        isHost:
-          type: boolean
-          description: "Указывает, является ли пользователь хозяином (host)"
-          example: true
+          format: binary
 
     User:
       type: object
