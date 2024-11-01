@@ -237,7 +237,7 @@ func (r *adRepository) GetPlacesPerCity(ctx context.Context, city string) ([]dom
 
 	var ads []domain.GetAllAdsResponse
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
-		Select("ads.*, users.avatar, users.name, users.score as rating , cities.title as cityName").Where("cities.title = ?", city)
+		Select("ads.*, users.avatar, users.name, users.score as rating , cities.title as cityName").Where("cities.\"enTitle\" = ?", city)
 	if err := query.Find(&ads).Error; err != nil {
 		logger.DBLogger.Error("Error fetching places per city", zap.String("city", city), zap.String("request_id", requestID), zap.Error(err))
 		return nil, err
