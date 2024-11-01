@@ -1,11 +1,15 @@
 package validation
 
 import (
+	"errors"
 	"fmt"
 	"image"
+	"image/jpeg"
+	"image/png"
 	"mime/multipart"
 	"net/http"
 	"regexp"
+	"strings"
 )
 
 func ValidateEmail(email string) bool {
@@ -67,7 +71,17 @@ func ValidateImage(file *multipart.FileHeader, maxSize int64, allowedMimeTypes [
 	}
 
 	src.Seek(0, 0)
-	img, _, err := image.Decode(src)
+	var img image.Image
+	switch {
+	case strings.HasSuffix(mimeType, "jpeg"):
+		img, err = jpeg.Decode(src)
+	case strings.HasSuffix(mimeType, "png"):
+		img, err = png.Decode(src)
+	case strings.HasSuffix(mimeType, "jpg"):
+		img, err = jpeg.Decode(src)
+	default:
+		return errors.New("unsupported image format")
+	}
 	if err != nil {
 		return fmt.Errorf("could not decode image: %v", err)
 	}

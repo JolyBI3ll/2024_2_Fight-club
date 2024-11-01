@@ -428,7 +428,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	if len(r.MultipartForm.File["avatar"]) > 0 {
 		avatar = r.MultipartForm.File["avatar"][0]
 
-		if err := validation.ValidateImage(avatar, 5<<20, []string{"image/jpeg", "image/png"}, 2000, 2000); err != nil {
+		if err := validation.ValidateImage(avatar, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
 			logger.AccessLogger.Warn("Invalid size, type or resolution of image", zap.String("request_id", requestID), zap.Error(err))
 			h.handleError(w, errors.New("Invalid size, type or resolution of image"), requestID)
 			return

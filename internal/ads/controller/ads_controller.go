@@ -176,7 +176,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	if len(r.MultipartForm.File["images"]) > 0 {
 		files = r.MultipartForm.File["images"]
 
-		if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png"}, 2000, 2000); err != nil {
+		if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
 			logger.AccessLogger.Warn("Invalid image", zap.String("request_id", requestID), zap.Error(err))
 			h.handleError(w, errors.New("Invalid size, type or resolution of image"), requestID)
 			return
@@ -294,7 +294,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	if len(r.MultipartForm.File["images"]) > 0 {
 		files = r.MultipartForm.File["images"]
 
-		if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png"}, 2000, 2000); err != nil {
+		if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
 			logger.AccessLogger.Warn("Invalid image", zap.String("request_id", requestID), zap.Error(err))
 			h.handleError(w, errors.New("Invalid size, type or resolution of image"), requestID)
 			return
