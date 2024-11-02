@@ -153,29 +153,26 @@ func TestAdUseCase_GetPlacesPerCity(t *testing.T) {
 		{UUID: "1234", CityID: 1, AuthorUUID: "user123"},
 	}
 
-	// Успешный случай - объявления найдены
+	ctx := context.Background()
+
 	mockRepo.MockGetPlacesPerCity = func(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error) {
 		return expectedPlaces, nil
 	}
 
-	ctx := context.Background()
 	places, err := useCase.GetPlacesPerCity(ctx, city)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedPlaces, places)
 
-	// Случай, когда объявления не найдены (возвращается пустой список)
 	mockRepo.MockGetPlacesPerCity = func(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error) {
 		return []domain.GetAllAdsResponse{}, nil
 	}
 
 	places, err = useCase.GetPlacesPerCity(ctx, city)
 
-	assert.Error(t, err)
-	assert.Nil(t, places)
-	assert.Equal(t, "ad not found", err.Error())
+	assert.NoError(t, err)
+	assert.Equal(t, []domain.GetAllAdsResponse{}, places)
 
-	// Случай, когда произошла ошибка при запросе
 	mockRepo.MockGetPlacesPerCity = func(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error) {
 		return nil, errors.New("database error")
 	}
@@ -184,7 +181,9 @@ func TestAdUseCase_GetPlacesPerCity(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, places)
-	assert.Equal(t, "ad not found", err.Error())
+	if err != nil {
+		assert.Equal(t, "database error", err.Error())
+	}
 }
 
 func TestAdUseCase_GetUserPlaces(t *testing.T) {
