@@ -7,6 +7,7 @@ import (
 
 type CityUseCase interface {
 	GetCities(ctx context.Context) ([]domain.City, error)
+	GetOneCity(ctx context.Context, cityEnName string) (domain.City, error)
 }
 
 type cityUseCase struct {
@@ -25,4 +26,12 @@ func (c *cityUseCase) GetCities(ctx context.Context) ([]domain.City, error) {
 		return nil, err
 	}
 	return cities, nil
+}
+
+func (c *cityUseCase) GetOneCity(ctx context.Context, cityEnName string) (domain.City, error) {
+	city, err := c.cityRepository.GetCityByEnName(ctx, cityEnName)
+	if err != nil {
+		return domain.City{}, err
+	}
+	return city, nil
 }
