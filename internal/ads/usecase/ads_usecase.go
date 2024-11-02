@@ -137,8 +137,8 @@ func (uc *adUseCase) DeletePlace(ctx context.Context, adId string, userId string
 
 func (uc *adUseCase) GetPlacesPerCity(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error) {
 	places, err := uc.adRepository.GetPlacesPerCity(ctx, city)
-	if err != nil || len(places) == 0 {
-		return nil, errors.New("ad not found")
+	if err != nil {
+		return nil, err
 	}
 	return places, nil
 }
