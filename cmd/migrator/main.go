@@ -32,12 +32,12 @@ func connectMinio() (*minio.Client, error) {
 }
 
 func uploadImage(minioClient *minio.Client, bucketName, objectName, filePath string) (string, error) {
-	_, err := minioClient.FPutObject(context.Background(), bucketName, objectName, filePath, minio.PutObjectOptions{ContentType: "image/jpeg"})
+	_, err := minioClient.FPutObject(context.Background(), bucketName, objectName, filePath, minio.PutObjectOptions{ContentType: "image/jpg"})
 	if err != nil {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s/%s/%s", os.Getenv("MINIO_ENDPOINT"), bucketName, objectName), nil
+	return fmt.Sprintf("/%s/%s", bucketName, objectName), nil
 }
 
 func migrate() (err error) {
