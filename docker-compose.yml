@@ -1,4 +1,10 @@
 services:
+    certs:
+        image: alpine:latest
+        volumes:
+            - .:/app
+        entrypoint: "sh /app/ssl/generate-certs.sh"
+
     # Go migrator. It applies all needed migrations.
     migrator:
         image: golang:1.23.1
@@ -39,6 +45,7 @@ services:
         depends_on:
             - postgres
             - minio
+            - certs
         networks:
             - app-network
 
