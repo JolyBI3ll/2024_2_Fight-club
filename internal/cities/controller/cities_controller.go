@@ -6,6 +6,7 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"context"
 	"encoding/json"
+	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 	"net/http"
 	"time"
@@ -69,6 +70,47 @@ func (h *CityHandler) GetCities(w http.ResponseWriter, r *http.Request) {
 		zap.Duration("duration", duration),
 		zap.Int("status", http.StatusOK),
 	)
+}
+
+func (h *CityHandler) GetOneCity(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
+
+	logger.AccessLogger.Info("Received GetOneCity request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+		zap.String("query", r.URL.Query().Encode()))
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	cityEnName := mux.Vars(r)["city"]
+
+	city, err := h.cityUseCase.GetOneCity(ctx, cityEnName)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get city data",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
+	body := map[string]interface{}{
+		"city": city,
+	}
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		logger.AccessLogger.Error("Failed to encode response",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed GetOneCity request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK))
 }
 
 func (h *CityHandler) handleError(w http.ResponseWriter, err error, requestID string) {

@@ -35,7 +35,7 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler, cityH
 	router.HandleFunc(api+"/csrf/refresh", authHandler.RefreshCsrfToken).Methods("GET") // Refresh CSRF token
 
 	// City Management Routes
-	router.HandleFunc(api+"/cities", cityHandler.GetCities).Methods("GET") // Get All Cities
-
+	router.HandleFunc(api+"/cities", cityHandler.GetCities).Methods("GET")         // Get All Cities
+	router.HandleFunc(api+"/cities/{city}", cityHandler.GetOneCity).Methods("GET") //Get one City
 	return router
 }
