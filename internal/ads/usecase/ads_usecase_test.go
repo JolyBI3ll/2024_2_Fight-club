@@ -10,110 +10,346 @@ import (
 	"testing"
 )
 
-func TestGetAllPlaces(t *testing.T) {
-	mockRepo := &mocks.MockAdRepository{
-		GetAllPlacesFunc: func(ctx context.Context, filter domain.AdFilter) ([]domain.Ad, error) {
-			return []domain.Ad{{ID: "1", LocationMain: "Test Location Main"}}, nil
-		},
+func TestAdUseCase_GetAllPlaces(t *testing.T) {
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	expectedAds := []domain.GetAllAdsResponse{
+		{UUID: "1234", CityID: 1, AuthorUUID: "user123"},
+	}
+	mockRepo.MockGetAllPlaces = func(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error) {
+		return expectedAds, nil
 	}
 
-	useCase := NewAdUseCase(mockRepo, nil)
-	ads, err := useCase.GetAllPlaces(context.Background(), domain.AdFilter{})
+	ctx := context.Background()
+	filter := domain.AdFilter{Location: "New York"}
+	ads, err := useCase.GetAllPlaces(ctx, filter)
 
 	assert.NoError(t, err)
-	assert.NotEmpty(t, ads)
-	assert.Equal(t, "Test Location Main", ads[0].LocationMain)
+	assert.Equal(t, expectedAds, ads)
 }
 
-func TestGetOnePlace(t *testing.T) {
-	mockRepo := &mocks.MockAdRepository{
-		GetPlaceByIdFunc: func(ctx context.Context, adId string) (domain.Ad, error) {
-			if adId == "1" {
-				return domain.Ad{ID: "1", LocationMain: "Test Location Main"}, nil
-			}
-			return domain.Ad{}, errors.New("ad not found")
-		},
+func TestAdUseCase_GetOnePlace(t *testing.T) {
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	adID := "ad123"
+	expectedAd := domain.GetAllAdsResponse{UUID: adID, CityID: 2, AuthorUUID: "user567"}
+	mockRepo.MockGetPlaceById = func(ctx context.Context, id string) (domain.GetAllAdsResponse, error) {
+		return expectedAd, nil
 	}
 
-	useCase := NewAdUseCase(mockRepo, nil)
-	ad, err := useCase.GetOnePlace(context.Background(), "1")
+	ctx := context.Background()
+	ad, err := useCase.GetOnePlace(ctx, adID)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "Test Location Main", ad.LocationMain)
+	assert.Equal(t, expectedAd, ad)
+}
 
-	_, err = useCase.GetOnePlace(context.Background(), "999")
+func TestAdUseCase_CreatePlace(t *testing.T) {
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	newAd := domain.Ad{}
+	fileHeaders := []*multipart.FileHeader{nil, nil}
+	createRequest := domain.CreateAdRequest{
+		CityName: "Los Angeles", Address: "123 Main St", Description: "Nice place", RoomsNumber: 2,
+	}
+
+	mockRepo.MockCreatePlace = func(ctx context.Context, ad *domain.Ad, req domain.CreateAdRequest) error {
+		return nil
+	}
+
+	mockMinioService.UploadFileFunc = func(fileHeader *multipart.FileHeader, destinationPath string) (string, error) {
+		return "uploadedPath", nil
+	}
+
+	mockRepo.MockSaveImages = func(ctx context.Context, adUUID string, imagePaths []string) error {
+		return nil
+	}
+
+	ctx := context.Background()
+	err := useCase.CreatePlace(ctx, &newAd, fileHeaders, createRequest)
+
+	assert.NoError(t, err)
+}
+
+func TestAdUseCase_UpdatePlace(t *testing.T) {
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	adID := "ad123"
+	userID := "user456"
+	existingAd := domain.Ad{}
+	updateRequest := domain.UpdateAdRequest{
+		CityName: "New City", Address: "456 New St", Description: "Updated description", RoomsNumber: 3,
+	}
+	fileHeaders := []*multipart.FileHeader{nil, nil}
+
+	mockRepo.MockGetPlaceById = func(ctx context.Context, id string) (domain.GetAllAdsResponse, error) {
+		return domain.GetAllAdsResponse{UUID: adID}, nil
+	}
+
+	mockRepo.MockUpdatePlace = func(ctx context.Context, ad *domain.Ad, aID, uID string, req domain.UpdateAdRequest) error {
+		return nil
+	}
+
+	mockMinioService.UploadFileFunc = func(fileHeader *multipart.FileHeader, destinationPath string) (string, error) {
+		return "uploadedPath", nil
+	}
+
+	mockRepo.MockSaveImages = func(ctx context.Context, adUUID string, imagePaths []string) error {
+		return nil
+	}
+
+	ctx := context.Background()
+	err := useCase.UpdatePlace(ctx, &existingAd, adID, userID, fileHeaders, updateRequest)
+
+	assert.NoError(t, err)
+}
+
+func TestAdUseCase_DeletePlace(t *testing.T) {
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	adID := "ad123"
+	userID := "user456"
+	imagePaths := []string{"images/path1", "images/path2"}
+
+	mockRepo.MockGetPlaceById = func(ctx context.Context, id string) (domain.GetAllAdsResponse, error) {
+		return domain.GetAllAdsResponse{UUID: adID}, nil
+	}
+
+	mockRepo.MockGetAdImages = func(ctx context.Context, aID string) ([]string, error) {
+		return imagePaths, nil
+	}
+
+	mockMinioService.DeleteFileFunc = func(filePath string) error {
+		return nil
+	}
+
+	mockRepo.MockDeletePlace = func(ctx context.Context, aID, uID string) error {
+		return nil
+	}
+
+	ctx := context.Background()
+	err := useCase.DeletePlace(ctx, adID, userID)
+
+	assert.NoError(t, err)
+}
+
+func TestAdUseCase_GetPlacesPerCity(t *testing.T) {
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	city := "New York"
+	expectedPlaces := []domain.GetAllAdsResponse{
+		{UUID: "1234", CityID: 1, AuthorUUID: "user123"},
+	}
+
+	// Успешный случай - объявления найдены
+	mockRepo.MockGetPlacesPerCity = func(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error) {
+		return expectedPlaces, nil
+	}
+
+	ctx := context.Background()
+	places, err := useCase.GetPlacesPerCity(ctx, city)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedPlaces, places)
+
+	// Случай, когда объявления не найдены (возвращается пустой список)
+	mockRepo.MockGetPlacesPerCity = func(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error) {
+		return []domain.GetAllAdsResponse{}, nil
+	}
+
+	places, err = useCase.GetPlacesPerCity(ctx, city)
+
+	assert.Error(t, err)
+	assert.Nil(t, places)
+	assert.Equal(t, "ad not found", err.Error())
+
+	// Случай, когда произошла ошибка при запросе
+	mockRepo.MockGetPlacesPerCity = func(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error) {
+		return nil, errors.New("database error")
+	}
+
+	places, err = useCase.GetPlacesPerCity(ctx, city)
+
+	assert.Error(t, err)
+	assert.Nil(t, places)
+	assert.Equal(t, "ad not found", err.Error())
+}
+
+func TestAdUseCase_GetUserPlaces(t *testing.T) {
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	userID := "user123"
+	expectedPlaces := []domain.GetAllAdsResponse{
+		{UUID: "ad123", CityID: 2, AuthorUUID: userID},
+	}
+
+	// Успешный случай - объявления пользователя найдены
+	mockRepo.MockGetUserPlaces = func(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
+		return expectedPlaces, nil
+	}
+
+	ctx := context.Background()
+	places, err := useCase.GetUserPlaces(ctx, userID)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedPlaces, places)
+
+	// Случай, когда у пользователя нет объявлений
+	mockRepo.MockGetUserPlaces = func(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
+		return []domain.GetAllAdsResponse{}, nil
+	}
+
+	places, err = useCase.GetUserPlaces(ctx, userID)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(places))
+
+	// Случай, когда произошла ошибка при запросе
+	mockRepo.MockGetUserPlaces = func(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
+		return nil, errors.New("database error")
+	}
+
+	places, err = useCase.GetUserPlaces(ctx, userID)
+
+	assert.Error(t, err)
+	assert.Nil(t, places)
+	assert.Equal(t, "database error", err.Error())
+}
+
+func TestAdUseCase_GetAllPlaces_Error(t *testing.T) {
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	mockRepo.MockGetAllPlaces = func(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error) {
+		return nil, errors.New("database error")
+	}
+
+	ctx := context.Background()
+	filter := domain.AdFilter{Location: "New York"}
+	ads, err := useCase.GetAllPlaces(ctx, filter)
+
+	assert.Error(t, err)
+	assert.Nil(t, ads)
+	assert.Equal(t, "database error", err.Error())
+}
+
+func TestAdUseCase_GetOnePlace_Error(t *testing.T) {
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	mockRepo.MockGetPlaceById = func(ctx context.Context, id string) (domain.GetAllAdsResponse, error) {
+		return domain.GetAllAdsResponse{}, errors.New("ad not found")
+	}
+
+	ctx := context.Background()
+	adID := "invalid_ad_id"
+	ad, err := useCase.GetOnePlace(ctx, adID)
+
+	assert.Error(t, err)
+	assert.Equal(t, "ad not found", err.Error())
+	assert.Equal(t, domain.GetAllAdsResponse{}, ad)
+}
+
+func TestAdUseCase_CreatePlace_ErrorOnCreate(t *testing.T) {
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	newAd := domain.Ad{}
+	createRequest := domain.CreateAdRequest{
+		CityName: "Los Angeles", Address: "123 Main St", Description: "Nice place", RoomsNumber: 2,
+	}
+
+	mockRepo.MockCreatePlace = func(ctx context.Context, ad *domain.Ad, req domain.CreateAdRequest) error {
+		return errors.New("creation failed")
+	}
+
+	ctx := context.Background()
+	err := useCase.CreatePlace(ctx, &newAd, nil, createRequest)
+
+	assert.Error(t, err)
+	assert.Equal(t, "creation failed", err.Error())
+}
+
+func TestAdUseCase_CreatePlace_ErrorOnUpload(t *testing.T) {
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	newAd := domain.Ad{}
+	fileHeaders := []*multipart.FileHeader{&multipart.FileHeader{}, &multipart.FileHeader{}}
+	createRequest := domain.CreateAdRequest{
+		CityName: "Los Angeles", Address: "123 Main St", Description: "Nice place", RoomsNumber: 2,
+	}
+
+	mockRepo.MockCreatePlace = func(ctx context.Context, ad *domain.Ad, req domain.CreateAdRequest) error {
+		return nil
+	}
+
+	mockMinioService.UploadFileFunc = func(fileHeader *multipart.FileHeader, destinationPath string) (string, error) {
+		return "", errors.New("upload failed")
+	}
+
+	ctx := context.Background()
+	err := useCase.CreatePlace(ctx, &newAd, fileHeaders, createRequest)
+
+	assert.Error(t, err)
+	assert.Equal(t, "upload failed", err.Error())
+}
+
+func TestAdUseCase_UpdatePlace_ErrorOnGet(t *testing.T) {
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	adID := "invalid_ad_id"
+	userID := "user456"
+	updateRequest := domain.UpdateAdRequest{
+		CityName: "New City", Address: "456 New St", Description: "Updated description", RoomsNumber: 3,
+	}
+
+	mockRepo.MockGetPlaceById = func(ctx context.Context, id string) (domain.GetAllAdsResponse, error) {
+		return domain.GetAllAdsResponse{}, errors.New("ad not found")
+	}
+
+	ctx := context.Background()
+	err := useCase.UpdatePlace(ctx, nil, adID, userID, nil, updateRequest)
+
 	assert.Error(t, err)
 	assert.Equal(t, "ad not found", err.Error())
 }
 
-func TestCreatePlace(t *testing.T) {
-	mockRepo := &mocks.MockAdRepository{
-		CreatePlaceFunc: func(ctx context.Context, place *domain.Ad) error {
-			return nil
-		},
-		SavePlaceFunc: func(ctx context.Context, place *domain.Ad) error {
-			return nil
-		},
+func TestAdUseCase_DeletePlace_ErrorOnGet(t *testing.T) {
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	adID := "invalid_ad_id"
+	userID := "user456"
+
+	mockRepo.MockGetPlaceById = func(ctx context.Context, id string) (domain.GetAllAdsResponse, error) {
+		return domain.GetAllAdsResponse{}, errors.New("ad not found")
 	}
 
-	mockMinio := &mocks.MockMinioService{
-		UploadFileFunc: func(file *multipart.FileHeader, path string) (string, error) {
-			return "uploaded/path", nil
-		},
-		DeleteFileFunc: func(path string) error {
-			return nil
-		},
-	}
+	ctx := context.Background()
+	err := useCase.DeletePlace(ctx, adID, userID)
 
-	useCase := NewAdUseCase(mockRepo, mockMinio)
-	err := useCase.CreatePlace(context.Background(), &domain.Ad{ID: "1"}, []*multipart.FileHeader{})
-
-	assert.NoError(t, err)
-}
-
-func TestUpdatePlace(t *testing.T) {
-	mockRepo := &mocks.MockAdRepository{
-		GetPlaceByIdFunc: func(ctx context.Context, adId string) (domain.Ad, error) {
-			return domain.Ad{ID: adId, Images: []string{"old/image/path"}}, nil
-		},
-		UpdatePlaceFunc: func(ctx context.Context, place *domain.Ad, adId, userId string) error {
-			return nil
-		},
-	}
-
-	mockMinio := &mocks.MockMinioService{
-		UploadFileFunc: func(file *multipart.FileHeader, path string) (string, error) {
-			return "new/image/path", nil
-		},
-		DeleteFileFunc: func(path string) error {
-			return nil
-		},
-	}
-
-	useCase := NewAdUseCase(mockRepo, mockMinio)
-	err := useCase.UpdatePlace(context.Background(), &domain.Ad{ID: "1"}, "1", "1", []*multipart.FileHeader{})
-
-	assert.NoError(t, err)
-}
-
-func TestDeletePlace(t *testing.T) {
-	mockRepo := &mocks.MockAdRepository{
-		GetPlaceByIdFunc: func(ctx context.Context, adId string) (domain.Ad, error) {
-			return domain.Ad{ID: adId, Images: []string{"old/image/path"}}, nil
-		},
-		DeletePlaceFunc: func(ctx context.Context, adId, userId string) error {
-			return nil
-		},
-	}
-
-	mockMinio := &mocks.MockMinioService{
-		DeleteFileFunc: func(path string) error {
-			return nil
-		},
-	}
-
-	useCase := NewAdUseCase(mockRepo, mockMinio)
-	err := useCase.DeletePlace(context.Background(), "1", "1")
-
-	assert.NoError(t, err)
+	assert.Error(t, err)
+	assert.Equal(t, "ad not found", err.Error())
 }
