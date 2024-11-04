@@ -27,6 +27,7 @@ type GetAllAdsResponse struct {
 	RoomsNumber     int             `gorm:"column:roomsNumber" json:"roomsNumber"`
 	City            City            `gorm:"foreignKey:CityID;references:ID" json:"-"`
 	Author          User            `gorm:"foreignKey:AuthorUUID;references:UUID" json:"-"`
+	Cityname        string          `json:"cityName"`
 	AdAuthor        UserResponce    `gorm:"-" json:"author"`
 	Images          []ImageResponse `gorm:"-" json:"images"`
 }
