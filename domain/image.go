@@ -6,3 +6,8 @@ type Image struct {
 	ImageUrl string `gorm:"type:text;size:1000;column:imageUrl" json:"imageUrl"`
 	Ad       Ad     `gorm:"foreignKey:adId;references:UUID"`
 }
+
+type ImageResponse struct {
+	ID        int    `json:"id"`
+	ImagePath string `json:"path"`
+}

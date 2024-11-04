@@ -27,8 +27,8 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 	logger.DBLogger.Info("GetAllPlaces called", zap.String("request_id", requestID))
 	var ads []domain.GetAllAdsResponse
 
-	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
-		Select("ads.*, users.avatar, users.name, users.score as rating , cities.title as cityName")
+	query := r.db.Model(&domain.Ad{}).Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
+		Select("ads.*, cities.title as cityName")
 
 	if filter.Location != "" {
 		switch filter.Location {
@@ -85,14 +85,27 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 
 	for i, ad := range ads {
 		var images []domain.Image
+		var user domain.User
 		err := r.db.Model(&domain.Image{}).Where("\"adId\" = ?", ad.UUID).Find(&images).Error
 		if err != nil {
 			logger.DBLogger.Error("Error fetching images for ad", zap.String("request_id", requestID), zap.Error(err))
 			return nil, errors.New("Error fetching images for ad")
 		}
 
+		err = r.db.Model(&domain.User{}).Where("uuid = ?", ad.AuthorUUID).Find(&user).Error
+		if err != nil {
+			logger.DBLogger.Error("Error fetching user", zap.String("request_id", requestID), zap.Error(err))
+			return nil, errors.New("Error fetching user")
+		}
+		ads[i].AdAuthor.Name = user.Name
+		ads[i].AdAuthor.Avatar = user.Avatar
+		ads[i].AdAuthor.Rating = user.Score
+
 		for _, img := range images {
-			ads[i].Images = append(ads[i].Images, img.ImageUrl)
+			ads[i].Images = append(ads[i].Images, domain.ImageResponse{
+				ID:        img.ID,
+				ImagePath: img.ImageUrl,
+			})
 		}
 	}
 
@@ -107,7 +120,7 @@ func (r *adRepository) GetPlaceById(ctx context.Context, adId string) (domain.Ge
 	var ad domain.GetAllAdsResponse
 
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
-		Select("ads.*, users.avatar, users.name, users.score as rating , cities.title as cityName").Where("ads.uuid = ?", adId)
+		Select("ads.*, cities.title as cityName").Where("ads.uuid = ?", adId)
 
 	if err := query.Find(&ad).Error; err != nil {
 		logger.DBLogger.Error("Error fetching place", zap.String("request_id", requestID), zap.Error(err))
@@ -115,14 +128,28 @@ func (r *adRepository) GetPlaceById(ctx context.Context, adId string) (domain.Ge
 	}
 
 	var images []domain.Image
+	var user domain.User
 	err := r.db.Model(&domain.Image{}).Where("\"adId\" = ?", ad.UUID).Find(&images).Error
 	if err != nil {
 		logger.DBLogger.Error("Error fetching images for ad", zap.String("request_id", requestID), zap.Error(err))
 		return ad, errors.New("Error fetching images for ad")
 	}
 
+	err = r.db.Model(&domain.User{}).Where("uuid = ?", ad.AuthorUUID).Find(&user).Error
+	if err != nil {
+		logger.DBLogger.Error("Error fetching user", zap.String("request_id", requestID), zap.Error(err))
+		return ad, errors.New("Error fetching user")
+	}
+
+	ad.AdAuthor.Name = user.Name
+	ad.AdAuthor.Avatar = user.Avatar
+	ad.AdAuthor.Rating = user.Score
+
 	for _, img := range images {
-		ad.Images = append(ad.Images, img.ImageUrl)
+		ad.Images = append(ad.Images, domain.ImageResponse{
+			ID:        img.ID,
+			ImagePath: img.ImageUrl,
+		})
 	}
 
 	logger.DBLogger.Info("Successfully fetched place by ID", zap.String("adId", adId), zap.String("request_id", requestID))
@@ -237,10 +264,36 @@ func (r *adRepository) GetPlacesPerCity(ctx context.Context, city string) ([]dom
 
 	var ads []domain.GetAllAdsResponse
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
-		Select("ads.*, users.avatar, users.name, users.score as rating , cities.title as cityName").Where("cities.\"enTitle\" = ?", city)
+		Select("ads.*, cities.title as cityName").Where("cities.\"enTitle\" = ?", city)
 	if err := query.Find(&ads).Error; err != nil {
 		logger.DBLogger.Error("Error fetching places per city", zap.String("city", city), zap.String("request_id", requestID), zap.Error(err))
 		return nil, err
+	}
+
+	for i, ad := range ads {
+		var images []domain.Image
+		var user domain.User
+		err := r.db.Model(&domain.Image{}).Where("\"adId\" = ?", ad.UUID).Find(&images).Error
+		if err != nil {
+			logger.DBLogger.Error("Error fetching images for ad", zap.String("request_id", requestID), zap.Error(err))
+			return nil, errors.New("Error fetching images for ad")
+		}
+
+		err = r.db.Model(&domain.User{}).Where("uuid = ?", ad.AuthorUUID).Find(&user).Error
+		if err != nil {
+			logger.DBLogger.Error("Error fetching user", zap.String("request_id", requestID), zap.Error(err))
+			return nil, errors.New("Error fetching user")
+		}
+		ads[i].AdAuthor.Name = user.Name
+		ads[i].AdAuthor.Avatar = user.Avatar
+		ads[i].AdAuthor.Rating = user.Score
+
+		for _, img := range images {
+			ads[i].Images = append(ads[i].Images, domain.ImageResponse{
+				ID:        img.ID,
+				ImagePath: img.ImageUrl,
+			})
+		}
 	}
 
 	logger.DBLogger.Info("Successfully fetched places per city", zap.String("city", city), zap.Int("count", len(ads)), zap.String("request_id", requestID))
@@ -297,10 +350,45 @@ func (r *adRepository) GetUserPlaces(ctx context.Context, userId string) ([]doma
 		}
 
 		for _, img := range images {
-			ads[i].Images = append(ads[i].Images, img.ImageUrl)
+			ads[i].Images = append(ads[i].Images, domain.ImageResponse{
+				ID:        img.ID,
+				ImagePath: img.ImageUrl,
+			})
 		}
 	}
 
 	logger.DBLogger.Info("Successfully fetched user places", zap.String("city", userId), zap.Int("count", len(ads)), zap.String("request_id", requestID))
 	return ads, nil
+}
+
+func (r *adRepository) DeleteAdImage(ctx context.Context, adId string, imageId string, userId string) (string, error) {
+	requestID := middleware.GetRequestID(ctx)
+	logger.DBLogger.Info("DeleteAdImage called", zap.String("ad", adId), zap.String("image", imageId), zap.String("request_id", requestID))
+
+	var ad domain.Ad
+	if err := r.db.First(&ad, "uuid = ?", adId).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", errors.New("ad not found")
+		}
+		return "", errors.New("Error fetching ad")
+	}
+
+	if ad.AuthorUUID != userId {
+		return "", errors.New("not owner of ad")
+	}
+
+	var image domain.Image
+	if err := r.db.First(&image, "id = ? AND \"adId\" = ?", imageId, adId).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", errors.New("image not found")
+		}
+		return "", errors.New("error finding image")
+	}
+
+	if err := r.db.Delete(&image).Error; err != nil {
+		return "", errors.New("error deleting image from database")
+	}
+
+	logger.DBLogger.Info("Image deleted successfully", zap.String("image_id", imageId), zap.String("ad_id", adId), zap.String("request_id", requestID))
+	return image.ImageUrl, nil
 }

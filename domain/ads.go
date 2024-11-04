@@ -18,20 +18,18 @@ type Ad struct {
 }
 
 type GetAllAdsResponse struct {
-	UUID            string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid();column:uuid" json:"id"`
-	CityID          int       `gorm:"column:cityId;not null" json:"cityId"`
-	AuthorUUID      string    `gorm:"column:authorUUID;not null" json:"authorUUID"`
-	Address         string    `gorm:"type:varchar(255);column:address" json:"address"`
-	PublicationDate time.Time `gorm:"type:date;column:publicationDate" json:"publicationDate"`
-	Description     string    `gorm:"type:text;size:1000;column:description" json:"description"`
-	RoomsNumber     int       `gorm:"column:roomsNumber" json:"roomsNumber"`
-	City            City      `gorm:"foreignKey:CityID;references:ID" json:"-"`
-	Author          User      `gorm:"foreignKey:AuthorUUID;references:UUID" json:"-"`
-	Rating          float64   `json:"authorRating"`
-	Avatar          string    `json:"authorAvatar"`
-	Name            string    `json:"authorName"`
-	Cityname        string    `json:"cityName"`
-	Images          []string  `json:"images"`
+	UUID            string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid();column:uuid" json:"id"`
+	CityID          int             `gorm:"column:cityId;not null" json:"cityId"`
+	AuthorUUID      string          `gorm:"column:authorUUID;not null" json:"authorUUID"`
+	Address         string          `gorm:"type:varchar(255);column:address" json:"address"`
+	PublicationDate time.Time       `gorm:"type:date;column:publicationDate" json:"publicationDate"`
+	Description     string          `gorm:"type:text;size:1000;column:description" json:"description"`
+	RoomsNumber     int             `gorm:"column:roomsNumber" json:"roomsNumber"`
+	City            City            `gorm:"foreignKey:CityID;references:ID" json:"-"`
+	Author          User            `gorm:"foreignKey:AuthorUUID;references:UUID" json:"-"`
+	Cityname        string          `json:"cityName"`
+	AdAuthor        UserResponce    `gorm:"-" json:"author"`
+	Images          []ImageResponse `gorm:"-" json:"images"`
 }
 
 type CreateAdRequest struct {
@@ -67,4 +65,5 @@ type AdRepository interface {
 	SaveImages(ctx context.Context, adUUID string, imagePaths []string) error
 	GetAdImages(ctx context.Context, adId string) ([]string, error)
 	GetUserPlaces(ctx context.Context, userId string) ([]GetAllAdsResponse, error)
+	DeleteAdImage(ctx context.Context, adId string, imageId string, userId string) (string, error)
 }
