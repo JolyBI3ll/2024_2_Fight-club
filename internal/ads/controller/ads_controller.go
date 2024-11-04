@@ -99,6 +99,22 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	adId := mux.Vars(r)["adId"]
+	sanitizer := bluemonday.UGCPolicy()
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(adId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
+		return
+	}
+
+	if len(adId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
+		return
+	}
+
+	adId = sanitizer.Sanitize(adId)
 
 	ctx, cancel := withTimeout(r.Context())
 	defer cancel()
@@ -247,6 +263,21 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
 	adId := mux.Vars(r)["adId"]
+	const maxLen = 255
+	validCharPatternUrl := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPatternUrl.MatchString(adId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
+		return
+	}
+
+	if len(adId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
+		return
+	}
+
+	adId = sanitizer.Sanitize(adId)
 
 	ctx, cancel := withTimeout(r.Context())
 	defer cancel()
@@ -302,7 +333,6 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	const maxLen = 255
 	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
 	if !validCharPattern.MatchString(updatedPlace.CityName) ||
 		!validCharPattern.MatchString(updatedPlace.Description) ||
@@ -363,6 +393,22 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	adId := mux.Vars(r)["adId"]
+	sanitizer := bluemonday.UGCPolicy()
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(adId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
+		return
+	}
+
+	if len(adId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
+		return
+	}
+
+	adId = sanitizer.Sanitize(adId)
 
 	ctx, cancel := withTimeout(r.Context())
 	defer cancel()
@@ -425,6 +471,22 @@ func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	city := mux.Vars(r)["city"]
+	sanitizer := bluemonday.UGCPolicy()
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(city) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
+		return
+	}
+
+	if len(city) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
+		return
+	}
+
+	city = sanitizer.Sanitize(city)
 
 	ctx, cancel := withTimeout(r.Context())
 	defer cancel()
@@ -463,6 +525,22 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	userId := mux.Vars(r)["userId"]
+	sanitizer := bluemonday.UGCPolicy()
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(userId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
+		return
+	}
+
+	if len(userId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
+		return
+	}
+
+	userId = sanitizer.Sanitize(userId)
 
 	ctx, cancel := withTimeout(r.Context())
 	defer cancel()
@@ -498,9 +576,29 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
-	adId := mux.Vars(r)["adId"]
+
 	imageId := mux.Vars(r)["imageId"]
+	adId := mux.Vars(r)["adId"]
+	sanitizer := bluemonday.UGCPolicy()
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(adId) || !validCharPattern.MatchString(imageId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
+		return
+	}
+
+	if len(adId) > maxLen || len(imageId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
+		return
+	}
+
+	adId = sanitizer.Sanitize(adId)
+	imageId = sanitizer.Sanitize(imageId)
+
 	imageIdint, err2 := strconv.Atoi(imageId)
+
 	if err2 != nil {
 		logger.AccessLogger.Warn("Failed to ATOI image url", zap.String("request_id", requestID), zap.Error(err2))
 		h.handleError(w, err2, requestID)

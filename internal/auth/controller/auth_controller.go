@@ -476,7 +476,25 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
+	sanitizer := bluemonday.UGCPolicy()
+
 	userId := mux.Vars(r)["userId"]
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(userId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
+		return
+	}
+
+	if len(userId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
+		return
+	}
+
+	userId = sanitizer.Sanitize(userId)
+
 	ctx, cancel := withTimeout(r.Context())
 	defer cancel()
 

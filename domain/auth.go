@@ -8,7 +8,7 @@ import (
 type User struct {
 	UUID       string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid();column:uuid" json:"id"`
 	Username   string    `gorm:"type:varchar(20);unique;not null;column:username" json:"username"`
-	Password   string    `gorm:"type:varchar(20);not null;column:password" json:"password"`
+	Password   string    `gorm:"type:varchar(255);not null;column:password" json:"password"`
 	Email      string    `gorm:"type:varchar(255);unique;not null;column:email" json:"email"`
 	Name       string    `gorm:"type:varchar(50);not null;column:name" json:"name"`
 	Score      float64   `gorm:"type:numeric;column:score" json:"score"`

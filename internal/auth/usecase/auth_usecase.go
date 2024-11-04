@@ -3,6 +3,7 @@ package usecase
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/images"
+	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/validation"
 	"context"
 	"encoding/json"
@@ -59,6 +60,14 @@ func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User) err
 		}
 		return errors.New(string(errorResponseJSON))
 	}
+
+	// Хэширование пароля
+	hashedPassword, ok := middleware.HashPassword(creds.Password)
+	if ok != nil {
+		return errors.New("failed to hash password")
+	}
+	creds.Password = hashedPassword
+
 	existingUser, _ := uc.authRepository.GetUserByName(ctx, creds.Username)
 	if existingUser != nil {
 		return errors.New("user already exists")
@@ -94,13 +103,16 @@ func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*doma
 		}
 		return nil, errors.New(string(errorResponseJSON))
 	}
+
 	requestedUser, err := uc.authRepository.GetUserByName(ctx, creds.Username)
 	if err != nil || requestedUser == nil {
 		return nil, errors.New("user not found")
 	}
-	if requestedUser.Password != creds.Password {
+
+	if !middleware.CheckPassword(requestedUser.Password, creds.Password) {
 		return nil, errors.New("invalid credentials")
 	}
+
 	return requestedUser, nil
 }
 

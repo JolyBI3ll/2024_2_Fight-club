@@ -6,9 +6,12 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/gorilla/mux"
+	"github.com/microcosm-cc/bluemonday"
 	"go.uber.org/zap"
 	"net/http"
+	"regexp"
 	"time"
 )
 
@@ -77,7 +80,7 @@ func (h *CityHandler) GetOneCity(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := withTimeout(r.Context())
 	defer cancel()
-
+	sanitizer := bluemonday.UGCPolicy()
 	logger.AccessLogger.Info("Received GetOneCity request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
@@ -85,7 +88,23 @@ func (h *CityHandler) GetOneCity(w http.ResponseWriter, r *http.Request) {
 		zap.String("query", r.URL.Query().Encode()))
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+
 	cityEnName := mux.Vars(r)["city"]
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(cityEnName) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
+		return
+	}
+
+	if len(cityEnName) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
+		return
+	}
+
+	cityEnName = sanitizer.Sanitize(cityEnName)
 
 	city, err := h.cityUseCase.GetOneCity(ctx, cityEnName)
 	if err != nil {
