@@ -352,3 +352,81 @@ func TestAdUseCase_DeletePlace_ErrorOnGet(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, "ad not found", err.Error())
 }
+
+func TestDeleteAdImage(t *testing.T) {
+	ctx := context.Background()
+	adId := "ad-uuid"
+	imageId := 123
+	userId := "user-uuid"
+	imageURL := "/images/image.jpg"
+
+	// Тест успешного удаления изображения
+	t.Run("success", func(t *testing.T) {
+		adRepoMock := &mocks.MockAdRepository{
+			MockDeleteAdImage: func(ctx context.Context, adId string, imageId int, userId string) (string, error) {
+				return imageURL, nil
+			},
+		}
+		minioServiceMock := &mocks.MockMinioService{
+			DeleteFileFunc: func(imageURL string) error {
+				return nil
+			},
+		}
+
+		adUseCase := NewAdUseCase(adRepoMock, minioServiceMock)
+
+		// Вызываем функцию
+		err := adUseCase.DeleteAdImage(ctx, adId, imageId, userId)
+
+		// Проверяем результат
+		assert.NoError(t, err)
+	})
+
+	// Тест ошибки при удалении изображения в репозитории
+	t.Run("repository delete error", func(t *testing.T) {
+		expectedErr := errors.New("repository delete error")
+
+		adRepoMock := &mocks.MockAdRepository{
+			MockDeleteAdImage: func(ctx context.Context, adId string, imageId int, userId string) (string, error) {
+				return "", expectedErr
+			},
+		}
+		minioServiceMock := &mocks.MockMinioService{
+			DeleteFileFunc: func(imageURL string) error {
+				return nil
+			},
+		}
+
+		adUseCase := NewAdUseCase(adRepoMock, minioServiceMock)
+
+		// Вызываем функцию
+		err := adUseCase.DeleteAdImage(ctx, adId, imageId, userId)
+
+		// Проверяем результат
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+	})
+
+	// Тест ошибки при удалении файла в MinIO
+	t.Run("minio delete error", func(t *testing.T) {
+		adRepoMock := &mocks.MockAdRepository{
+			MockDeleteAdImage: func(ctx context.Context, adId string, imageId int, userId string) (string, error) {
+				return imageURL, nil
+			},
+		}
+		minioErr := errors.New("failed to delete file from MinIO")
+		minioServiceMock := &mocks.MockMinioService{
+			DeleteFileFunc: func(imageURL string) error {
+				return minioErr
+			},
+		}
+
+		adUseCase := NewAdUseCase(adRepoMock, minioServiceMock)
+
+		// Вызываем функцию
+		err := adUseCase.DeleteAdImage(ctx, adId, imageId, userId)
+
+		// Проверяем результат: основная операция успешна, но возникает ошибка в логировании MinIO
+		assert.NoError(t, err)
+	})
+}

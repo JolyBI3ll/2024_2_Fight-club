@@ -65,5 +65,5 @@ type AdRepository interface {
 	SaveImages(ctx context.Context, adUUID string, imagePaths []string) error
 	GetAdImages(ctx context.Context, adId string) ([]string, error)
 	GetUserPlaces(ctx context.Context, userId string) ([]GetAllAdsResponse, error)
-	DeleteAdImage(ctx context.Context, adId string, imageId string, userId string) (string, error)
+	DeleteAdImage(ctx context.Context, adId string, imageId int, userId string) (string, error)
 }

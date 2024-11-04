@@ -64,6 +64,11 @@ type MockAdUseCase struct {
 	MockDeletePlace      func(ctx context.Context, adId string, userId string) error
 	MockGetPlacesPerCity func(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error)
 	MockGetUserPlaces    func(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
+	MockDeleteAdImage    func(ctx context.Context, adId string, imageId int, userId string) error
+}
+
+func (m *MockAdUseCase) DeleteAdImage(ctx context.Context, adId string, imageId int, userId string) error {
+	return m.MockDeleteAdImage(ctx, adId, imageId, userId)
 }
 
 func (m *MockAdUseCase) GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error) {
@@ -105,6 +110,11 @@ type MockAdRepository struct {
 	MockSaveImages       func(ctx context.Context, adUUID string, imagePaths []string) error
 	MockGetAdImages      func(ctx context.Context, adId string) ([]string, error)
 	MockGetUserPlaces    func(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
+	MockDeleteAdImage    func(ctx context.Context, adId string, imageId int, userId string) (string, error)
+}
+
+func (m *MockAdRepository) DeleteAdImage(ctx context.Context, adId string, imageId int, userId string) (string, error) {
+	return m.MockDeleteAdImage(ctx, adId, imageId, userId)
 }
 
 func (m *MockAdRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error) {

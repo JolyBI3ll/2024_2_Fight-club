@@ -19,7 +19,7 @@ type AdUseCase interface {
 	DeletePlace(ctx context.Context, adId string, userId string) error
 	GetPlacesPerCity(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error)
 	GetUserPlaces(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
-	DeleteAdImage(ctx context.Context, adId string, imageId string, userId string) error
+	DeleteAdImage(ctx context.Context, adId string, imageId int, userId string) error
 }
 
 type adUseCase struct {
@@ -153,7 +153,7 @@ func (uc *adUseCase) GetUserPlaces(ctx context.Context, userId string) ([]domain
 	return places, nil
 }
 
-func (uc *adUseCase) DeleteAdImage(ctx context.Context, adId string, imageId string, userId string) error {
+func (uc *adUseCase) DeleteAdImage(ctx context.Context, adId string, imageId int, userId string) error {
 	imageURL, err := uc.adRepository.DeleteAdImage(ctx, adId, imageId, userId)
 	if err != nil {
 		return err

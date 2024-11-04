@@ -361,9 +361,9 @@ func (r *adRepository) GetUserPlaces(ctx context.Context, userId string) ([]doma
 	return ads, nil
 }
 
-func (r *adRepository) DeleteAdImage(ctx context.Context, adId string, imageId string, userId string) (string, error) {
+func (r *adRepository) DeleteAdImage(ctx context.Context, adId string, imageId int, userId string) (string, error) {
 	requestID := middleware.GetRequestID(ctx)
-	logger.DBLogger.Info("DeleteAdImage called", zap.String("ad", adId), zap.String("image", imageId), zap.String("request_id", requestID))
+	logger.DBLogger.Info("DeleteAdImage called", zap.String("ad", adId), zap.Int("image", imageId), zap.String("request_id", requestID))
 
 	var ad domain.Ad
 	if err := r.db.First(&ad, "uuid = ?", adId).Error; err != nil {
@@ -389,6 +389,6 @@ func (r *adRepository) DeleteAdImage(ctx context.Context, adId string, imageId s
 		return "", errors.New("error deleting image from database")
 	}
 
-	logger.DBLogger.Info("Image deleted successfully", zap.String("image_id", imageId), zap.String("ad_id", adId), zap.String("request_id", requestID))
+	logger.DBLogger.Info("Image deleted successfully", zap.Int("image_id", imageId), zap.String("ad_id", adId), zap.String("request_id", requestID))
 	return image.ImageUrl, nil
 }

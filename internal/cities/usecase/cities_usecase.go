@@ -14,7 +14,7 @@ type cityUseCase struct {
 	cityRepository domain.CityRepository
 }
 
-func NewCityUSeCase(cityRepository domain.CityRepository) CityUseCase {
+func NewCityUseCase(cityRepository domain.CityRepository) CityUseCase {
 	return &cityUseCase{
 		cityRepository: cityRepository,
 	}

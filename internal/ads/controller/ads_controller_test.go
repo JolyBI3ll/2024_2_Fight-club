@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -467,4 +468,138 @@ func TestAdHandler_GetUserPlaces(t *testing.T) {
 	handler.GetUserPlaces(rr, req)
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code, "Expected status 500")
+}
+
+func TestDeleteAdImage(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer logger.SyncLoggers()
+
+	// Создаем экземпляры моков
+	mockJWT := &mocks.MockJwtTokenService{}
+	mockSession := &mocks.MockServiceSession{}
+	mockAdUseCase := &mocks.MockAdUseCase{}
+	handler := NewAdHandler(mockAdUseCase, mockSession, mockJWT)
+
+	// Создаем стандартные параметры
+	adId := "ad-uuid"
+	imageId := "123"
+	userId := "user-uuid"
+	csrfToken := "Bearer valid_token"
+
+	// Тестируем каждый сценарий
+	t.Run("invalid imageId", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/ads/"+adId+"/images/invalidId", nil)
+		w := httptest.NewRecorder()
+		req = mux.SetURLVars(req, map[string]string{"adId": adId, "imageId": "invalidId"})
+
+		handler.DeleteAdImage(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
+		assert.Contains(t, w.Body.String(), "Invalid image ID")
+	})
+
+	t.Run("missing CSRF token", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/ads/"+adId+"/images/"+imageId, nil)
+		w := httptest.NewRecorder()
+		req = mux.SetURLVars(req, map[string]string{"adId": adId, "imageId": imageId})
+
+		handler.DeleteAdImage(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+		assert.Contains(t, w.Body.String(), "Missing X-CSRF-Token header")
+	})
+
+	t.Run("invalid JWT token", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/ads/"+adId+"/images/"+imageId, nil)
+		req.Header.Set("X-CSRF-Token", csrfToken)
+		w := httptest.NewRecorder()
+		req = mux.SetURLVars(req, map[string]string{"adId": adId, "imageId": imageId})
+
+		mockJWT.MockValidate = func(tokenString string) (*middleware.JwtCsrfClaims, error) {
+			return nil, errors.New("invalid token")
+		}
+
+		handler.DeleteAdImage(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+		assert.Contains(t, w.Body.String(), "Invalid token")
+	})
+
+	t.Run("no active session", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/ads/"+adId+"/images/"+imageId, nil)
+		req.Header.Set("X-CSRF-Token", csrfToken)
+		w := httptest.NewRecorder()
+		req = mux.SetURLVars(req, map[string]string{"adId": adId, "imageId": imageId})
+
+		mockJWT.MockValidate = func(tokenString string) (*middleware.JwtCsrfClaims, error) {
+			if tokenString == "valid_token" {
+				return &middleware.JwtCsrfClaims{}, nil
+			}
+			return nil, fmt.Errorf("invalid token")
+		}
+		mockSession.MockGetUserID = func(ctx context.Context, r *http.Request) (string, error) {
+			return "", errors.New("no active session")
+		}
+
+		handler.DeleteAdImage(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+		assert.Contains(t, w.Body.String(), "no active session")
+	})
+
+	t.Run("ad use case error", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/ads/"+adId+"/images/"+imageId, nil)
+		req.Header.Set("X-CSRF-Token", csrfToken)
+		w := httptest.NewRecorder()
+		req = mux.SetURLVars(req, map[string]string{"adId": adId, "imageId": imageId})
+
+		mockJWT.MockValidate = func(tokenString string) (*middleware.JwtCsrfClaims, error) {
+			if tokenString == "valid_token" {
+				return &middleware.JwtCsrfClaims{}, nil
+			}
+			return nil, fmt.Errorf("invalid token")
+		}
+		mockSession.MockGetUserID = func(ctx context.Context, r *http.Request) (string, error) {
+			return userId, nil
+		}
+		mockAdUseCase.MockDeleteAdImage = func(ctx context.Context, adId string, imageId int, userId string) error {
+			return errors.New("delete error")
+		}
+
+		handler.DeleteAdImage(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Result().StatusCode)
+		assert.Contains(t, w.Body.String(), "delete error")
+	})
+
+	t.Run("successful delete", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/ads/"+adId+"/images/"+imageId, nil)
+		req.Header.Set("X-CSRF-Token", csrfToken)
+		w := httptest.NewRecorder()
+		req = mux.SetURLVars(req, map[string]string{"adId": adId, "imageId": imageId})
+
+		mockJWT.MockValidate = func(tokenString string) (*middleware.JwtCsrfClaims, error) {
+			if tokenString == "valid_token" {
+				return &middleware.JwtCsrfClaims{}, nil
+			}
+			return nil, fmt.Errorf("invalid token")
+		}
+		mockSession.MockGetUserID = func(ctx context.Context, r *http.Request) (string, error) {
+			return userId, nil
+		}
+		mockAdUseCase.MockDeleteAdImage = func(ctx context.Context, adId string, imageId int, userId string) error {
+			return nil
+		}
+
+		handler.DeleteAdImage(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+		var response map[string]string
+		err := json.NewDecoder(w.Body).Decode(&response)
+		assert.NoError(t, err)
+		assert.Equal(t, "Delete image successfully", response["response"])
+	})
 }

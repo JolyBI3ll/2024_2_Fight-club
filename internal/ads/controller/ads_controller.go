@@ -16,6 +16,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"regexp"
+	"strconv"
 	"time"
 )
 
@@ -499,7 +500,11 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	adId := mux.Vars(r)["adId"]
 	imageId := mux.Vars(r)["imageId"]
-
+	imageIdint, err2 := strconv.Atoi(imageId)
+	if err2 != nil {
+		http.Error(w, "Invalid image ID", http.StatusBadRequest)
+		return
+	}
 	ctx, cancel := withTimeout(r.Context())
 	defer cancel()
 	logger.AccessLogger.Info("Received DeleteAdImage request",
@@ -534,7 +539,7 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	err = h.adUseCase.DeleteAdImage(ctx, adId, imageId, userID)
+	err = h.adUseCase.DeleteAdImage(ctx, adId, imageIdint, userID)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to delete ad image", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)

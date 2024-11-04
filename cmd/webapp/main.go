@@ -48,7 +48,7 @@ func main() {
 	adsHandler := adHttpDelivery.NewAdHandler(adsUseCase, sessionService, jwtToken)
 
 	citiesRepository := cityRepository.NewCityRepository(db)
-	citiesUseCase := cityUseCase.NewCityUSeCase(citiesRepository)
+	citiesUseCase := cityUseCase.NewCityUseCase(citiesRepository)
 	cityHandler := cityHttpDelivery.NewCityHandler(citiesUseCase)
 
 	store.Options.HttpOnly = true

@@ -55,7 +55,7 @@ func TestGetAllPlaces(t *testing.T) {
 	assert.Equal(t, "some-uuid", ads[0].UUID)
 	assert.Equal(t, "Some Address", ads[0].Address)
 	assert.Equal(t, 3, ads[0].RoomsNumber)
-	assert.Equal(t, "Username", ads[0].Name)
+	assert.Equal(t, "City Name", ads[0].Cityname)
 	assert.ElementsMatch(t, ntype.StringArray{"images/image1.jpg", "images/image2.jpg"}, ads[0].Images)
 	err = mock.ExpectationsWereMet()
 	require.NoError(t, err)
@@ -828,4 +828,147 @@ func TestGetUserPlaces_Failure(t *testing.T) {
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("Unmet expectations: %v", err)
 	}
+}
+
+func TestDeleteAdImage(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer logger.SyncLoggers()
+
+	db, mock, err := setupDBMock()
+	assert.Nil(t, err)
+
+	adRepo := NewAdRepository(db)
+	ctx := context.Background()
+
+	// Тест успешного удаления изображения
+	t.Run("success", func(t *testing.T) {
+		adId := "ad-uuid"
+		imageId := 1
+		userId := "user-uuid"
+		imageUrl := "/images/image.jpg"
+
+		// Настраиваем ожидания
+		mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM \"ads\" WHERE uuid = $1 ORDER BY \"ads\".\"uuid\" LIMIT $2")).
+			WithArgs(adId, 1).
+			WillReturnRows(sqlmock.NewRows([]string{"uuid", "authorUUID"}).AddRow(adId, userId))
+
+		mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM \"images\" WHERE id = $1 AND \"adId\" = $2 ORDER BY \"images\".\"id\" LIMIT $3")).
+			WithArgs(imageId, adId, 1).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "adId", "imageUrl"}).AddRow(imageId, adId, imageUrl))
+
+		mock.ExpectBegin()
+		mock.ExpectExec("DELETE FROM \"images\"").
+			WithArgs(imageId).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectCommit()
+
+		// Вызываем функцию
+		result, err := adRepo.DeleteAdImage(ctx, adId, imageId, userId)
+
+		// Проверяем результат
+		assert.NoError(t, err)
+		assert.Equal(t, imageUrl, result)
+
+		// Проверяем все ожидания выполнены
+		err = mock.ExpectationsWereMet()
+		assert.NoError(t, err)
+	})
+
+	// Тест случая, когда объявление не найдено
+	t.Run("ad not found", func(t *testing.T) {
+		adId := "ad-uuid"
+		imageId := 1
+		userId := "user-uuid"
+
+		// Настраиваем ожидания
+		mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM \"ads\" WHERE uuid = $1 ORDER BY \"ads\".\"uuid\" LIMIT $2")).
+			WithArgs(adId, 1).
+			WillReturnError(gorm.ErrRecordNotFound)
+
+		// Вызываем функцию
+		result, err := adRepo.DeleteAdImage(ctx, adId, imageId, userId)
+
+		// Проверяем результат
+		assert.Error(t, err)
+		assert.Empty(t, result)
+		assert.Equal(t, "ad not found", err.Error())
+	})
+
+	// Тест случая, когда пользователь не является владельцем объявления
+	t.Run("not owner of ad", func(t *testing.T) {
+		adId := "ad-uuid"
+		imageId := 1
+		userId := "user-uuid"
+		wrongUUID := "another-user-uuid"
+
+		// Настраиваем ожидания
+		mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM \"ads\" WHERE uuid = $1 ORDER BY \"ads\".\"uuid\" LIMIT $2")).
+			WithArgs(adId, 1).
+			WillReturnRows(sqlmock.NewRows([]string{"uuid", "authorUUID"}).AddRow(adId, wrongUUID))
+
+		// Вызываем функцию
+		result, err := adRepo.DeleteAdImage(ctx, adId, imageId, userId)
+
+		// Проверяем результат
+		assert.Error(t, err)
+		assert.Empty(t, result)
+		assert.Equal(t, "not owner of ad", err.Error())
+	})
+
+	// Тест случая, когда изображение не найдено
+	t.Run("image not found", func(t *testing.T) {
+		adId := "ad-uuid"
+		imageId := 1
+		userId := "user-uuid"
+
+		// Настраиваем ожидания
+		mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM \"ads\" WHERE uuid = $1 ORDER BY \"ads\".\"uuid\" LIMIT $2")).
+			WithArgs(adId, 1).
+			WillReturnRows(sqlmock.NewRows([]string{"uuid", "authorUUID"}).AddRow(adId, userId))
+
+		mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM \"images\" WHERE id = $1 AND \"adId\" = $2 ORDER BY \"images\".\"id\" LIMIT $3")).
+			WithArgs(imageId, adId, 1).
+			WillReturnError(gorm.ErrRecordNotFound)
+
+		// Вызываем функцию
+		result, err := adRepo.DeleteAdImage(ctx, adId, imageId, userId)
+
+		// Проверяем результат
+		assert.Error(t, err)
+		assert.Empty(t, result)
+		assert.Equal(t, "image not found", err.Error())
+	})
+
+	// Тест случая ошибки при удалении изображения
+	t.Run("error deleting image", func(t *testing.T) {
+		adId := "ad-uuid"
+		imageId := 1
+		userId := "user-uuid"
+		imageUrl := "/images/image.jpg"
+
+		// Настраиваем ожидания
+		mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM \"ads\" WHERE uuid = $1 ORDER BY \"ads\".\"uuid\" LIMIT $2")).
+			WithArgs(adId, 1).
+			WillReturnRows(sqlmock.NewRows([]string{"uuid", "authorUUID"}).AddRow(adId, userId))
+
+		mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM \"images\" WHERE id = $1 AND \"adId\" = $2 ORDER BY \"images\".\"id\" LIMIT $3")).
+			WithArgs(imageId, adId, 1).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "adId", "imageUrl"}).AddRow(imageId, adId, imageUrl))
+
+		mock.ExpectBegin()
+		mock.ExpectExec("DELETE FROM \"images\"").
+			WithArgs(imageId).
+			WillReturnError(errors.New("delete error"))
+		mock.ExpectRollback()
+
+		// Вызываем функцию
+		result, err := adRepo.DeleteAdImage(ctx, adId, imageId, userId)
+
+		// Проверяем результат
+		assert.Error(t, err)
+		assert.Empty(t, result)
+		assert.Equal(t, "error deleting image from database", err.Error())
+	})
 }
