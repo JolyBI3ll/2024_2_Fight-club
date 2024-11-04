@@ -67,7 +67,7 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHead
 				}
 				return err
 			}
-			uploadedPaths = append(uploadedPaths, "images/"+uploadedPath)
+			uploadedPaths = append(uploadedPaths, "/images/"+uploadedPath)
 		}
 	}
 
@@ -98,7 +98,7 @@ func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId str
 				}
 				return err
 			}
-			newUploadedPaths = append(newUploadedPaths, "images/"+uploadedPath)
+			newUploadedPaths = append(newUploadedPaths, "/images/"+uploadedPath)
 		}
 	}
 
