@@ -502,7 +502,8 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 	imageId := mux.Vars(r)["imageId"]
 	imageIdint, err2 := strconv.Atoi(imageId)
 	if err2 != nil {
-		http.Error(w, "Invalid image ID", http.StatusBadRequest)
+		logger.AccessLogger.Warn("Failed to ATOI image url", zap.String("request_id", requestID), zap.Error(err2))
+		h.handleError(w, err2, requestID)
 		return
 	}
 	ctx, cancel := withTimeout(r.Context())
