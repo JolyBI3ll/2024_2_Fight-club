@@ -19,6 +19,12 @@ type User struct {
 	IsHost     bool      `gorm:"type:boolean;default:false;column:isHost" form:"isHost" json:"isHost"`
 }
 
+type UserResponce struct {
+	Rating float64 `json:"rating"`
+	Avatar string  `json:"avatar"`
+	Name   string  `json:"name"`
+}
+
 type AuthRepository interface {
 	CreateUser(ctx context.Context, creds *User) error
 	SaveUser(ctx context.Context, creds *User) error

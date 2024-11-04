@@ -494,6 +494,69 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
+func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	adId := mux.Vars(r)["adId"]
+	imageId := mux.Vars(r)["imageId"]
+
+	ctx, cancel := withTimeout(r.Context())
+	defer cancel()
+	logger.AccessLogger.Info("Received DeleteAdImage request",
+		zap.String("request_id", requestID),
+		zap.String("adId", adId),
+		zap.String("imageId", imageId))
+
+	authHeader := r.Header.Get("X-CSRF-Token")
+	if authHeader == "" {
+		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
+			zap.String("request_id", requestID),
+			zap.Error(errors.New("Missing X-CSRF-Token header")),
+		)
+		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
+		return
+	}
+
+	tokenString := authHeader[len("Bearer "):]
+	_, err := h.jwtToken.Validate(tokenString)
+	if err != nil {
+		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	userID, err := h.sessionService.GetUserID(ctx, r)
+	if err != nil {
+		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("no active session"), requestID)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+
+	err = h.adUseCase.DeleteAdImage(ctx, adId, imageId, userID)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to delete ad image", zap.String("request_id", requestID), zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	updateResponse := map[string]string{"response": "Delete image successfully"}
+	if err := json.NewEncoder(w).Encode(updateResponse); err != nil {
+		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed DeleteAdImage request",
+		zap.String("request_id", requestID),
+		zap.String("adId", adId),
+		zap.String("imageId", imageId))
+	zap.String("duration", duration.String())
+}
+
 func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID string) {
 	logger.AccessLogger.Error("Handling error",
 		zap.String("request_id", requestID),

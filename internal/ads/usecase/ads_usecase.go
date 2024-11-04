@@ -4,6 +4,7 @@ import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/images"
 	ntype "2024_2_FIGHT-CLUB/internal/service/type"
+	"log"
 
 	"context"
 	"errors"
@@ -18,6 +19,7 @@ type AdUseCase interface {
 	DeletePlace(ctx context.Context, adId string, userId string) error
 	GetPlacesPerCity(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error)
 	GetUserPlaces(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
+	DeleteAdImage(ctx context.Context, adId string, imageId string, userId string) error
 }
 
 type adUseCase struct {
@@ -149,4 +151,17 @@ func (uc *adUseCase) GetUserPlaces(ctx context.Context, userId string) ([]domain
 		return nil, err
 	}
 	return places, nil
+}
+
+func (uc *adUseCase) DeleteAdImage(ctx context.Context, adId string, imageId string, userId string) error {
+	imageURL, err := uc.adRepository.DeleteAdImage(ctx, adId, imageId, userId)
+	if err != nil {
+		return err
+	}
+
+	if err := uc.minioService.DeleteFile(imageURL); err != nil {
+		log.Printf("Warning: failed to delete file from MinIO: %v", err)
+	}
+
+	return nil
 }
