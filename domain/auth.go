@@ -32,4 +32,5 @@ type AuthRepository interface {
 	GetAllUser(ctx context.Context) ([]User, error)
 	GetUserById(ctx context.Context, userID string) (*User, error)
 	GetUserByName(ctx context.Context, username string) (*User, error)
+	GetUserByEmail(ctx context.Context, email string) (*User, error)
 }

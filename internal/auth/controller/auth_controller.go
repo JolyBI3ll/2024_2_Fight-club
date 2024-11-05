@@ -678,7 +678,8 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 		"Input exceeds character limit", "Invalid size, type or resolution of image":
 		w.WriteHeader(http.StatusBadRequest)
 	case "user already exists",
-		"session already exists":
+		"session already exists",
+		"email already exists":
 		w.WriteHeader(http.StatusConflict)
 	case "no active session", "already logged in":
 		w.WriteHeader(http.StatusUnauthorized)

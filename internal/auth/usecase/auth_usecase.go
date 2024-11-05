@@ -72,6 +72,12 @@ func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User) err
 	if existingUser != nil {
 		return errors.New("user already exists")
 	}
+
+	existingUser, _ = uc.authRepository.GetUserByEmail(ctx, creds.Email)
+	if existingUser != nil {
+		return errors.New("email already exists")
+	}
+
 	err := uc.authRepository.CreateUser(ctx, creds)
 	if err != nil {
 		return err

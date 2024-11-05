@@ -112,3 +112,21 @@ func (r *authRepository) GetUserByName(ctx context.Context, username string) (*d
 	logger.DBLogger.Info("Successfully fetched user by name", zap.String("request_id", requestID), zap.String("username", username))
 	return &user, nil
 }
+
+func (r *authRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+	requestID := middleware.GetRequestID(ctx)
+	logger.DBLogger.Info("GetUserByEmail called", zap.String("request_id", requestID), zap.String("email", email))
+
+	var user domain.User
+	if err := r.db.Where("email = ?", email).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			logger.DBLogger.Warn("User not found by email", zap.String("request_id", requestID), zap.String("email", email))
+			return nil, errors.New("user not found")
+		}
+		logger.DBLogger.Error("Error fetching user by email", zap.String("request_id", requestID), zap.String("email", email), zap.Error(err))
+		return nil, err
+	}
+
+	logger.DBLogger.Info("Successfully fetched user by email", zap.String("request_id", requestID), zap.String("email", email))
+	return &user, nil
+}
