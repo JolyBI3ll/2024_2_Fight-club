@@ -65,11 +65,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	const maxLen = 255
 	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
-	if !validCharPattern.MatchString(creds.Username) ||
-		!validCharPattern.MatchString(creds.Email) ||
-		!validCharPattern.MatchString(creds.Password) ||
-		!validCharPattern.MatchString(creds.Name) ||
-		!validCharPattern.MatchString(creds.Avatar) ||
+	if !validCharPattern.MatchString(creds.Avatar) ||
 		!validCharPattern.MatchString(creds.UUID) {
 		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
 		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
@@ -182,9 +178,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 
 	const maxLen = 255
 	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
-	if !validCharPattern.MatchString(creds.Username) ||
-		!validCharPattern.MatchString(creds.Email) ||
-		!validCharPattern.MatchString(creds.Password) ||
+	if !validCharPattern.MatchString(creds.Email) ||
 		!validCharPattern.MatchString(creds.Name) ||
 		!validCharPattern.MatchString(creds.Avatar) ||
 		!validCharPattern.MatchString(creds.UUID) {

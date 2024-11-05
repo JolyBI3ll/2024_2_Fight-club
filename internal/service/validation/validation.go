@@ -18,17 +18,17 @@ func ValidateEmail(email string) bool {
 }
 
 func ValidateLogin(login string) bool {
-	re := regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-_.]{3,20}[A-Za-z0-9]$`)
+	re := regexp.MustCompile(`^[A-Za-zА-Яа-яЁё0-9][A-Za-zА-Яа-яЁё0-9-_.]{3,20}[A-Za-zА-Яа-яЁё0-9]$`)
 	return re.MatchString(login)
 }
 
 func ValidatePassword(password string) bool {
-	re := regexp.MustCompile(`^[a-zA-Z0-9!@#$%^&*()_+=-]{8,16}$`)
+	re := regexp.MustCompile(`^[a-zA-ZА-Яа-яЁё0-9!@#$%^&*()_+=-]{8,16}$`)
 	return re.MatchString(password)
 }
 
 func ValidateName(name string) bool {
-	re := regexp.MustCompile(`^.{5,50}$`)
+	re := regexp.MustCompile(`^[A-Za-zА-Яа-яЁё\s.]{5,50}$`)
 	return re.MatchString(name)
 }
 
