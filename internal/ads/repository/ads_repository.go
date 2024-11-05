@@ -27,7 +27,7 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 	logger.DBLogger.Info("GetAllPlaces called", zap.String("request_id", requestID))
 	var ads []domain.GetAllAdsResponse
 
-	query := r.db.Model(&domain.Ad{}).Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
+	query := r.db.Model(&domain.Ad{}).Joins("JOIN cities ON  ads.\"cityId\" = cities.id").Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").
 		Select("ads.*, cities.title as cityName")
 
 	if filter.Location != "" {
@@ -165,6 +165,7 @@ func (r *adRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd dom
 		return errors.New("Error finding city")
 	}
 	ad.CityID = city.ID
+	ad.PublicationDate = time.Now()
 	if err := r.db.Create(ad).Error; err != nil {
 		logger.DBLogger.Error("Error creating place", zap.String("adId", ad.UUID), zap.String("request_id", requestID), zap.Error(err))
 		return errors.New("Error creating place")
