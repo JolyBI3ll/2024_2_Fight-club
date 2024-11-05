@@ -12,7 +12,7 @@ type User struct {
 	Email      string    `gorm:"type:varchar(255);unique;not null;column:email" json:"email"`
 	Name       string    `gorm:"type:varchar(50);not null;column:name" json:"name"`
 	Score      float64   `gorm:"type:numeric;column:score" json:"score"`
-	Avatar     string    `gorm:"type:text;column:avatar;size:1000;default:images/default.png" json:"avatar"`
+	Avatar     string    `gorm:"type:text;column:avatar;size:1000;default:/images/default.png" json:"avatar"`
 	Sex        string    `gorm:"type:varchar(1);column:sex" json:"sex"`
 	GuestCount int       `gorm:"column:guestCount" json:"guestCount"`
 	Birthdate  time.Time `gorm:"type:date;column:birthDate" json:"birthDate"`
