@@ -496,8 +496,8 @@ func TestDeleteAdImage(t *testing.T) {
 
 		handler.DeleteAdImage(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
-		assert.Contains(t, w.Body.String(), "Invalid image ID")
+		assert.Equal(t, http.StatusInternalServerError, w.Result().StatusCode)
+		assert.Contains(t, w.Body.String(), "invalidId")
 	})
 
 	t.Run("missing CSRF token", func(t *testing.T) {

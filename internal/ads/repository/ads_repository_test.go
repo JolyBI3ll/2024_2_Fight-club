@@ -38,14 +38,19 @@ func TestGetAllPlaces(t *testing.T) {
 	repo := NewAdRepository(db)
 	filter := domain.AdFilter{}
 
-	query := `SELECT ads.*, users.avatar, users.name, users.score as rating , cities.title as cityName FROM "ads" JOIN users ON ads."authorUUID" = users.uuid JOIN cities ON ads."cityId" = cities.id`
-	rows := sqlmock.NewRows([]string{"uuid", "cityId", "authorUUID", "address", "publicationDate", "description", "roomsNumber", "avatar", "name", "rating", "cityName"}).
+	query := `SELECT ads.*, cities.title as cityName FROM "ads" JOIN cities ON ads."cityId" = cities.id JOIN users ON ads."authorUUID" = users.uuid`
+	rows := sqlmock.NewRows([]string{"uuid", "cityId", "authorUUID", "address", "publicationDate", "description", "roomsNumber", "avatar", "name", "rating", "cityname"}).
 		AddRow("some-uuid", 1, "author-uuid", "Some Address", time.Now(), "Some Description", 3, "avatar_url", "Username", 4.5, "City Name")
 	mock.ExpectQuery(query).WillReturnRows(rows)
 
-	imagesQuery := `SELECT (.+) FROM "images" WHERE "adId" = ?`
+	imagesQuery := "SELECT * FROM \"images\" WHERE \"adId\" = $1"
 	imageRows := sqlmock.NewRows(ntype.StringArray{"imageUrl"}).AddRow("images/image1.jpg").AddRow("images/image2.jpg")
-	mock.ExpectQuery(imagesQuery).WithArgs("some-uuid").WillReturnRows(imageRows)
+	mock.ExpectQuery(regexp.QuoteMeta(imagesQuery)).WithArgs("some-uuid").WillReturnRows(imageRows)
+
+	query2 := "SELECT * FROM \"users\" WHERE uuid = $1"
+	rows2 := sqlmock.NewRows([]string{"uuid", "username", "password", "email", "username"}).
+		AddRow("some-uuid", "test_username", "some_password", "test@example.com", "test_username")
+	mock.ExpectQuery(regexp.QuoteMeta(query2)).WillReturnRows(rows2)
 
 	filter = domain.AdFilter{Location: "", Rating: "", NewThisWeek: "", HostGender: "", GuestCount: ""}
 	ads, err := repo.GetAllPlaces(context.Background(), filter)
@@ -56,7 +61,16 @@ func TestGetAllPlaces(t *testing.T) {
 	assert.Equal(t, "Some Address", ads[0].Address)
 	assert.Equal(t, 3, ads[0].RoomsNumber)
 	assert.Equal(t, "City Name", ads[0].Cityname)
-	assert.ElementsMatch(t, ntype.StringArray{"images/image1.jpg", "images/image2.jpg"}, ads[0].Images)
+	assert.ElementsMatch(t, []domain.ImageResponse{
+		{
+			ID:        0,
+			ImagePath: "images/image1.jpg",
+		},
+		{
+			ID:        0,
+			ImagePath: "images/image2.jpg",
+		},
+	}, ads[0].Images)
 	err = mock.ExpectationsWereMet()
 	require.NoError(t, err)
 }
@@ -98,14 +112,19 @@ func TestGetPlaceById(t *testing.T) {
 	}
 
 	// Step 2: Define Mock Database Expectations
-	query := `SELECT ads\.\*, users.avatar, users.name, users.score as rating , cities.title as cityName FROM "ads" JOIN users ON ads."authorUUID" = users.uuid [\s\S]* WHERE ads\.uuid = \$1`
+	query := "SELECT ads.*, cities.title as cityName FROM \"ads\" JOIN users ON ads.\"authorUUID\" = users.uuid JOIN cities ON ads.\"cityId\" = cities.id WHERE ads.uuid = $1"
 	rows := sqlmock.NewRows([]string{"uuid", "cityId", "authorUUID", "address", "avatar", "name", "rating", "cityName"}).
 		AddRow("some-uuid", 1, "author-uuid", "Some Address", "avatar_url", "UserName", 4.5, "CityName")
-	mock.ExpectQuery(query).WithArgs("some-uuid").WillReturnRows(rows)
+	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs("some-uuid").WillReturnRows(rows)
 
-	imageQuery := `SELECT (.+) FROM "images" WHERE "adId" = ?`
-	imageRows := sqlmock.NewRows([]string{"imageUrl"}).AddRow("images/image1.jpg").AddRow("images/image2.jpg")
-	mock.ExpectQuery(imageQuery).WithArgs("some-uuid").WillReturnRows(imageRows)
+	imagesQuery := "SELECT * FROM \"images\" WHERE \"adId\" = $1"
+	imageRows := sqlmock.NewRows(ntype.StringArray{"imageUrl"}).AddRow("images/image1.jpg").AddRow("images/image2.jpg")
+	mock.ExpectQuery(regexp.QuoteMeta(imagesQuery)).WithArgs("some-uuid").WillReturnRows(imageRows)
+
+	query2 := "SELECT * FROM \"users\" WHERE uuid = $1"
+	rows2 := sqlmock.NewRows([]string{"uuid", "username", "password", "email", "username"}).
+		AddRow("some-uuid", "test_username", "some_password", "test@example.com", "test_username")
+	mock.ExpectQuery(regexp.QuoteMeta(query2)).WillReturnRows(rows2)
 
 	ad, err := repo.GetPlaceById(context.Background(), "some-uuid")
 
@@ -114,8 +133,16 @@ func TestGetPlaceById(t *testing.T) {
 	assert.Equal(t, expectedAd.CityID, ad.CityID)
 	assert.Equal(t, expectedAd.AuthorUUID, ad.AuthorUUID)
 	assert.Equal(t, expectedAd.Address, ad.Address)
-	assert.ElementsMatch(t, ntype.StringArray{"images/image1.jpg", "images/image2.jpg"}, ad.Images)
-
+	assert.ElementsMatch(t, []domain.ImageResponse{
+		{
+			ID:        0,
+			ImagePath: "images/image1.jpg",
+		},
+		{
+			ID:        0,
+			ImagePath: "images/image2.jpg",
+		},
+	}, ad.Images)
 	err = mock.ExpectationsWereMet()
 	require.NoError(t, err)
 }
@@ -530,9 +557,18 @@ func TestGetPlacesPerCity_Success(t *testing.T) {
 			time.Now(), "A lovely place", 3, "avatar.png", "John Doe", 4.5, "New York")
 
 	// Mock select ads
-	mock.ExpectQuery(`SELECT ads\.\*, users.avatar, users.name, users.score as rating , cities.title as cityName FROM "ads" JOIN users ON ads\."authorUUID" = users\.uuid JOIN cities ON  ads\."cityId" = cities\.id WHERE cities\."enTitle" = \$1`).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT ads.*, cities.title as cityName FROM \"ads\" JOIN users ON ads.\"authorUUID\" = users.uuid JOIN cities ON ads.\"cityId\" = cities.id WHERE cities.\"enTitle\" = $1")).
 		WithArgs(city).
 		WillReturnRows(rows)
+
+	imagesQuery := "SELECT * FROM \"images\" WHERE \"adId\" = $1"
+	imageRows := sqlmock.NewRows(ntype.StringArray{"imageUrl"}).AddRow("images/image1.jpg").AddRow("images/image2.jpg")
+	mock.ExpectQuery(regexp.QuoteMeta(imagesQuery)).WithArgs("ad-uuid-123").WillReturnRows(imageRows)
+
+	query2 := "SELECT * FROM \"users\" WHERE uuid = $1"
+	rows2 := sqlmock.NewRows([]string{"uuid", "username", "password", "email", "username"}).
+		AddRow("some-uuid", "test_username", "some_password", "test@example.com", "test_username")
+	mock.ExpectQuery(regexp.QuoteMeta(query2)).WillReturnRows(rows2)
 
 	ads, err := adRepo.GetPlacesPerCity(ctx, city)
 
@@ -564,7 +600,7 @@ func TestGetPlacesPerCity_Failure(t *testing.T) {
 	city := "Unknown City"
 
 	// Mock select ads with error
-	mock.ExpectQuery(`SELECT ads\.\*, users.avatar, users.name, users.score as rating , cities.title as cityName FROM "ads" JOIN users ON ads\."authorUUID" = users\.uuid JOIN cities ON  ads\."cityId" = cities\.id WHERE cities\."enTitle" = \$1`).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT ads.*, cities.title as cityName FROM \"ads\" JOIN users ON ads.\"authorUUID\" = users.uuid JOIN cities ON ads.\"cityId\" = cities.id WHERE cities.\"enTitle\" = $1")).
 		WithArgs(city).
 		WillReturnError(gorm.ErrInvalidData)
 

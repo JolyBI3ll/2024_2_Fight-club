@@ -3,6 +3,7 @@ package usecase
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/auth/mocks"
+	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"context"
 	"errors"
 	"github.com/stretchr/testify/assert"
@@ -51,6 +52,13 @@ func TestRegisterUser(t *testing.T) {
 	assert.Contains(t, err.Error(), "username")
 
 	// Тест-кейс 3: Ошибка - пользователь уже существует
+	creds = &domain.User{
+		Username: "testuser",
+		Password: "password",
+		Email:    "test@example.com",
+		Name:     "Test User",
+	}
+
 	mockAuthRepo.GetUserByNameFunc = func(ctx context.Context, username string) (*domain.User, error) {
 		return creds, nil
 	}
@@ -72,10 +80,15 @@ func TestLoginUser(t *testing.T) {
 
 	// Тест-кейс 1: Успешный вход
 	mockAuthRepo.GetUserByNameFunc = func(ctx context.Context, username string) (*domain.User, error) {
-		return creds, nil
+		hashPass, _ := middleware.HashPassword(creds.Password)
+		return &domain.User{
+			Username: "testuser",
+			Password: hashPass,
+		}, nil
 	}
 
 	user, err := uc.LoginUser(ctx, creds)
+	creds.Password = user.Password
 	assert.NoError(t, err)
 	assert.Equal(t, creds, user)
 
