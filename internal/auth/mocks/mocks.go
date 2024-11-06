@@ -85,12 +85,17 @@ func (m *MockAuthUseCase) GetUserById(ctx context.Context, userID string) (*doma
 }
 
 type MockAuthRepository struct {
-	GetUserByNameFunc func(ctx context.Context, username string) (*domain.User, error)
-	CreateUserFunc    func(ctx context.Context, user *domain.User) error
-	SaveUserFunc      func(ctx context.Context, user *domain.User) error
-	PutUserFunc       func(ctx context.Context, user *domain.User, userID string) error
-	GetAllUserFunc    func(ctx context.Context) ([]domain.User, error)
-	GetUserByIdFunc   func(ctx context.Context, userID string) (*domain.User, error)
+	GetUserByNameFunc  func(ctx context.Context, username string) (*domain.User, error)
+	CreateUserFunc     func(ctx context.Context, user *domain.User) error
+	SaveUserFunc       func(ctx context.Context, user *domain.User) error
+	PutUserFunc        func(ctx context.Context, user *domain.User, userID string) error
+	GetAllUserFunc     func(ctx context.Context) ([]domain.User, error)
+	GetUserByIdFunc    func(ctx context.Context, userID string) (*domain.User, error)
+	MockGetUserByEmail func(ctx context.Context, email string) (*domain.User, error)
+}
+
+func (m *MockAuthRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+	return m.MockGetUserByEmail(ctx, email)
 }
 
 func (m *MockAuthRepository) GetUserByName(ctx context.Context, username string) (*domain.User, error) {

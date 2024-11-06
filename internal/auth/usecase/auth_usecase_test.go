@@ -35,7 +35,9 @@ func TestRegisterUser(t *testing.T) {
 	mockAuthRepo.SaveUserFunc = func(ctx context.Context, user *domain.User) error {
 		return nil
 	}
-
+	mockAuthRepo.MockGetUserByEmail = func(ctx context.Context, email string) (*domain.User, error) {
+		return nil, nil
+	}
 	err := uc.RegisterUser(ctx, creds)
 	assert.NoError(t, err)
 
