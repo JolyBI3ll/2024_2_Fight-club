@@ -31,16 +31,7 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 		Select("ads.*, cities.title as cityName")
 
 	if filter.Location != "" {
-		switch filter.Location {
-		case "1km":
-			query = query.Where("distance <= ?", 1)
-		case "3km":
-			query = query.Where("distance <= ?", 3)
-		case "5km":
-			query = query.Where("distance <= ?", 5)
-		case "10km":
-			query = query.Where("distance <= ?", 10)
-		}
+		query = query.Where("cities.\"enTitle\" = ?", filter.Location)
 	}
 
 	if filter.Rating != "" {
