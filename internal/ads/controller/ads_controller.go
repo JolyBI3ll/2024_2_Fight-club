@@ -63,13 +63,36 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 	newThisWeek := queryParams.Get("new")
 	hostGender := queryParams.Get("gender")
 	guestCounter := queryParams.Get("guests")
-
+	offset := queryParams.Get("offset")
+	var offsetInt int
+	if offset != "" {
+		var err error
+		offsetInt, err = strconv.Atoi(offset)
+		if err != nil {
+			logger.AccessLogger.Error("Failed to parse offset as int", zap.String("request_id", requestID), zap.Error(err))
+			h.handleError(w, errors.New("query offset not int"), requestID)
+			return
+		}
+	}
+	limit := queryParams.Get("limit")
+	var limitInt int
+	if offset != "" {
+		var err error
+		limitInt, err = strconv.Atoi(limit)
+		if err != nil {
+			logger.AccessLogger.Error("Failed to parse limit as int", zap.String("request_id", requestID), zap.Error(err))
+			h.handleError(w, errors.New("query limit not int"), requestID)
+			return
+		}
+	}
 	filter := domain.AdFilter{
 		Location:    location,
 		Rating:      rating,
 		NewThisWeek: newThisWeek,
 		HostGender:  hostGender,
 		GuestCount:  guestCounter,
+		Limit:       limitInt,
+		Offset:      offsetInt,
 	}
 
 	places, err := h.adUseCase.GetAllPlaces(ctx, filter)
@@ -198,6 +221,10 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 			h.handleError(w, errors.New("Invalid size, type or resolution of image"), requestID)
 			return
 		}
+	} else {
+		logger.AccessLogger.Warn("No images", zap.String("request_id", requestID), zap.Error(err))
+		h.handleError(w, errors.New("No images"), requestID)
+		return
 	}
 
 	const maxLen = 255
@@ -678,7 +705,8 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 	case "not owner of ad", "no active session", "Missing X-CSRF-Token header", "Invalid JWT token":
 		w.WriteHeader(http.StatusUnauthorized)
 	case "Invalid metadata JSON", "Invalid multipart form", "Invalid size, type or resolution of image",
-		"Input contains invalid characters", "Input exceeds character limit", "RoomsNumber out of range":
+		"Input contains invalid characters", "Input exceeds character limit", "RoomsNumber out of range", "query offset not int",
+		"query limit not int", "No images":
 		w.WriteHeader(http.StatusBadRequest)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)

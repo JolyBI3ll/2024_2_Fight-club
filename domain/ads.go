@@ -52,6 +52,8 @@ type AdFilter struct {
 	NewThisWeek string
 	HostGender  string
 	GuestCount  string
+	Limit       int
+	Offset      int
 }
 
 type AdRepository interface {

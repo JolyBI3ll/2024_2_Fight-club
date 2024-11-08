@@ -78,6 +78,14 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 		}
 	}
 
+	if filter.Offset != 0 {
+		query = query.Offset(filter.Offset)
+	}
+
+	if filter.Limit > 0 {
+		query = query.Limit(filter.Limit)
+	}
+
 	if err := query.Find(&ads).Error; err != nil {
 		logger.DBLogger.Error("Error fetching all places", zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("Error fetching all places")
