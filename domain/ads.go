@@ -1,21 +1,49 @@
 package domain
 
 import (
-	"2024_2_FIGHT-CLUB/internal/service/type"
 	"context"
+	"time"
 )
 
 type Ad struct {
-	ID              string             `gorm:"primaryKey" json:"id"`
-	LocationMain    string             `json:"location_main"`
-	LocationStreet  string             `json:"location_street"`
-	Position        ntype.Float64Array `gorm:"type:float[]" json:"position"`
-	Images          ntype.StringArray  `gorm:"type:text[]"`
-	AuthorUUID      string             `json:"author_uuid"`
-	PublicationDate string             `json:"publication_date"`
-	AvailableDates  ntype.StringArray  `gorm:"type:text[]" json:"available_dates"`
-	Distance        float64            `json:"distance"`
-	Requests        []Request          `gorm:"foreignKey:AdID" json:"requests"`
+	UUID            string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid();column:uuid" json:"id"`
+	CityID          int       `gorm:"column:cityId;not null" json:"cityId"`
+	AuthorUUID      string    `gorm:"column:authorUUID;not null" json:"authorUUID"`
+	Address         string    `gorm:"type:varchar(255);column:address" json:"address"`
+	PublicationDate time.Time `gorm:"type:date;column:publicationDate" json:"publicationDate"`
+	Description     string    `gorm:"type:text;size:1000;column:description" json:"description"`
+	RoomsNumber     int       `gorm:"column:roomsNumber" json:"roomsNumber"`
+	City            City      `gorm:"foreignKey:CityID;references:ID" json:"-"`
+	Author          User      `gorm:"foreignKey:AuthorUUID;references:UUID" json:"-"`
+}
+
+type GetAllAdsResponse struct {
+	UUID            string          `gorm:"type:uuid;primaryKey;default:gen_random_uuid();column:uuid" json:"id"`
+	CityID          int             `gorm:"column:cityId;not null" json:"cityId"`
+	AuthorUUID      string          `gorm:"column:authorUUID;not null" json:"authorUUID"`
+	Address         string          `gorm:"type:varchar(255);column:address" json:"address"`
+	PublicationDate time.Time       `gorm:"type:date;column:publicationDate" json:"publicationDate"`
+	Description     string          `gorm:"type:text;size:1000;column:description" json:"description"`
+	RoomsNumber     int             `gorm:"column:roomsNumber" json:"roomsNumber"`
+	City            City            `gorm:"foreignKey:CityID;references:ID" json:"-"`
+	Author          User            `gorm:"foreignKey:AuthorUUID;references:UUID" json:"-"`
+	Cityname        string          `json:"cityName"`
+	AdAuthor        UserResponce    `gorm:"-" json:"author"`
+	Images          []ImageResponse `gorm:"-" json:"images"`
+}
+
+type CreateAdRequest struct {
+	CityName    string `form:"cityName" json:"cityName"`
+	Address     string `form:"address" json:"address"`
+	Description string `form:"description" json:"description"`
+	RoomsNumber int    `form:"roomsNumber" json:"roomsNumber"`
+}
+
+type UpdateAdRequest struct {
+	CityName    string `form:"cityName" json:"cityName"`
+	Address     string `form:"address" json:"address"`
+	Description string `form:"description" json:"description"`
+	RoomsNumber int    `form:"roomsNumber" json:"roomsNumber"`
 }
 
 type AdFilter struct {
@@ -24,14 +52,20 @@ type AdFilter struct {
 	NewThisWeek string
 	HostGender  string
 	GuestCount  string
+	Limit       int
+	Offset      int
 }
 
 type AdRepository interface {
-	GetAllPlaces(ctx context.Context, filter AdFilter) ([]Ad, error)
-	GetPlaceById(ctx context.Context, adId string) (Ad, error)
-	CreatePlace(ctx context.Context, ad *Ad) error
+	GetAllPlaces(ctx context.Context, filter AdFilter) ([]GetAllAdsResponse, error)
+	GetPlaceById(ctx context.Context, adId string) (GetAllAdsResponse, error)
+	CreatePlace(ctx context.Context, ad *Ad, newAd CreateAdRequest) error
 	SavePlace(ctx context.Context, ad *Ad) error
-	UpdatePlace(ctx context.Context, ad *Ad, adId string, userId string) error
+	UpdatePlace(ctx context.Context, ad *Ad, adId string, userId string, updatedAd UpdateAdRequest) error
 	DeletePlace(ctx context.Context, adId string, userId string) error
-	GetPlacesPerCity(ctx context.Context, city string) ([]Ad, error)
+	GetPlacesPerCity(ctx context.Context, city string) ([]GetAllAdsResponse, error)
+	SaveImages(ctx context.Context, adUUID string, imagePaths []string) error
+	GetAdImages(ctx context.Context, adId string) ([]string, error)
+	GetUserPlaces(ctx context.Context, userId string) ([]GetAllAdsResponse, error)
+	DeleteAdImage(ctx context.Context, adId string, imageId int, userId string) (string, error)
 }

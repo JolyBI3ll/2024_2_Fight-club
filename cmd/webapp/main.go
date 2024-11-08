@@ -7,6 +7,9 @@ import (
 	authHttpDelivery "2024_2_FIGHT-CLUB/internal/auth/controller"
 	authRepository "2024_2_FIGHT-CLUB/internal/auth/repository"
 	authUseCase "2024_2_FIGHT-CLUB/internal/auth/usecase"
+	cityHttpDelivery "2024_2_FIGHT-CLUB/internal/cities/controller"
+	cityRepository "2024_2_FIGHT-CLUB/internal/cities/repository"
+	cityUseCase "2024_2_FIGHT-CLUB/internal/cities/usecase"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/router"
@@ -16,6 +19,7 @@ import (
 	"github.com/joho/godotenv"
 	"log"
 	"net/http"
+	"os"
 )
 
 func main() {
@@ -43,16 +47,28 @@ func main() {
 	adsUseCase := adUseCase.NewAdUseCase(adsRepository, minioService)
 	adsHandler := adHttpDelivery.NewAdHandler(adsUseCase, sessionService, jwtToken)
 
+	citiesRepository := cityRepository.NewCityRepository(db)
+	citiesUseCase := cityUseCase.NewCityUseCase(citiesRepository)
+	cityHandler := cityHttpDelivery.NewCityHandler(citiesUseCase)
+
 	store.Options.HttpOnly = true
 	store.Options.Secure = false
 	store.Options.SameSite = http.SameSiteStrictMode
 
-	mainRouter := router.SetUpRoutes(authHandler, adsHandler)
+	mainRouter := router.SetUpRoutes(authHandler, adsHandler, cityHandler)
 	mainRouter.Use(middleware.RequestIDMiddleware)
 	mainRouter.Use(middleware.RateLimitMiddleware)
 	http.Handle("/", middleware.EnableCORS(mainRouter))
-	fmt.Println("Starting server on port 8008")
-	if err := http.ListenAndServe(":8008", nil); err != nil {
-		fmt.Printf("Error on starting server: %s", err)
+	if os.Getenv("HTTPS") == "TRUE" {
+		fmt.Println("Starting HTTPS server on port 8008")
+		if err := http.ListenAndServeTLS("0.0.0.0:8008", "ssl/pootnick.crt", "ssl/pootnick.key", nil); err != nil {
+			fmt.Printf("Error on starting server: %s", err)
+		}
+	} else {
+		fmt.Println("Starting HTTP server on port 8008")
+		if err := http.ListenAndServe("0.0.0.0:8008", nil); err != nil {
+			fmt.Printf("Error on starting server: %s", err)
+		}
 	}
+
 }

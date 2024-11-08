@@ -3,6 +3,7 @@ package usecase
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/auth/mocks"
+	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"context"
 	"errors"
 	"github.com/stretchr/testify/assert"
@@ -34,8 +35,10 @@ func TestRegisterUser(t *testing.T) {
 	mockAuthRepo.SaveUserFunc = func(ctx context.Context, user *domain.User) error {
 		return nil
 	}
-
-	err := uc.RegisterUser(ctx, creds, nil)
+	mockAuthRepo.MockGetUserByEmail = func(ctx context.Context, email string) (*domain.User, error) {
+		return nil, nil
+	}
+	err := uc.RegisterUser(ctx, creds)
 	assert.NoError(t, err)
 
 	// Тест-кейс 2: Ошибка валидации - неправильный логин
@@ -46,16 +49,23 @@ func TestRegisterUser(t *testing.T) {
 		Name:     "Test User",
 	}
 
-	err = uc.RegisterUser(ctx, invalidCreds, nil)
+	err = uc.RegisterUser(ctx, invalidCreds)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "username")
 
 	// Тест-кейс 3: Ошибка - пользователь уже существует
+	creds = &domain.User{
+		Username: "testuser",
+		Password: "password",
+		Email:    "test@example.com",
+		Name:     "Test User",
+	}
+
 	mockAuthRepo.GetUserByNameFunc = func(ctx context.Context, username string) (*domain.User, error) {
 		return creds, nil
 	}
 
-	err = uc.RegisterUser(ctx, creds, nil)
+	err = uc.RegisterUser(ctx, creds)
 	assert.Error(t, err)
 	assert.Equal(t, "user already exists", err.Error())
 }
@@ -72,10 +82,15 @@ func TestLoginUser(t *testing.T) {
 
 	// Тест-кейс 1: Успешный вход
 	mockAuthRepo.GetUserByNameFunc = func(ctx context.Context, username string) (*domain.User, error) {
-		return creds, nil
+		hashPass, _ := middleware.HashPassword(creds.Password)
+		return &domain.User{
+			Username: "testuser",
+			Password: hashPass,
+		}, nil
 	}
 
 	user, err := uc.LoginUser(ctx, creds)
+	creds.Password = user.Password
 	assert.NoError(t, err)
 	assert.Equal(t, creds, user)
 
@@ -143,4 +158,34 @@ func TestGetAllUser(t *testing.T) {
 	users, err = uc.GetAllUser(ctx)
 	assert.Error(t, err)
 	assert.Nil(t, users)
+}
+
+func TestGetUserById(t *testing.T) {
+	mockAuthRepo := &mocks.MockAuthRepository{}
+	uc := NewAuthUseCase(mockAuthRepo, nil)
+	ctx := context.TODO()
+
+	mockAuthRepo.GetUserByIdFunc = func(ctx context.Context, userID string) (*domain.User, error) {
+		return &domain.User{
+			UUID:     userID,
+			Username: "testuser",
+			Email:    "testuser@example.com",
+		}, nil
+	}
+
+	user, err := uc.GetUserById(ctx, "user123")
+	assert.NoError(t, err)
+	assert.NotNil(t, user)
+	assert.Equal(t, "user123", user.UUID)
+	assert.Equal(t, "testuser", user.Username)
+	assert.Equal(t, "testuser@example.com", user.Email)
+
+	mockAuthRepo.GetUserByIdFunc = func(ctx context.Context, userID string) (*domain.User, error) {
+		return nil, errors.New("repository: user not found")
+	}
+
+	user, err = uc.GetUserById(ctx, "user123")
+	assert.Error(t, err)
+	assert.Nil(t, user)
+	assert.Equal(t, "user not found", err.Error())
 }
