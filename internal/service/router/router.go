@@ -17,11 +17,11 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler, cityH
 	router.HandleFunc(api+"/auth/logout", authHandler.LogoutUser).Methods("DELETE")   // Logout user
 
 	// User Management Routes
-	router.HandleFunc(api+"/users", authHandler.PutUser).Methods("PUT")                   // Update user
-	router.HandleFunc(api+"/users/{userId}", authHandler.GetUserById).Methods("GET")      // Get user by ID
-	router.HandleFunc(api+"/users", authHandler.GetAllUsers).Methods("GET")               // Get all users
-	router.HandleFunc(api+"/session", authHandler.GetSessionData).Methods("GET")          // Get session data
-	router.HandleFunc(api+"/users/{userId}/ads", adsHandler.GetUserPlaces).Methods("GET") // Get User Ads
+	router.HandleFunc(api+"/users", authHandler.PutUser).Methods("PUT")                       // Update user
+	router.HandleFunc(api+"/users/{userId}", authHandler.GetUserById).Methods("GET")          // Get user by ID
+	router.HandleFunc(api+"/users", authHandler.GetAllUsers).Methods("GET")                   // Get all users
+	router.HandleFunc(api+"/session", authHandler.GetSessionData).Methods("GET")              // Get session data
+	router.HandleFunc(api+"/users/{userId}/housing", adsHandler.GetUserPlaces).Methods("GET") // Get User Ads
 
 	// Ad Management Routes
 	router.HandleFunc(api+"/housing", adsHandler.GetAllPlaces).Methods("GET")                             // Get all ads
