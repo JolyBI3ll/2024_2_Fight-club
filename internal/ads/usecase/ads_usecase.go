@@ -3,8 +3,14 @@ package usecase
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/images"
+	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	ntype "2024_2_FIGHT-CLUB/internal/service/type"
+	"2024_2_FIGHT-CLUB/internal/service/validation"
+	"go.uber.org/zap"
 	"log"
+	"regexp"
+	"strconv"
 
 	"context"
 	"errors"
@@ -19,7 +25,7 @@ type AdUseCase interface {
 	DeletePlace(ctx context.Context, adId string, userId string) error
 	GetPlacesPerCity(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error)
 	GetUserPlaces(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
-	DeleteAdImage(ctx context.Context, adId string, imageId int, userId string) error
+	DeleteAdImage(ctx context.Context, adId string, imageId string, userId string) error
 }
 
 type adUseCase struct {
@@ -43,6 +49,19 @@ func (uc *adUseCase) GetAllPlaces(ctx context.Context, filter domain.AdFilter) (
 }
 
 func (uc *adUseCase) GetOnePlace(ctx context.Context, adId string, isAuthorized bool) (domain.GetAllAdsResponse, error) {
+	const maxLen = 255
+	requestID := middleware.GetRequestID(ctx)
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(adId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return domain.GetAllAdsResponse{}, errors.New("Input contains invalid characters")
+	}
+
+	if len(adId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return domain.GetAllAdsResponse{}, errors.New("Input exceeds character limit")
+	}
+
 	ad, err := uc.adRepository.GetPlaceById(ctx, adId)
 	if err != nil {
 		return ad, errors.New("ad not found")
@@ -59,6 +78,32 @@ func (uc *adUseCase) GetOnePlace(ctx context.Context, adId string, isAuthorized 
 }
 
 func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHeaders []*multipart.FileHeader, newPlace domain.CreateAdRequest) error {
+	const maxLen = 255
+	requestID := middleware.GetRequestID(ctx)
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s\-]*$`)
+	if !validCharPattern.MatchString(newPlace.CityName) ||
+		!validCharPattern.MatchString(newPlace.Description) ||
+		!validCharPattern.MatchString(newPlace.Address) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("Input contains invalid characters")
+	}
+
+	if len(newPlace.CityName) > maxLen || len(newPlace.Description) > maxLen || len(newPlace.Address) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return errors.New("Input exceeds character limit")
+	}
+
+	const minRooms, maxRooms = 1, 100
+	if newPlace.RoomsNumber < minRooms || newPlace.RoomsNumber > maxRooms {
+		logger.AccessLogger.Warn("RoomsNumber out of range", zap.String("request_id", requestID))
+		return errors.New("RoomsNumber out of range")
+	}
+
+	if err := validation.ValidateImages(fileHeaders, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
+		logger.AccessLogger.Warn("Invalid image", zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("Invalid size, type or resolution of image")
+	}
+
 	place.Description = newPlace.Description
 	place.Address = newPlace.Address
 	place.RoomsNumber = newPlace.RoomsNumber
@@ -90,6 +135,45 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHead
 }
 
 func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeaders []*multipart.FileHeader, updatedPlace domain.UpdateAdRequest) error {
+	requestID := middleware.GetRequestID(ctx)
+	const maxLen = 255
+	if len(fileHeaders) > 0 {
+		if err := validation.ValidateImages(fileHeaders, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
+			logger.AccessLogger.Warn("Invalid image", zap.String("request_id", requestID), zap.Error(err))
+			return errors.New("Invalid size, type or resolution of image")
+		}
+	}
+
+	validCharPatternUrl := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPatternUrl.MatchString(adId) {
+		logger.AccessLogger.Warn("URL contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("URL contains invalid characters")
+	}
+
+	if len(adId) > maxLen {
+		logger.AccessLogger.Warn("URL exceeds character limit", zap.String("request_id", requestID))
+		return errors.New("URL exceeds character limit")
+	}
+
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s\-]*$`)
+	if !validCharPattern.MatchString(updatedPlace.CityName) ||
+		!validCharPattern.MatchString(updatedPlace.Description) ||
+		!validCharPattern.MatchString(updatedPlace.Address) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("Input contains invalid characters")
+	}
+
+	if len(updatedPlace.CityName) > maxLen || len(updatedPlace.Description) > maxLen || len(updatedPlace.Address) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return errors.New("Input exceeds character limit")
+	}
+
+	const minRooms, maxRooms = 1, 100
+	if updatedPlace.RoomsNumber < minRooms || updatedPlace.RoomsNumber > maxRooms {
+		logger.AccessLogger.Warn("RoomsNumber out of range", zap.String("request_id", requestID))
+		return errors.New("RoomsNumber out of range")
+	}
+
 	_, err := uc.adRepository.GetPlaceById(ctx, adId)
 	if err != nil {
 		return err
@@ -125,6 +209,19 @@ func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId str
 }
 
 func (uc *adUseCase) DeletePlace(ctx context.Context, adId string, userId string) error {
+	requestID := middleware.GetRequestID(ctx)
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(adId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("Input contains invalid characters")
+	}
+
+	if len(adId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return errors.New("Input exceeds character limit")
+	}
+
 	_, err := uc.adRepository.GetPlaceById(ctx, adId)
 	if err != nil {
 		return err
@@ -146,6 +243,19 @@ func (uc *adUseCase) DeletePlace(ctx context.Context, adId string, userId string
 }
 
 func (uc *adUseCase) GetPlacesPerCity(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error) {
+	requestID := middleware.GetRequestID(ctx)
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(city) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return []domain.GetAllAdsResponse{}, errors.New("Input contains invalid characters")
+	}
+
+	if len(city) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return []domain.GetAllAdsResponse{}, errors.New("Input exceeds character limit")
+	}
+
 	places, err := uc.adRepository.GetPlacesPerCity(ctx, city)
 	if err != nil {
 		return nil, err
@@ -154,6 +264,19 @@ func (uc *adUseCase) GetPlacesPerCity(ctx context.Context, city string) ([]domai
 }
 
 func (uc *adUseCase) GetUserPlaces(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
+	requestID := middleware.GetRequestID(ctx)
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(userId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return []domain.GetAllAdsResponse{}, errors.New("Input contains invalid characters")
+	}
+
+	if len(userId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return []domain.GetAllAdsResponse{}, errors.New("Input exceeds character limit")
+	}
+
 	places, err := uc.adRepository.GetUserPlaces(ctx, userId)
 	if err != nil {
 		return nil, err
@@ -161,8 +284,27 @@ func (uc *adUseCase) GetUserPlaces(ctx context.Context, userId string) ([]domain
 	return places, nil
 }
 
-func (uc *adUseCase) DeleteAdImage(ctx context.Context, adId string, imageId int, userId string) error {
-	imageURL, err := uc.adRepository.DeleteAdImage(ctx, adId, imageId, userId)
+func (uc *adUseCase) DeleteAdImage(ctx context.Context, adId string, imageId string, userId string) error {
+	requestID := middleware.GetRequestID(ctx)
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(adId) || !validCharPattern.MatchString(imageId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("Input contains invalid characters")
+	}
+
+	if len(adId) > maxLen || len(imageId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return errors.New("Input exceeds character limit")
+	}
+
+	imageIdInt, err2 := strconv.Atoi(imageId)
+	if err2 != nil {
+		logger.AccessLogger.Warn("Failed to ATOI image url", zap.String("request_id", requestID), zap.Error(err2))
+		return errors.New("Failed to ATOI image url")
+	}
+
+	imageURL, err := uc.adRepository.DeleteAdImage(ctx, adId, imageIdInt, userId)
 	if err != nil {
 		return err
 	}

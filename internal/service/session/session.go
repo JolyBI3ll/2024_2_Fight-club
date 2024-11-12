@@ -151,6 +151,8 @@ func (s *ServiceSession) CreateSession(ctx context.Context, r *http.Request, w h
 
 	session.Values["session_id"] = sessionID
 
+	session.Options.MaxAge = 86400 // same as jwt token
+
 	if err := session.Save(r, w); err != nil {
 		logger.AccessLogger.Error("Failed to save session", zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("failed to save session")
