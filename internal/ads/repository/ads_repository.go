@@ -151,7 +151,24 @@ func (r *adRepository) GetPlaceById(ctx context.Context, adId string) (domain.Ge
 		})
 	}
 
+	if err != nil {
+		logger.DBLogger.Error("Error fetching place views", zap.String("request_id", requestID), zap.Error(err))
+		return ad, errors.New("Error fetching place views")
+	}
 	logger.DBLogger.Info("Successfully fetched place by ID", zap.String("adId", adId), zap.String("request_id", requestID))
+	return ad, nil
+}
+
+func (r *adRepository) UpdateViewsCount(ctx context.Context, ad domain.GetAllAdsResponse) (domain.GetAllAdsResponse, error) {
+	requestID := middleware.GetRequestID(ctx)
+	logger.DBLogger.Info("UpdateViewsCount called", zap.String("adId", ad.UUID), zap.String("request_id", requestID))
+	ad.ViewsCount += 1
+	err := r.db.Model(&domain.Ad{}).Where("uuid = ?", ad.UUID).Updates(&ad).Error
+	if err != nil {
+		logger.DBLogger.Error("Error updating views count", zap.String("request_id", requestID), zap.Error(err))
+		return ad, errors.New("Error updating views count")
+	}
+	logger.DBLogger.Info("Successfully updated views count", zap.String("request_id", requestID))
 	return ad, nil
 }
 

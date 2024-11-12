@@ -148,11 +148,19 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 	)
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	place, err := h.adUseCase.GetOnePlace(ctx, adId)
+
+	isAuthorized := true
+
+	if _, err := h.sessionService.GetUserID(ctx, r); err != nil {
+		isAuthorized = false
+	}
+
+	place, err := h.adUseCase.GetOnePlace(ctx, adId, isAuthorized) // Go to usercase
 	if err != nil {
 		h.handleError(w, err, requestID)
 		return
 	}
+
 	body := map[string]interface{}{
 		"place": place,
 	}

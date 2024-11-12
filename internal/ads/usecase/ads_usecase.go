@@ -13,7 +13,7 @@ import (
 
 type AdUseCase interface {
 	GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error)
-	GetOnePlace(ctx context.Context, adId string) (domain.GetAllAdsResponse, error)
+	GetOnePlace(ctx context.Context, adId string, isAuthorized bool) (domain.GetAllAdsResponse, error)
 	CreatePlace(ctx context.Context, place *domain.Ad, fileHeader []*multipart.FileHeader, newPlace domain.CreateAdRequest) error
 	UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeader []*multipart.FileHeader, updatedPlace domain.UpdateAdRequest) error
 	DeletePlace(ctx context.Context, adId string, userId string) error
@@ -42,11 +42,19 @@ func (uc *adUseCase) GetAllPlaces(ctx context.Context, filter domain.AdFilter) (
 	return ads, nil
 }
 
-func (uc *adUseCase) GetOnePlace(ctx context.Context, adId string) (domain.GetAllAdsResponse, error) {
+func (uc *adUseCase) GetOnePlace(ctx context.Context, adId string, isAuthorized bool) (domain.GetAllAdsResponse, error) {
 	ad, err := uc.adRepository.GetPlaceById(ctx, adId)
 	if err != nil {
 		return ad, errors.New("ad not found")
 	}
+
+	if isAuthorized {
+		ad, err = uc.adRepository.UpdateViewsCount(ctx, ad)
+		if err != nil {
+			return ad, err
+		}
+	}
+
 	return ad, nil
 }
 
