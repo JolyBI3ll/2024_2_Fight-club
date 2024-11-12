@@ -13,6 +13,7 @@ type Ad struct {
 	PublicationDate time.Time `gorm:"type:date;column:publicationDate" json:"publicationDate"`
 	Description     string    `gorm:"type:text;size:1000;column:description" json:"description"`
 	RoomsNumber     int       `gorm:"column:roomsNumber" json:"roomsNumber"`
+	ViewsCount      int       `gorm:"column:viewsCount;default:0" json:"viewsCount"`
 	City            City      `gorm:"foreignKey:CityID;references:ID" json:"-"`
 	Author          User      `gorm:"foreignKey:AuthorUUID;references:UUID" json:"-"`
 }
@@ -27,6 +28,7 @@ type GetAllAdsResponse struct {
 	RoomsNumber     int             `gorm:"column:roomsNumber" json:"roomsNumber"`
 	City            City            `gorm:"foreignKey:CityID;references:ID" json:"-"`
 	Author          User            `gorm:"foreignKey:AuthorUUID;references:UUID" json:"-"`
+	ViewsCount      int             `gorm:"column:viewsCount;default:0" json:"viewsCount"`
 	Cityname        string          `json:"cityName"`
 	AdAuthor        UserResponce    `gorm:"-" json:"author"`
 	Images          []ImageResponse `gorm:"-" json:"images"`
@@ -68,4 +70,5 @@ type AdRepository interface {
 	GetAdImages(ctx context.Context, adId string) ([]string, error)
 	GetUserPlaces(ctx context.Context, userId string) ([]GetAllAdsResponse, error)
 	DeleteAdImage(ctx context.Context, adId string, imageId int, userId string) (string, error)
+	UpdateViewsCount(ctx context.Context, ad GetAllAdsResponse) (GetAllAdsResponse, error)
 }

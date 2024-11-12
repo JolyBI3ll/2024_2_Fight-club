@@ -3,12 +3,15 @@ package usecase
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/images"
+	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/validation"
 	"context"
 	"encoding/json"
 	"errors"
+	"go.uber.org/zap"
 	"mime/multipart"
+	"regexp"
 )
 
 type AuthUseCase interface {
@@ -32,6 +35,20 @@ func NewAuthUseCase(authRepository domain.AuthRepository, minioService images.Mi
 }
 
 func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User) error {
+	requestID := middleware.GetRequestID(ctx)
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
+	if !validCharPattern.MatchString(creds.Avatar) ||
+		!validCharPattern.MatchString(creds.UUID) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("Input contains invalid characters")
+	}
+
+	if len(creds.Username) > maxLen || len(creds.Email) > maxLen || len(creds.Password) > maxLen || len(creds.Name) > maxLen || len(creds.Avatar) > maxLen || len(creds.UUID) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return errors.New("Input exceeds character limit")
+	}
+
 	if creds.Username == "" || creds.Password == "" || creds.Email == "" {
 		return errors.New("username, password, and email are required")
 	}
@@ -87,6 +104,22 @@ func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User) err
 }
 
 func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*domain.User, error) {
+	requestID := middleware.GetRequestID(ctx)
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
+	if !validCharPattern.MatchString(creds.Email) ||
+		!validCharPattern.MatchString(creds.Name) ||
+		!validCharPattern.MatchString(creds.Avatar) ||
+		!validCharPattern.MatchString(creds.UUID) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return creds, errors.New("Input contains invalid characters")
+	}
+
+	if len(creds.Username) > maxLen || len(creds.Email) > maxLen || len(creds.Password) > maxLen || len(creds.Name) > maxLen || len(creds.Avatar) > maxLen || len(creds.UUID) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return creds, errors.New("Input exceeds character limit")
+	}
+
 	if creds.Username == "" || creds.Password == "" {
 		return nil, errors.New("username and password are required")
 	}
@@ -123,6 +156,31 @@ func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*doma
 }
 
 func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID string, avatar *multipart.FileHeader) error {
+	requestID := middleware.GetRequestID(ctx)
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
+	if !validCharPattern.MatchString(creds.Username) ||
+		!validCharPattern.MatchString(creds.Email) ||
+		!validCharPattern.MatchString(creds.Password) ||
+		!validCharPattern.MatchString(creds.Name) ||
+		!validCharPattern.MatchString(creds.Avatar) ||
+		!validCharPattern.MatchString(creds.UUID) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("Input contains invalid characters")
+	}
+
+	if len(creds.Username) > maxLen || len(creds.Email) > maxLen || len(creds.Password) > maxLen || len(creds.Name) > maxLen || len(creds.Avatar) > maxLen || len(creds.UUID) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return errors.New("Input exceeds character limit")
+	}
+
+	if avatar != nil {
+		if err := validation.ValidateImage(avatar, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
+			logger.AccessLogger.Warn("Invalid size, type or resolution of image", zap.String("request_id", requestID), zap.Error(err))
+			return errors.New("Invalid size, type or resolution of image")
+		}
+	}
+
 	var wrongFields []string
 	errorResponse := map[string]interface{}{
 		"error":       "Incorrect data forms",
@@ -174,6 +232,19 @@ func (uc *authUseCase) GetAllUser(ctx context.Context) ([]domain.User, error) {
 }
 
 func (uc *authUseCase) GetUserById(ctx context.Context, userID string) (*domain.User, error) {
+	requestID := middleware.GetRequestID(ctx)
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(userID) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return nil, errors.New("Input contains invalid characters")
+	}
+
+	if len(userID) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return nil, errors.New("Input exceeds character limit")
+	}
+
 	user, err := uc.authRepository.GetUserById(ctx, userID)
 	if err != nil {
 		return nil, errors.New("user not found")

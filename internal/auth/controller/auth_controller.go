@@ -6,7 +6,6 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
-	"2024_2_FIGHT-CLUB/internal/service/validation"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,7 +14,6 @@ import (
 	"go.uber.org/zap"
 	"mime/multipart"
 	"net/http"
-	"regexp"
 	"time"
 )
 
@@ -63,21 +61,6 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
-	if !validCharPattern.MatchString(creds.Avatar) ||
-		!validCharPattern.MatchString(creds.UUID) {
-		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
-		return
-	}
-
-	if len(creds.Username) > maxLen || len(creds.Email) > maxLen || len(creds.Password) > maxLen || len(creds.Name) > maxLen || len(creds.Avatar) > maxLen || len(creds.UUID) > maxLen {
-		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
-		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
-		return
-	}
-
 	creds.Avatar = sanitizer.Sanitize(creds.Avatar)
 	creds.Username = sanitizer.Sanitize(creds.Username)
 	creds.Email = sanitizer.Sanitize(creds.Email)
@@ -106,7 +89,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenExpTime := time.Now().Add(24 * time.Hour).Unix() // например, срок действия 24 часа
+	tokenExpTime := time.Now().Add(24 * time.Hour).Unix() // срок действия 24 часа
 	jwtToken, err := h.jwtToken.Create(userSession, tokenExpTime)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to create JWT token",
@@ -173,23 +156,6 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 			zap.Error(err),
 		)
 		h.handleError(w, err, requestID)
-		return
-	}
-
-	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
-	if !validCharPattern.MatchString(creds.Email) ||
-		!validCharPattern.MatchString(creds.Name) ||
-		!validCharPattern.MatchString(creds.Avatar) ||
-		!validCharPattern.MatchString(creds.UUID) {
-		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
-		return
-	}
-
-	if len(creds.Username) > maxLen || len(creds.Email) > maxLen || len(creds.Password) > maxLen || len(creds.Name) > maxLen || len(creds.Avatar) > maxLen || len(creds.UUID) > maxLen {
-		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
-		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
 		return
 	}
 
@@ -392,25 +358,6 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
-	if !validCharPattern.MatchString(creds.Username) ||
-		!validCharPattern.MatchString(creds.Email) ||
-		!validCharPattern.MatchString(creds.Password) ||
-		!validCharPattern.MatchString(creds.Name) ||
-		!validCharPattern.MatchString(creds.Avatar) ||
-		!validCharPattern.MatchString(creds.UUID) {
-		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
-		return
-	}
-
-	if len(creds.Username) > maxLen || len(creds.Email) > maxLen || len(creds.Password) > maxLen || len(creds.Name) > maxLen || len(creds.Avatar) > maxLen || len(creds.UUID) > maxLen {
-		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
-		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
-		return
-	}
-
 	creds.Avatar = sanitizer.Sanitize(creds.Avatar)
 	creds.Username = sanitizer.Sanitize(creds.Username)
 	creds.Email = sanitizer.Sanitize(creds.Email)
@@ -421,12 +368,6 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	var avatar *multipart.FileHeader
 	if len(r.MultipartForm.File["avatar"]) > 0 {
 		avatar = r.MultipartForm.File["avatar"][0]
-
-		if err := validation.ValidateImage(avatar, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
-			logger.AccessLogger.Warn("Invalid size, type or resolution of image", zap.String("request_id", requestID), zap.Error(err))
-			h.handleError(w, errors.New("Invalid size, type or resolution of image"), requestID)
-			return
-		}
 	}
 
 	userID, err := h.sessionService.GetUserID(ctx, r)
@@ -473,19 +414,6 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	sanitizer := bluemonday.UGCPolicy()
 
 	userId := mux.Vars(r)["userId"]
-	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
-	if !validCharPattern.MatchString(userId) {
-		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		h.handleError(w, errors.New("Input contains invalid characters"), requestID)
-		return
-	}
-
-	if len(userId) > maxLen {
-		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
-		h.handleError(w, errors.New("Input exceeds character limit"), requestID)
-		return
-	}
 
 	userId = sanitizer.Sanitize(userId)
 
