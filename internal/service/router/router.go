@@ -17,20 +17,20 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler, cityH
 	router.HandleFunc(api+"/auth/logout", authHandler.LogoutUser).Methods("DELETE")   // Logout user
 
 	// User Management Routes
-	router.HandleFunc(api+"/users", authHandler.PutUser).Methods("PUT")                   // Update user
-	router.HandleFunc(api+"/users/{userId}", authHandler.GetUserById).Methods("GET")      // Get user by ID
-	router.HandleFunc(api+"/users", authHandler.GetAllUsers).Methods("GET")               // Get all users
-	router.HandleFunc(api+"/session", authHandler.GetSessionData).Methods("GET")          // Get session data
-	router.HandleFunc(api+"/users/{userId}/ads", adsHandler.GetUserPlaces).Methods("GET") // Get User Ads
+	router.HandleFunc(api+"/users", authHandler.PutUser).Methods("PUT")                       // Update user
+	router.HandleFunc(api+"/users/{userId}", authHandler.GetUserById).Methods("GET")          // Get user by ID
+	router.HandleFunc(api+"/users", authHandler.GetAllUsers).Methods("GET")                   // Get all users
+	router.HandleFunc(api+"/session", authHandler.GetSessionData).Methods("GET")              // Get session data
+	router.HandleFunc(api+"/users/{userId}/housing", adsHandler.GetUserPlaces).Methods("GET") // Get User Ads
 
 	// Ad Management Routes
-	router.HandleFunc(api+"/ads", adsHandler.GetAllPlaces).Methods("GET")                             // Get all ads
-	router.HandleFunc(api+"/ads/{adId}", adsHandler.GetOnePlace).Methods("GET")                       // Get ad by ID
-	router.HandleFunc(api+"/ads", adsHandler.CreatePlace).Methods("POST")                             // Create a new ad
-	router.HandleFunc(api+"/ads/{adId}", adsHandler.UpdatePlace).Methods("PUT")                       // Update ad by ID
-	router.HandleFunc(api+"/ads/{adId}", adsHandler.DeletePlace).Methods("DELETE")                    // Delete ad by ID
-	router.HandleFunc(api+"/ads/cities/{city}", adsHandler.GetPlacesPerCity).Methods("GET")           // Get ads by city
-	router.HandleFunc(api+"/ads/{adId}/images/{imageId}", adsHandler.DeleteAdImage).Methods("DELETE") // Delete image from ad
+	router.HandleFunc(api+"/housing", adsHandler.GetAllPlaces).Methods("GET")                             // Get all ads
+	router.HandleFunc(api+"/housing/{adId}", adsHandler.GetOnePlace).Methods("GET")                       // Get ad by ID
+	router.HandleFunc(api+"/housing", adsHandler.CreatePlace).Methods("POST")                             // Create a new ad
+	router.HandleFunc(api+"/housing/{adId}", adsHandler.UpdatePlace).Methods("PUT")                       // Update ad by ID
+	router.HandleFunc(api+"/housing/{adId}", adsHandler.DeletePlace).Methods("DELETE")                    // Delete ad by ID
+	router.HandleFunc(api+"/housing/cities/{city}", adsHandler.GetPlacesPerCity).Methods("GET")           // Get ads by city
+	router.HandleFunc(api+"/housing/{adId}/images/{imageId}", adsHandler.DeleteAdImage).Methods("DELETE") // Delete image from ad
 
 	// CSRF Token Route
 	router.HandleFunc(api+"/csrf/refresh", authHandler.RefreshCsrfToken).Methods("GET") // Refresh CSRF token

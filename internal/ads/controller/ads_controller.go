@@ -360,7 +360,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s\-]*$`)
 	if !validCharPattern.MatchString(updatedPlace.CityName) ||
 		!validCharPattern.MatchString(updatedPlace.Description) ||
 		!validCharPattern.MatchString(updatedPlace.Address) {
