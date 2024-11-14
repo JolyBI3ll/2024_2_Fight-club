@@ -70,7 +70,10 @@ func ValidateImage(file *multipart.FileHeader, maxSize int64, allowedMimeTypes [
 		return fmt.Errorf("file type %s is not allowed", mimeType)
 	}
 
-	src.Seek(0, 0)
+	_, err = src.Seek(0, 0)
+	if err != nil {
+		return fmt.Errorf("could not seek file: %v", err)
+	}
 	var img image.Image
 	switch {
 	case strings.HasSuffix(mimeType, "jpeg"):

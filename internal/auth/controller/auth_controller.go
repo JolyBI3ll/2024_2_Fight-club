@@ -343,8 +343,12 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.ParseMultipartForm(10 << 20)
-
+	err = r.ParseMultipartForm(10 << 20)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to parse multipart form", zap.String("request_id", requestID), zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
 	metadata := r.FormValue("metadata")
 
 	var creds domain.User
@@ -581,7 +585,15 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"csrf_token": newCsrfToken})
+	err = json.NewEncoder(w).Encode(map[string]string{"csrf_token": newCsrfToken})
+	if err != nil {
+		logger.AccessLogger.Error("Failed to encode CSRF token",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
+
 	duration := time.Since(start)
 	logger.AccessLogger.Info("Completed RefreshCsrfToken request",
 		zap.String("request_id", requestID),

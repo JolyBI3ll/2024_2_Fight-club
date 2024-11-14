@@ -35,7 +35,12 @@ func main() {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			log.Fatalf("Failed to sync loggers: %v", err)
+		}
+	}()
 
 	sessionService := session.NewSessionService(store)
 
