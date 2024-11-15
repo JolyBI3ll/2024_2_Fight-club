@@ -20,7 +20,7 @@ import (
 type AdUseCase interface {
 	GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error)
 	GetOnePlace(ctx context.Context, adId string, isAuthorized bool) (domain.GetAllAdsResponse, error)
-	CreatePlace(ctx context.Context, place *domain.Ad, fileHeader []*multipart.FileHeader, newPlace domain.CreateAdRequest) error
+	CreatePlace(ctx context.Context, place *domain.Ad, fileHeader []*multipart.FileHeader, newPlace domain.CreateAdRequest, userId string) error
 	UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeader []*multipart.FileHeader, updatedPlace domain.UpdateAdRequest) error
 	DeletePlace(ctx context.Context, adId string, userId string) error
 	GetPlacesPerCity(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error)
@@ -77,9 +77,10 @@ func (uc *adUseCase) GetOnePlace(ctx context.Context, adId string, isAuthorized 
 	return ad, nil
 }
 
-func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHeaders []*multipart.FileHeader, newPlace domain.CreateAdRequest) error {
+func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHeaders []*multipart.FileHeader, newPlace domain.CreateAdRequest, userId string) error {
 	const maxLen = 255
 	requestID := middleware.GetRequestID(ctx)
+
 	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s\-]*$`)
 	if !validCharPattern.MatchString(newPlace.CityName) ||
 		!validCharPattern.MatchString(newPlace.Description) ||
@@ -107,7 +108,7 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHead
 	place.Description = newPlace.Description
 	place.Address = newPlace.Address
 	place.RoomsNumber = newPlace.RoomsNumber
-	err := uc.adRepository.CreatePlace(ctx, place, newPlace)
+	err := uc.adRepository.CreatePlace(ctx, place, newPlace, userId)
 	if err != nil {
 		return err
 	}

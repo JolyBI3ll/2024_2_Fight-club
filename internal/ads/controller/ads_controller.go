@@ -233,7 +233,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 
 	place.AuthorUUID = userID
 
-	err = h.adUseCase.CreatePlace(ctx, &place, files, newPlace)
+	err = h.adUseCase.CreatePlace(ctx, &place, files, newPlace, userID)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to create place", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
@@ -575,7 +575,7 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 		w.WriteHeader(http.StatusNotFound)
 	case "ad already exists":
 		w.WriteHeader(http.StatusConflict)
-	case "not owner of ad", "no active session", "Missing X-CSRF-Token header", "Invalid JWT token":
+	case "not owner of ad", "no active session", "Missing X-CSRF-Token header", "Invalid JWT token", "User is not host":
 		w.WriteHeader(http.StatusUnauthorized)
 	case "Invalid metadata JSON", "Invalid multipart form", "Invalid size, type or resolution of image",
 		"Input contains invalid characters", "Input exceeds character limit", "RoomsNumber out of range", "query offset not int",

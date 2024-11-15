@@ -35,7 +35,7 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 	}
 
 	if filter.Rating != "" {
-		rating, err := strconv.ParseFloat(filter.Rating, 1)
+		rating, err := strconv.ParseFloat(filter.Rating, 64) // поменял с 1 на 64 из-за линтера
 		if err != nil {
 			logger.DBLogger.Error("Invalid rating value", zap.String("request_id", requestID))
 			return nil, errors.New("Invalid rating value")
@@ -172,10 +172,22 @@ func (r *adRepository) UpdateViewsCount(ctx context.Context, ad domain.GetAllAds
 	return ad, nil
 }
 
-func (r *adRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd domain.CreateAdRequest) error {
+func (r *adRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd domain.CreateAdRequest, userId string) error {
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("CreatePlace called", zap.String("adId", ad.UUID), zap.String("request_id", requestID))
 	var city domain.City
+	var user domain.User
+
+	if err := r.db.Where("uuid = ?", userId).First(&user).Error; err != nil {
+		logger.DBLogger.Error("Error finding user", zap.String("userId", userId), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("Error finding user")
+	}
+
+	if !user.IsHost {
+		logger.DBLogger.Error("User is not host", zap.String("userId", userId), zap.String("request_id", requestID))
+		return errors.New("User is not host")
+	}
+
 	if err := r.db.Where("title = ?", newAd.CityName).First(&city).Error; err != nil {
 		logger.DBLogger.Error("Error creating place", zap.String("adId", ad.UUID), zap.String("request_id", requestID), zap.Error(err))
 		return errors.New("Error finding city")

@@ -39,7 +39,14 @@ func InitLoggers() error {
 	return nil
 }
 
-func SyncLoggers() {
-	AccessLogger.Sync()
-	DBLogger.Sync()
+func SyncLoggers() error {
+	err := AccessLogger.Sync()
+	if err != nil {
+		return err
+	}
+	err = DBLogger.Sync()
+	if err != nil {
+		return err
+	}
+	return nil
 }
