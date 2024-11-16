@@ -27,8 +27,10 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 	logger.DBLogger.Info("GetAllPlaces called", zap.String("request_id", requestID))
 	var ads []domain.GetAllAdsResponse
 
-	query := r.db.Model(&domain.Ad{}).Joins("JOIN cities ON  ads.\"cityId\" = cities.id").Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").
-		Select("ads.*, cities.title as cityName")
+	query := r.db.Model(&domain.Ad{}).Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
+		Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").
+		Joins("JOIN ad_available_dates ON ad_available_dates.\"adId\" = ads.uuid").
+		Select("ads.*, cities.title as cityName, ad_available_dates.\"availableDateFrom\" as \"AdDateFrom\", ad_available_dates.\"availableDateTo\" as \"AdDateTo\"")
 
 	if filter.Location != "" {
 		query = query.Where("cities.\"enTitle\" = ?", filter.Location)
@@ -67,6 +69,15 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 		case "50":
 			query = query.Where("users.\"guestCount\" > ?", 50)
 		}
+	}
+
+	switch {
+	case !filter.DateFrom.IsZero() && !filter.DateTo.IsZero():
+		query = query.Where("ad_available_dates.\"availableDateFrom\" <= ? AND ad_available_dates.\"availableDateTo\" >= ?", filter.DateTo, filter.DateFrom)
+	case !filter.DateFrom.IsZero():
+		query = query.Where("ad_available_dates.\"availableDateTo\" >= ?", filter.DateFrom)
+	case !filter.DateTo.IsZero():
+		query = query.Where("ad_available_dates.\"availableDateFrom\" <= ?", filter.DateTo)
 	}
 
 	if filter.Offset != 0 {
@@ -118,8 +129,10 @@ func (r *adRepository) GetPlaceById(ctx context.Context, adId string) (domain.Ge
 
 	var ad domain.GetAllAdsResponse
 
-	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
-		Select("ads.*, cities.title as cityName").Where("ads.uuid = ?", adId)
+	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").
+		Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
+		Joins("JOIN ad_available_dates ON ad_available_dates.\"adId\" = ads.uuid").
+		Select("ads.*, cities.title as cityName, ad_available_dates.\"availableDateFrom\" as \"AdDateFrom\", ad_available_dates.\"availableDateTo\" as \"AdDateTo\"")
 
 	if err := query.Find(&ad).Error; err != nil {
 		logger.DBLogger.Error("Error fetching place", zap.String("request_id", requestID), zap.Error(err))
@@ -177,6 +190,7 @@ func (r *adRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd dom
 	logger.DBLogger.Info("CreatePlace called", zap.String("adId", ad.UUID), zap.String("request_id", requestID))
 	var city domain.City
 	var user domain.User
+	var date domain.AdAvailableDate
 
 	if err := r.db.Where("uuid = ?", userId).First(&user).Error; err != nil {
 		logger.DBLogger.Error("Error finding user", zap.String("userId", userId), zap.String("request_id", requestID), zap.Error(err))
@@ -199,6 +213,14 @@ func (r *adRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd dom
 		return errors.New("Error creating place")
 	}
 
+	date.AdID = ad.UUID
+	date.AvailableDateFrom = newAd.DateFrom
+	date.AvailableDateTo = newAd.DateTo
+
+	if err := r.db.Create(&date).Error; err != nil {
+		logger.DBLogger.Error("Error creating date", zap.String("adId", ad.UUID), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("Error creating date")
+	}
 	logger.DBLogger.Info("Successfully place", zap.String("adId", ad.UUID), zap.String("request_id", requestID))
 	return nil
 }
@@ -219,9 +241,15 @@ func (r *adRepository) UpdatePlace(ctx context.Context, ad *domain.Ad, adId stri
 	logger.DBLogger.Info("UpdatePlace called", zap.String("adId", adId), zap.String("userId", userId), zap.String("request_id", requestID))
 
 	var oldAd domain.Ad
+	var oldDate domain.AdAvailableDate
 	if err := r.db.Where("uuid = ?", adId).First(&oldAd).Error; err != nil {
 		logger.DBLogger.Error("Ad not found", zap.String("adId", adId), zap.String("request_id", requestID))
 		return errors.New("ad not found")
+	}
+
+	if err := r.db.Where("\"adId\" = ?", adId).First(&oldDate).Error; err != nil {
+		logger.DBLogger.Error("Ad date not found", zap.String("adId", adId), zap.String("request_id", requestID))
+		return errors.New("Ad date not found")
 	}
 
 	if oldAd.AuthorUUID != userId {
@@ -236,6 +264,14 @@ func (r *adRepository) UpdatePlace(ctx context.Context, ad *domain.Ad, adId stri
 	ad.CityID = city.ID
 	if err := r.db.Model(&oldAd).Updates(ad).Error; err != nil {
 		logger.DBLogger.Error("Error updating place", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
+		return err
+	}
+
+	oldDate.AvailableDateFrom = updatedPlace.DateFrom
+	oldDate.AvailableDateTo = updatedPlace.DateTo
+
+	if err := r.db.Model(&oldDate).Updates(oldDate).Error; err != nil {
+		logger.DBLogger.Error("Error updating date", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
 		return err
 	}
 

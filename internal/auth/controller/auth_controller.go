@@ -68,17 +68,6 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	creds.UUID = sanitizer.Sanitize(creds.UUID)
 	creds.Name = sanitizer.Sanitize(creds.Name)
 
-	err := h.authUseCase.RegisterUser(ctx, &creds)
-
-	if err != nil {
-		logger.AccessLogger.Error("Failed to register user",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		h.handleError(w, err, requestID)
-		return
-	}
-
 	userSession, err := h.sessionService.CreateSession(ctx, r, w, &creds)
 	if err != nil {
 		logger.AccessLogger.Error("Failed create session",
@@ -96,6 +85,18 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	err = h.authUseCase.RegisterUser(ctx, &creds)
+
+	if err != nil {
+		logger.AccessLogger.Error("Failed to register user",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.LogoutUser(w, r)
 		h.handleError(w, err, requestID)
 		return
 	}
