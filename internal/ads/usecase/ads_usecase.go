@@ -108,6 +108,7 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHead
 	place.Description = newPlace.Description
 	place.Address = newPlace.Address
 	place.RoomsNumber = newPlace.RoomsNumber
+
 	err := uc.adRepository.CreatePlace(ctx, place, newPlace, userId)
 	if err != nil {
 		return err

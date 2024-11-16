@@ -57,6 +57,10 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 
 	queryParams := r.URL.Query()
 
+	layout := "2006-01-02"
+	var dateTo time.Time
+	var dateFrom time.Time
+
 	location := sanitizer.Sanitize(queryParams.Get("location"))
 	rating := sanitizer.Sanitize(queryParams.Get("rating"))
 	newThisWeek := sanitizer.Sanitize(queryParams.Get("new"))
@@ -64,6 +68,28 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 	guestCounter := sanitizer.Sanitize(queryParams.Get("guests"))
 	offset := sanitizer.Sanitize(queryParams.Get("offset"))
 
+	dateFromStr := sanitizer.Sanitize(queryParams.Get("dateFrom"))
+	if dateFromStr != "" {
+		var err error
+		dateFrom, err = time.Parse(layout, dateFromStr)
+		if err != nil {
+			logger.AccessLogger.Error("Failed to parse dateFrom", zap.Error(err))
+			h.handleError(w, err, requestID)
+			return
+		}
+	}
+
+	dateToStr := sanitizer.Sanitize(queryParams.Get("dateTo"))
+
+	if dateToStr != "" {
+		var err error
+		dateTo, err = time.Parse(layout, dateToStr)
+		if err != nil {
+			logger.AccessLogger.Error("Failed to parse dateTo", zap.Error(err))
+			h.handleError(w, err, requestID)
+			return
+		}
+	}
 	var offsetInt int
 	if offset != "" {
 		var err error
@@ -95,6 +121,8 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 		GuestCount:  guestCounter,
 		Limit:       limitInt,
 		Offset:      offsetInt,
+		DateFrom:    dateFrom,
+		DateTo:      dateTo,
 	}
 
 	places, err := h.adUseCase.GetAllPlaces(ctx, filter)

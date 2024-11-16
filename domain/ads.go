@@ -30,22 +30,28 @@ type GetAllAdsResponse struct {
 	Author          User            `gorm:"foreignKey:AuthorUUID;references:UUID" json:"-"`
 	ViewsCount      int             `gorm:"column:viewsCount;default:0" json:"viewsCount"`
 	Cityname        string          `json:"cityName"`
+	AdDateFrom      time.Time       `json:"adDateFrom"`
+	AdDateTo        time.Time       `json:"adDateTo"`
 	AdAuthor        UserResponce    `gorm:"-" json:"author"`
 	Images          []ImageResponse `gorm:"-" json:"images"`
 }
 
 type CreateAdRequest struct {
-	CityName    string `form:"cityName" json:"cityName"`
-	Address     string `form:"address" json:"address"`
-	Description string `form:"description" json:"description"`
-	RoomsNumber int    `form:"roomsNumber" json:"roomsNumber"`
+	CityName    string    `form:"cityName" json:"cityName"`
+	Address     string    `form:"address" json:"address"`
+	Description string    `form:"description" json:"description"`
+	RoomsNumber int       `form:"roomsNumber" json:"roomsNumber"`
+	DateFrom    time.Time `form:"dateFrom" json:"dateFrom"`
+	DateTo      time.Time `form:"dateTo" json:"dateTo"`
 }
 
 type UpdateAdRequest struct {
-	CityName    string `form:"cityName" json:"cityName"`
-	Address     string `form:"address" json:"address"`
-	Description string `form:"description" json:"description"`
-	RoomsNumber int    `form:"roomsNumber" json:"roomsNumber"`
+	CityName    string    `form:"cityName" json:"cityName"`
+	Address     string    `form:"address" json:"address"`
+	Description string    `form:"description" json:"description"`
+	RoomsNumber int       `form:"roomsNumber" json:"roomsNumber"`
+	DateFrom    time.Time `form:"dateFrom" json:"dateFrom"`
+	DateTo      time.Time `form:"dateTo" json:"dateTo"`
 }
 
 type AdFilter struct {
@@ -56,6 +62,8 @@ type AdFilter struct {
 	GuestCount  string
 	Limit       int
 	Offset      int
+	DateFrom    time.Time
+	DateTo      time.Time
 }
 
 type AdRepository interface {
