@@ -10,8 +10,12 @@ service Auth {
   rpc PutUser (PutUserRequest) returns (UpdateResponse);
   rpc GetUserById (GetUserByIdRequest) returns (GetUserByIdResponse);
   rpc GetAllUsers (Empty) returns (AllUsersResponse);
-  rpc GetSessionData (Empty) returns (SessionDataResponse);
-  rpc RefreshCsrfToken (Empty) returns (RefreshCsrfTokenResponse);
+  rpc GetSessionData (GetSessionDataRequest) returns (SessionDataResponse);
+  rpc RefreshCsrfToken (RefreshCsrfTokenRequest) returns (RefreshCsrfTokenResponse);
+}
+
+message RefreshCsrfTokenRequest {
+  string session_id = 1;
 }
 
 message Metadata {
@@ -49,6 +53,10 @@ message RegisterUserRequest {
 message LoginUserRequest {
   string username = 1;
   string password = 2;
+}
+
+message GetSessionDataRequest{
+  string session_id = 1;
 }
 
 message Empty {}

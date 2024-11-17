@@ -11,6 +11,7 @@ import (
 	"errors"
 	"github.com/microcosm-cc/bluemonday"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
 )
 
@@ -213,15 +214,136 @@ func (h *GrpcAuthHandler) PutUser(ctx context.Context, in *generatedAuth.PutUser
 		Name:       in.Creds.Name,
 		Score:      float64(in.Creds.Score),
 		Avatar:     in.Creds.Avatar,
+		Sex:        in.Creds.Sex,
 		GuestCount: int(in.Creds.GuestCount),
 		Birthdate:  (in.Creds.Birthdate).AsTime(),
 		IsHost:     in.Creds.IsHost,
 	}
 	err = h.usecase.PutUser(ctx, Payload, userID, in.Avatar)
 	if err != nil {
+		logger.AccessLogger.Warn("Failed to put user",
+			zap.String("request_id", requestID),
+			zap.Error(err))
 		return nil, err
 	}
 	return &generatedAuth.UpdateResponse{
 		Response: "Success",
+	}, nil
+}
+
+func (h *GrpcAuthHandler) GetUserById(ctx context.Context, in *generatedAuth.GetUserByIdRequest) (*generatedAuth.GetUserByIdResponse, error) {
+	requestID := middleware.GetRequestID(ctx)
+	sanitizer := bluemonday.UGCPolicy()
+	in.UserId = sanitizer.Sanitize(in.UserId)
+	logger.AccessLogger.Info("Received GetUserByID request in microservice",
+		zap.String("request_id", requestID))
+
+	user, err := h.usecase.GetUserById(ctx, in.UserId)
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to get user",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		return nil, err
+	}
+
+	userMetadata := &generatedAuth.Metadata{
+		Uuid:       user.UUID,
+		Username:   user.Username,
+		Password:   user.Password,
+		Email:      user.Email,
+		Name:       user.Name,
+		Score:      float32(user.Score),
+		Avatar:     user.Avatar,
+		Sex:        user.Sex,
+		GuestCount: int32(user.GuestCount),
+		Birthdate:  timestamppb.New(user.Birthdate),
+		IsHost:     user.IsHost,
+	}
+	return &generatedAuth.GetUserByIdResponse{
+		User: userMetadata,
+	}, nil
+}
+
+func (h *GrpcAuthHandler) GetAllUsers(ctx context.Context, in *generatedAuth.Empty) (*generatedAuth.AllUsersResponse, error) {
+	requestID := middleware.GetRequestID(ctx)
+	logger.AccessLogger.Info("Received GetAllUsers request in microservice",
+		zap.String("request_id", requestID))
+
+	users, err := h.usecase.GetAllUser(ctx)
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to get all users",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		return nil, err
+	}
+
+	var userMetadata []*generatedAuth.Metadata
+	for _, user := range users {
+		userMetadata = append(userMetadata, &generatedAuth.Metadata{
+			Uuid:       user.UUID,
+			Username:   user.Username,
+			Password:   user.Password,
+			Email:      user.Email,
+			Name:       user.Name,
+			Score:      float32(user.Score),
+			Avatar:     user.Avatar,
+			Sex:        user.Sex,
+			GuestCount: int32(user.GuestCount),
+			Birthdate:  timestamppb.New(user.Birthdate),
+			IsHost:     user.IsHost,
+		})
+	}
+
+	return &generatedAuth.AllUsersResponse{
+		Users: userMetadata,
+	}, nil
+}
+
+func (h *GrpcAuthHandler) GetSessionData(ctx context.Context, in *generatedAuth.GetSessionDataRequest) (*generatedAuth.SessionDataResponse, error) {
+	requestID := middleware.GetRequestID(ctx)
+	logger.AccessLogger.Info("Received GetSessionData request in microservice",
+		zap.String("request_id", requestID))
+	sessionData, err := h.sessionService.GetSessionData(ctx, in.SessionId)
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to get session data",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		return nil, err
+	}
+	data := *sessionData
+
+	id, ok := data["id"].(string)
+	if !ok {
+		logger.AccessLogger.Warn("Invalid type for id in session data",
+			zap.String("request_id", requestID))
+		return nil, errors.New("invalid type for id in session data")
+	}
+
+	avatar, ok := data["avatar"].(string)
+	if !ok {
+		logger.AccessLogger.Warn("Invalid type for avatar in session data",
+			zap.String("request_id", requestID))
+		return nil, errors.New("invalid type for avatar in session data")
+	}
+
+	return &generatedAuth.SessionDataResponse{
+		Id:     id,
+		Avatar: avatar,
+	}, nil
+}
+
+func (h *GrpcAuthHandler) RefreshCsrfToken(ctx context.Context, in *generatedAuth.RefreshCsrfTokenRequest) (*generatedAuth.RefreshCsrfTokenResponse, error) {
+	requestID := middleware.GetRequestID(ctx)
+	logger.AccessLogger.Info("Received RefreshCsrfToken request in microservice",
+		zap.String("request_id", requestID))
+	newCsrfToken, err := h.jwtToken.Create(in.SessionId, time.Now().Add(1*time.Hour).Unix())
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to refresh csrf token",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		return nil, err
+	}
+	return &generatedAuth.RefreshCsrfTokenResponse{
+		CsrfToken: newCsrfToken,
 	}, nil
 }

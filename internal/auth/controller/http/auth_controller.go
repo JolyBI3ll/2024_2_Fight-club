@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
-	"github.com/microcosm-cc/bluemonday"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
@@ -39,7 +38,6 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 	defer cancel()
 
 	logger.AccessLogger.Info("Received RegisterUser request",
@@ -123,7 +121,6 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received LoginUser request",
 		zap.String("request_id", requestID),
@@ -214,7 +211,6 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received LogoutUser request",
 		zap.String("request_id", requestID),
@@ -290,7 +286,6 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received PutUser request",
 		zap.String("request_id", requestID),
@@ -359,6 +354,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 			Name:       creds.Name,
 			Score:      float32(creds.Score),
 			Avatar:     creds.Avatar,
+			Sex:        creds.Sex,
 			GuestCount: int32(creds.GuestCount),
 			Birthdate:  timestamppb.New(creds.Birthdate),
 			IsHost:     creds.IsHost,
@@ -398,16 +394,9 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
-	sanitizer := bluemonday.UGCPolicy()
-
 	userId := mux.Vars(r)["userId"]
-
-	userId = sanitizer.Sanitize(userId)
-
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
-
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received GetUserById request",
 		zap.String("request_id", requestID),
@@ -415,8 +404,24 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
-	w.Header().Set("Content-Type", "application/json")
-	user, err := h.authUseCase.GetUserById(ctx, userId)
+	user, err := h.client.GetUserById(ctx, &gen.GetUserByIdRequest{
+		UserId: userId,
+	})
+
+	response := &domain.User{
+		UUID:       user.User.Uuid,
+		Username:   user.User.Username,
+		Password:   user.User.Password,
+		Email:      user.User.Email,
+		Name:       user.User.Name,
+		Score:      float64(user.User.Score),
+		Avatar:     user.User.Avatar,
+		Sex:        user.User.Sex,
+		GuestCount: int(user.User.GuestCount),
+		Birthdate:  (user.User.Birthdate).AsTime(),
+		IsHost:     user.User.IsHost,
+	}
+
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get user by id",
 			zap.String("request_id", requestID),
@@ -425,9 +430,9 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err, requestID)
 		return
 	}
-
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(user); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		logger.AccessLogger.Error("Failed to encode user data",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -447,11 +452,8 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
-
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
-
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received GetAllUsers request",
 		zap.String("request_id", requestID),
@@ -459,8 +461,7 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
-	w.Header().Set("Content-Type", "application/json")
-	users, err := h.authUseCase.GetAllUser(ctx)
+	users, err := h.client.GetAllUsers(ctx, &gen.Empty{})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get all users data",
 			zap.String("request_id", requestID),
@@ -470,10 +471,26 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := map[string]interface{}{
-		"users": users,
+	var body []*domain.User
+	for _, user := range users.Users {
+		body = append(body, &domain.User{
+			UUID:       user.Uuid,
+			Username:   user.Username,
+			Password:   user.Password,
+			Email:      user.Email,
+			Name:       user.Name,
+			Score:      float64(user.Score),
+			Avatar:     user.Avatar,
+			Sex:        user.Sex,
+			GuestCount: int(user.GuestCount),
+			Birthdate:  (user.Birthdate).AsTime(),
+			IsHost:     user.IsHost,
+		})
 	}
-
+	response := map[string]interface{}{
+		"users": body,
+	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		logger.AccessLogger.Error("Failed to encode users response",
@@ -495,11 +512,8 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
-
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
-
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received GetSessionData request",
 		zap.String("request_id", requestID),
@@ -516,8 +530,9 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionData, err := h.sessionService.GetSessionData(ctx, sessionID)
-
+	sessionData, err := h.client.GetSessionData(ctx, &gen.GetSessionDataRequest{
+		SessionId: sessionID,
+	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get session data",
 			zap.String("request_id", requestID),
@@ -549,7 +564,6 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
-
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
 
@@ -569,7 +583,9 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err, requestID)
 		return
 	}
-	newCsrfToken, err := h.jwtToken.Create(sessionID, time.Now().Add(1*time.Hour).Unix())
+	newCsrfToken, err := h.client.RefreshCsrfToken(ctx, &gen.RefreshCsrfTokenRequest{
+		SessionId: sessionID,
+	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to generate CSRF",
 			zap.String("request_id", requestID),
@@ -581,13 +597,13 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "csrf_token",
-		Value:    newCsrfToken,
+		Value:    newCsrfToken.CsrfToken,
 		Path:     "/",
 		SameSite: http.SameSiteStrictMode,
 	})
 
 	w.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(w).Encode(map[string]string{"csrf_token": newCsrfToken})
+	err = json.NewEncoder(w).Encode(map[string]string{"csrf_token": newCsrfToken.CsrfToken})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to encode CSRF token",
 			zap.String("request_id", requestID),

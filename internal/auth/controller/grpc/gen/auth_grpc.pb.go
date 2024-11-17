@@ -39,8 +39,8 @@ type AuthClient interface {
 	PutUser(ctx context.Context, in *PutUserRequest, opts ...grpc.CallOption) (*UpdateResponse, error)
 	GetUserById(ctx context.Context, in *GetUserByIdRequest, opts ...grpc.CallOption) (*GetUserByIdResponse, error)
 	GetAllUsers(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*AllUsersResponse, error)
-	GetSessionData(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*SessionDataResponse, error)
-	RefreshCsrfToken(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*RefreshCsrfTokenResponse, error)
+	GetSessionData(ctx context.Context, in *GetSessionDataRequest, opts ...grpc.CallOption) (*SessionDataResponse, error)
+	RefreshCsrfToken(ctx context.Context, in *RefreshCsrfTokenRequest, opts ...grpc.CallOption) (*RefreshCsrfTokenResponse, error)
 }
 
 type authClient struct {
@@ -111,7 +111,7 @@ func (c *authClient) GetAllUsers(ctx context.Context, in *Empty, opts ...grpc.Ca
 	return out, nil
 }
 
-func (c *authClient) GetSessionData(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*SessionDataResponse, error) {
+func (c *authClient) GetSessionData(ctx context.Context, in *GetSessionDataRequest, opts ...grpc.CallOption) (*SessionDataResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SessionDataResponse)
 	err := c.cc.Invoke(ctx, Auth_GetSessionData_FullMethodName, in, out, cOpts...)
@@ -121,7 +121,7 @@ func (c *authClient) GetSessionData(ctx context.Context, in *Empty, opts ...grpc
 	return out, nil
 }
 
-func (c *authClient) RefreshCsrfToken(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*RefreshCsrfTokenResponse, error) {
+func (c *authClient) RefreshCsrfToken(ctx context.Context, in *RefreshCsrfTokenRequest, opts ...grpc.CallOption) (*RefreshCsrfTokenResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RefreshCsrfTokenResponse)
 	err := c.cc.Invoke(ctx, Auth_RefreshCsrfToken_FullMethodName, in, out, cOpts...)
@@ -141,8 +141,8 @@ type AuthServer interface {
 	PutUser(context.Context, *PutUserRequest) (*UpdateResponse, error)
 	GetUserById(context.Context, *GetUserByIdRequest) (*GetUserByIdResponse, error)
 	GetAllUsers(context.Context, *Empty) (*AllUsersResponse, error)
-	GetSessionData(context.Context, *Empty) (*SessionDataResponse, error)
-	RefreshCsrfToken(context.Context, *Empty) (*RefreshCsrfTokenResponse, error)
+	GetSessionData(context.Context, *GetSessionDataRequest) (*SessionDataResponse, error)
+	RefreshCsrfToken(context.Context, *RefreshCsrfTokenRequest) (*RefreshCsrfTokenResponse, error)
 	mustEmbedUnimplementedAuthServer()
 }
 
@@ -171,10 +171,10 @@ func (UnimplementedAuthServer) GetUserById(context.Context, *GetUserByIdRequest)
 func (UnimplementedAuthServer) GetAllUsers(context.Context, *Empty) (*AllUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAllUsers not implemented")
 }
-func (UnimplementedAuthServer) GetSessionData(context.Context, *Empty) (*SessionDataResponse, error) {
+func (UnimplementedAuthServer) GetSessionData(context.Context, *GetSessionDataRequest) (*SessionDataResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSessionData not implemented")
 }
-func (UnimplementedAuthServer) RefreshCsrfToken(context.Context, *Empty) (*RefreshCsrfTokenResponse, error) {
+func (UnimplementedAuthServer) RefreshCsrfToken(context.Context, *RefreshCsrfTokenRequest) (*RefreshCsrfTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RefreshCsrfToken not implemented")
 }
 func (UnimplementedAuthServer) mustEmbedUnimplementedAuthServer() {}
@@ -307,7 +307,7 @@ func _Auth_GetAllUsers_Handler(srv interface{}, ctx context.Context, dec func(in
 }
 
 func _Auth_GetSessionData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Empty)
+	in := new(GetSessionDataRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -319,13 +319,13 @@ func _Auth_GetSessionData_Handler(srv interface{}, ctx context.Context, dec func
 		FullMethod: Auth_GetSessionData_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServer).GetSessionData(ctx, req.(*Empty))
+		return srv.(AuthServer).GetSessionData(ctx, req.(*GetSessionDataRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Auth_RefreshCsrfToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Empty)
+	in := new(RefreshCsrfTokenRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -337,7 +337,7 @@ func _Auth_RefreshCsrfToken_Handler(srv interface{}, ctx context.Context, dec fu
 		FullMethod: Auth_RefreshCsrfToken_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServer).RefreshCsrfToken(ctx, req.(*Empty))
+		return srv.(AuthServer).RefreshCsrfToken(ctx, req.(*RefreshCsrfTokenRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
