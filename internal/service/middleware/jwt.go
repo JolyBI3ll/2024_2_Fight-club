@@ -2,14 +2,13 @@ package middleware
 
 import (
 	"fmt"
-	"github.com/gorilla/sessions"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt"
 )
 
 type JwtTokenService interface {
-	Create(s *sessions.Session, tokenExpTime int64) (string, error)
+	Create(session_id string, tokenExpTime int64) (string, error)
 	Validate(tokenString string) (*JwtCsrfClaims, error)
 	ParseSecretGetter(token *jwt.Token) (interface{}, error)
 }
@@ -26,14 +25,12 @@ func NewJwtToken(secret string) (JwtTokenService, error) {
 
 type JwtCsrfClaims struct {
 	SessionID string `json:"sid"`
-	UserID    string `json:"uid"`
 	jwt.StandardClaims
 }
 
-func (tk *JwtToken) Create(s *sessions.Session, tokenExpTime int64) (string, error) {
+func (tk *JwtToken) Create(session_id string, tokenExpTime int64) (string, error) {
 	data := JwtCsrfClaims{
-		SessionID: s.Values["session_id"].(string),
-		UserID:    s.Values["id"].(string),
+		SessionID: session_id,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: tokenExpTime,
 			IssuedAt:  time.Now().Unix(),

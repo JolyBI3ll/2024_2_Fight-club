@@ -6,7 +6,6 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
-	"context"
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
@@ -32,19 +31,15 @@ func NewAdHandler(adUseCase usecase.AdUseCase, sessionService session.InterfaceS
 	}
 }
 
-const requestTimeout = 5 * time.Second
-
-func withTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, requestTimeout)
-}
-
 func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
 
-	ctx, cancel := withTimeout(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+
+	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received GetAllPlaces request",
 		zap.String("request_id", requestID),
@@ -158,8 +153,10 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 
 	adId = sanitizer.Sanitize(adId)
 
-	ctx, cancel := withTimeout(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+
+	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received GetOnePlace request",
 		zap.String("request_id", requestID),
@@ -168,9 +165,18 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
+
 	isAuthorized := true
 
-	if _, err := h.sessionService.GetUserID(ctx, r); err != nil {
+	if _, err := h.sessionService.GetUserID(ctx, sessionID); err != nil {
 		isAuthorized = false
 	}
 
@@ -202,8 +208,10 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
 
-	ctx, cancel := withTimeout(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+
+	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received CreatePlace request",
 		zap.String("request_id", requestID),
@@ -252,7 +260,16 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	newPlace.Description = sanitizer.Sanitize(newPlace.Description)
 	newPlace.Address = sanitizer.Sanitize(newPlace.Address)
 
-	userID, err := h.sessionService.GetUserID(ctx, r)
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	userID, err := h.sessionService.GetUserID(ctx, sessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
 		h.handleError(w, errors.New("no active session"), requestID)
@@ -294,8 +311,10 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 
 	adId = sanitizer.Sanitize(adId)
 
-	ctx, cancel := withTimeout(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+
+	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received UpdatePlace request",
 		zap.String("request_id", requestID),
@@ -346,7 +365,16 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	updatedPlace.Description = sanitizer.Sanitize(updatedPlace.Description)
 	updatedPlace.Address = sanitizer.Sanitize(updatedPlace.Address)
 
-	userID, err := h.sessionService.GetUserID(ctx, r)
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	userID, err := h.sessionService.GetUserID(ctx, sessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
 		h.handleError(w, errors.New("no active session"), requestID)
@@ -384,8 +412,10 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 
 	adId = sanitizer.Sanitize(adId)
 
-	ctx, cancel := withTimeout(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+
+	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received DeletePlace request",
 		zap.String("request_id", requestID),
@@ -412,7 +442,16 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	userID, err := h.sessionService.GetUserID(ctx, r)
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	userID, err := h.sessionService.GetUserID(ctx, sessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
 		h.handleError(w, errors.New("no active session"), requestID)
@@ -449,8 +488,10 @@ func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 
 	city = sanitizer.Sanitize(city)
 
-	ctx, cancel := withTimeout(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+
+	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received GetPlacesPerCity request",
 		zap.String("request_id", requestID),
@@ -490,8 +531,10 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 
 	userId = sanitizer.Sanitize(userId)
 
-	ctx, cancel := withTimeout(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+
+	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received GetUserPlaces request",
 		zap.String("request_id", requestID),
@@ -532,8 +575,11 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 	adId = sanitizer.Sanitize(adId)
 	imageId = sanitizer.Sanitize(imageId)
 
-	ctx, cancel := withTimeout(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+
+	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
+
 	logger.AccessLogger.Info("Received DeleteAdImage request",
 		zap.String("request_id", requestID),
 		zap.String("adId", adId),
@@ -557,7 +603,16 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.sessionService.GetUserID(ctx, r)
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	userID, err := h.sessionService.GetUserID(ctx, sessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
 		h.handleError(w, errors.New("no active session"), requestID)
