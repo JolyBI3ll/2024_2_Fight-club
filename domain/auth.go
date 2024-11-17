@@ -20,9 +20,12 @@ type User struct {
 }
 
 type UserResponce struct {
-	Rating float64 `json:"rating"`
-	Avatar string  `json:"avatar"`
-	Name   string  `json:"name"`
+	Rating     float64   `json:"rating"`
+	Avatar     string    `json:"avatar"`
+	Name       string    `json:"name"`
+	Sex        string    `json:"sex"`
+	Birthdate  time.Time `json:"birthDate"`
+	GuestCount int       `json:"guestCount"`
 }
 
 type AuthRepository interface {
