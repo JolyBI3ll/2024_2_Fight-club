@@ -9,7 +9,6 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/session"
 	"context"
 	"errors"
-	"fmt"
 	"github.com/microcosm-cc/bluemonday"
 	"go.uber.org/zap"
 	"time"
@@ -152,7 +151,6 @@ func (h *GrpcAuthHandler) LogoutUser(ctx context.Context, in *generatedAuth.Logo
 	}
 
 	tokenString := in.AuthHeader[len("Bearer "):]
-	fmt.Printf(tokenString)
 	_, err := h.jwtToken.Validate(tokenString)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
