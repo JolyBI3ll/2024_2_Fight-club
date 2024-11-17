@@ -110,7 +110,9 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 		ads[i].AdAuthor.Name = user.Name
 		ads[i].AdAuthor.Avatar = user.Avatar
 		ads[i].AdAuthor.Rating = user.Score
-
+		ads[i].AdAuthor.GuestCount = user.GuestCount
+		ads[i].AdAuthor.Sex = user.Sex
+		ads[i].AdAuthor.Birthdate = user.Birthdate
 		for _, img := range images {
 			ads[i].Images = append(ads[i].Images, domain.ImageResponse{
 				ID:        img.ID,
@@ -156,6 +158,9 @@ func (r *adRepository) GetPlaceById(ctx context.Context, adId string) (domain.Ge
 	ad.AdAuthor.Name = user.Name
 	ad.AdAuthor.Avatar = user.Avatar
 	ad.AdAuthor.Rating = user.Score
+	ad.AdAuthor.GuestCount = user.GuestCount
+	ad.AdAuthor.Sex = user.Sex
+	ad.AdAuthor.Birthdate = user.Birthdate
 
 	for _, img := range images {
 		ad.Images = append(ad.Images, domain.ImageResponse{
@@ -352,6 +357,9 @@ func (r *adRepository) GetPlacesPerCity(ctx context.Context, city string) ([]dom
 		ads[i].AdAuthor.Name = user.Name
 		ads[i].AdAuthor.Avatar = user.Avatar
 		ads[i].AdAuthor.Rating = user.Score
+		ads[i].AdAuthor.GuestCount = user.GuestCount
+		ads[i].AdAuthor.Sex = user.Sex
+		ads[i].AdAuthor.Birthdate = user.Birthdate
 
 		for _, img := range images {
 			ads[i].Images = append(ads[i].Images, domain.ImageResponse{
