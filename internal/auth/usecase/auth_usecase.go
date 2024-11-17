@@ -10,14 +10,14 @@ import (
 	"encoding/json"
 	"errors"
 	"go.uber.org/zap"
-	"mime/multipart"
+	"net/http"
 	"regexp"
 )
 
 type AuthUseCase interface {
 	RegisterUser(ctx context.Context, creds *domain.User) error
 	LoginUser(ctx context.Context, creds *domain.User) (*domain.User, error)
-	PutUser(ctx context.Context, creds *domain.User, userID string, avatar *multipart.FileHeader) error
+	PutUser(ctx context.Context, creds *domain.User, userID string, avatar []byte) error
 	GetAllUser(ctx context.Context) ([]domain.User, error)
 	GetUserById(ctx context.Context, userID string) (*domain.User, error)
 }
@@ -155,7 +155,7 @@ func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*doma
 	return requestedUser, nil
 }
 
-func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID string, avatar *multipart.FileHeader) error {
+func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID string, avatar []byte) error {
 	requestID := middleware.GetRequestID(ctx)
 	const maxLen = 255
 	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
@@ -208,7 +208,9 @@ func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID s
 	}
 
 	if avatar != nil {
-		uploadedPath, err := uc.minioService.UploadFile(avatar, "user/"+userID)
+		contentType := http.DetectContentType(avatar[:512])
+
+		uploadedPath, err := uc.minioService.UploadFile(avatar, contentType, "user/"+userID)
 		if err != nil {
 			return err
 		}

@@ -1,11 +1,11 @@
 package images
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/google/uuid"
 	"log"
-	"mime/multipart"
 	"strings"
 
 	"github.com/minio/minio-go/v7"
@@ -13,7 +13,7 @@ import (
 )
 
 type MinioServiceInterface interface {
-	UploadFile(file *multipart.FileHeader, path string) (string, error)
+	UploadFile(file []byte, contentType, id string) (string, error)
 	DeleteFile(path string) error
 }
 
@@ -48,21 +48,27 @@ func NewMinioService(endpoint, accessKey, secretKey, bucketName string, useSSL b
 	return &MinioService{Client: client, BucketName: bucketName}, nil
 }
 
-func (m *MinioService) UploadFile(file *multipart.FileHeader, id string) (string, error) {
-	fileObj, err := file.Open()
-	if err != nil {
-		return "", err
-	}
-	defer fileObj.Close()
-
+func (m *MinioService) UploadFile(file []byte, contentType, id string) (string, error) {
 	imageUUID := uuid.New().String()
 	filePath := fmt.Sprintf("%s/%s", id, imageUUID)
-	_, err = m.Client.PutObject(context.Background(), m.BucketName, filePath, fileObj, file.Size, minio.PutObjectOptions{ContentType: file.Header.Get("Content-Type")})
+
+	// Преобразуем []byte в io.Reader для передачи в MinIO
+	reader := bytes.NewReader(file)
+
+	// Загрузка файла в MinIO
+	_, err := m.Client.PutObject(
+		context.Background(),
+		m.BucketName,
+		filePath,
+		reader,
+		int64(len(file)),
+		minio.PutObjectOptions{ContentType: contentType},
+	)
 	if err != nil {
 		return "", err
 	}
 
-	log.Printf("File %s successfully uploaded to %s", file.Filename, filePath)
+	log.Printf("File successfully uploaded to %s", filePath)
 	return filePath, nil
 }
 

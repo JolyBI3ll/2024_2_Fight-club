@@ -11,7 +11,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/microcosm-cc/bluemonday"
 	"go.uber.org/zap"
-	"mime/multipart"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -219,7 +219,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 
 	authHeader := r.Header.Get("X-CSRF-Token")
 	if authHeader == "" {
-		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
+		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("Missing X-CSRF-Token header")),
 		)
@@ -236,7 +236,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	r.ParseMultipartForm(10 << 20) // 10 mb
+	r.ParseMultipartForm(10 << 20) // 10 MB
 
 	metadata := r.FormValue("metadata")
 	var newPlace domain.CreateAdRequest
@@ -247,13 +247,33 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var files []*multipart.FileHeader
-	if len(r.MultipartForm.File["images"]) > 0 {
-		files = r.MultipartForm.File["images"]
-	} else {
-		logger.AccessLogger.Warn("No images", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, errors.New("No images"), requestID)
+	fileHeaders := r.MultipartForm.File["images"]
+	if len(fileHeaders) == 0 {
+		logger.AccessLogger.Warn("No images", zap.String("request_id", requestID))
+		h.handleError(w, errors.New("No images provided"), requestID)
 		return
+	}
+
+	// Преобразование файлов в [][]byte
+	files := make([][]byte, 0, len(fileHeaders))
+	for _, fileHeader := range fileHeaders {
+		file, err := fileHeader.Open()
+		if err != nil {
+			logger.AccessLogger.Error("Failed to open file", zap.String("request_id", requestID), zap.Error(err))
+			h.handleError(w, errors.New("Failed to open file"), requestID)
+			return
+		}
+		defer file.Close()
+
+		// Чтение содержимого файла в []byte
+		data, err := io.ReadAll(file)
+		if err != nil {
+			logger.AccessLogger.Error("Failed to read file", zap.String("request_id", requestID), zap.Error(err))
+			h.handleError(w, errors.New("Failed to read file"), requestID)
+			return
+		}
+
+		files = append(files, data)
 	}
 
 	newPlace.CityName = sanitizer.Sanitize(newPlace.CityName)
@@ -291,7 +311,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, errors.New("Failed to decode response"), requestID)
+		h.handleError(w, errors.New("Failed to encode response"), requestID)
 		return
 	}
 
@@ -323,7 +343,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 
 	authHeader := r.Header.Get("X-CSRF-Token")
 	if authHeader == "" {
-		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
+		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("Missing X-CSRF-Token header")),
 		)
@@ -341,7 +361,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	err = r.ParseMultipartForm(10 << 20)
+	err = r.ParseMultipartForm(10 << 20) // 10 MB
 	if err != nil {
 		logger.AccessLogger.Error("Failed to parse multipart form", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, errors.New("Invalid multipart form"), requestID)
@@ -356,9 +376,27 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var files []*multipart.FileHeader
-	if len(r.MultipartForm.File["images"]) > 0 {
-		files = r.MultipartForm.File["images"]
+	fileHeaders := r.MultipartForm.File["images"]
+
+	// Преобразование `[]*multipart.FileHeader` в `[][]byte`
+	files := make([][]byte, 0, len(fileHeaders))
+	for _, fileHeader := range fileHeaders {
+		file, err := fileHeader.Open()
+		if err != nil {
+			logger.AccessLogger.Error("Failed to open file", zap.String("request_id", requestID), zap.Error(err))
+			h.handleError(w, errors.New("Failed to open file"), requestID)
+			return
+		}
+		defer file.Close()
+
+		// Чтение содержимого файла в []byte
+		data, err := io.ReadAll(file)
+		if err != nil {
+			logger.AccessLogger.Error("Failed to read file", zap.String("request_id", requestID), zap.Error(err))
+			h.handleError(w, errors.New("Failed to read file"), requestID)
+			return
+		}
+		files = append(files, data)
 	}
 
 	updatedPlace.CityName = sanitizer.Sanitize(updatedPlace.CityName)
@@ -380,6 +418,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, errors.New("no active session"), requestID)
 		return
 	}
+
 	var place domain.Ad
 	err = h.adUseCase.UpdatePlace(ctx, &place, adId, userID, files, updatedPlace)
 	if err != nil {

@@ -9,19 +9,19 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/validation"
 	"go.uber.org/zap"
 	"log"
+	"net/http"
 	"regexp"
 	"strconv"
 
 	"context"
 	"errors"
-	"mime/multipart"
 )
 
 type AdUseCase interface {
 	GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error)
 	GetOnePlace(ctx context.Context, adId string, isAuthorized bool) (domain.GetAllAdsResponse, error)
-	CreatePlace(ctx context.Context, place *domain.Ad, fileHeader []*multipart.FileHeader, newPlace domain.CreateAdRequest, userId string) error
-	UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeader []*multipart.FileHeader, updatedPlace domain.UpdateAdRequest) error
+	CreatePlace(ctx context.Context, place *domain.Ad, fileHeader [][]byte, newPlace domain.CreateAdRequest, userId string) error
+	UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeader [][]byte, updatedPlace domain.UpdateAdRequest) error
 	DeletePlace(ctx context.Context, adId string, userId string) error
 	GetPlacesPerCity(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error)
 	GetUserPlaces(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
@@ -77,7 +77,7 @@ func (uc *adUseCase) GetOnePlace(ctx context.Context, adId string, isAuthorized 
 	return ad, nil
 }
 
-func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHeaders []*multipart.FileHeader, newPlace domain.CreateAdRequest, userId string) error {
+func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, files [][]byte, newPlace domain.CreateAdRequest, userId string) error {
 	const maxLen = 255
 	requestID := middleware.GetRequestID(ctx)
 
@@ -100,7 +100,7 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHead
 		return errors.New("RoomsNumber out of range")
 	}
 
-	if err := validation.ValidateImages(fileHeaders, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
+	if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
 		logger.AccessLogger.Warn("Invalid image", zap.String("request_id", requestID), zap.Error(err))
 		return errors.New("Invalid size, type or resolution of image")
 	}
@@ -115,9 +115,11 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHead
 	}
 	var uploadedPaths ntype.StringArray
 
-	for _, fileHeader := range fileHeaders {
-		if fileHeader != nil {
-			uploadedPath, err := uc.minioService.UploadFile(fileHeader, "ads/"+place.UUID)
+	for _, file := range files {
+		if file != nil {
+			contentType := http.DetectContentType(file[:512])
+
+			uploadedPath, err := uc.minioService.UploadFile(file, contentType, "ads/"+place.UUID)
 			if err != nil {
 				for _, path := range uploadedPaths {
 					_ = uc.minioService.DeleteFile(path)
@@ -136,11 +138,12 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHead
 	return nil
 }
 
-func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeaders []*multipart.FileHeader, updatedPlace domain.UpdateAdRequest) error {
+func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, files [][]byte, updatedPlace domain.UpdateAdRequest) error {
 	requestID := middleware.GetRequestID(ctx)
 	const maxLen = 255
-	if len(fileHeaders) > 0 {
-		if err := validation.ValidateImages(fileHeaders, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
+
+	if len(files) > 0 {
+		if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
 			logger.AccessLogger.Warn("Invalid image", zap.String("request_id", requestID), zap.Error(err))
 			return errors.New("Invalid size, type or resolution of image")
 		}
@@ -185,9 +188,10 @@ func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId str
 	place.RoomsNumber = updatedPlace.RoomsNumber
 	var newUploadedPaths ntype.StringArray
 
-	for _, fileHeader := range fileHeaders {
-		if fileHeader != nil {
-			uploadedPath, err := uc.minioService.UploadFile(fileHeader, "ads/"+adId)
+	for _, file := range files {
+		if file != nil {
+			contentType := http.DetectContentType(file[:512])
+			uploadedPath, err := uc.minioService.UploadFile(file, contentType, "ads/"+adId)
 			if err != nil {
 				for _, path := range newUploadedPaths {
 					_ = uc.minioService.DeleteFile(path)
