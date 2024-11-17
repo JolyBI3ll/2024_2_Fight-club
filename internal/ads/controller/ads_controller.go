@@ -103,7 +103,7 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 
 	limit := sanitizer.Sanitize(queryParams.Get("limit"))
 	var limitInt int
-	if offset != "" {
+	if limit != "" {
 		var err error
 		limitInt, err = strconv.Atoi(limit)
 		if err != nil {
