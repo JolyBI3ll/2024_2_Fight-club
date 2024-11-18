@@ -1,7 +1,8 @@
-package controller
+package http
 
 import (
 	"2024_2_FIGHT-CLUB/domain"
+	"2024_2_FIGHT-CLUB/internal/ads/controller/grpc/gen"
 	"2024_2_FIGHT-CLUB/internal/ads/usecase"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
@@ -9,22 +10,23 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
-	"github.com/microcosm-cc/bluemonday"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"net/http"
-	"strconv"
 	"time"
 )
 
 type AdHandler struct {
+	client         gen.AdsClient
 	adUseCase      usecase.AdUseCase
 	sessionService session.InterfaceSession
 	jwtToken       middleware.JwtTokenService
 }
 
-func NewAdHandler(adUseCase usecase.AdUseCase, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService) *AdHandler {
+func NewAdHandler(client gen.AdsClient, adUseCase usecase.AdUseCase, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService) *AdHandler {
 	return &AdHandler{
+		client:         client,
 		adUseCase:      adUseCase,
 		sessionService: sessionService,
 		jwtToken:       jwtToken,
@@ -33,9 +35,7 @@ func NewAdHandler(adUseCase usecase.AdUseCase, sessionService session.InterfaceS
 
 func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
-
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
 
@@ -52,82 +52,27 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 
 	queryParams := r.URL.Query()
 
-	layout := "2006-01-02"
-	var dateTo time.Time
-	var dateFrom time.Time
-
-	location := sanitizer.Sanitize(queryParams.Get("location"))
-	rating := sanitizer.Sanitize(queryParams.Get("rating"))
-	newThisWeek := sanitizer.Sanitize(queryParams.Get("new"))
-	hostGender := sanitizer.Sanitize(queryParams.Get("gender"))
-	guestCounter := sanitizer.Sanitize(queryParams.Get("guests"))
-	offset := sanitizer.Sanitize(queryParams.Get("offset"))
-
-	dateFromStr := sanitizer.Sanitize(queryParams.Get("dateFrom"))
-	if dateFromStr != "" {
-		var err error
-		dateFrom, err = time.Parse(layout, dateFromStr)
-		if err != nil {
-			logger.AccessLogger.Error("Failed to parse dateFrom", zap.Error(err))
-			h.handleError(w, err, requestID)
-			return
-		}
-	}
-
-	dateToStr := sanitizer.Sanitize(queryParams.Get("dateTo"))
-
-	if dateToStr != "" {
-		var err error
-		dateTo, err = time.Parse(layout, dateToStr)
-		if err != nil {
-			logger.AccessLogger.Error("Failed to parse dateTo", zap.Error(err))
-			h.handleError(w, err, requestID)
-			return
-		}
-	}
-	var offsetInt int
-	if offset != "" {
-		var err error
-		offsetInt, err = strconv.Atoi(offset)
-		if err != nil {
-			logger.AccessLogger.Error("Failed to parse offset as int", zap.String("request_id", requestID), zap.Error(err))
-			h.handleError(w, errors.New("query offset not int"), requestID)
-			return
-		}
-	}
-
-	limit := sanitizer.Sanitize(queryParams.Get("limit"))
-	var limitInt int
-	if offset != "" {
-		var err error
-		limitInt, err = strconv.Atoi(limit)
-		if err != nil {
-			logger.AccessLogger.Error("Failed to parse limit as int", zap.String("request_id", requestID), zap.Error(err))
-			h.handleError(w, errors.New("query limit not int"), requestID)
-			return
-		}
-	}
-
-	filter := domain.AdFilter{
-		Location:    location,
-		Rating:      rating,
-		NewThisWeek: newThisWeek,
-		HostGender:  hostGender,
-		GuestCount:  guestCounter,
-		Limit:       limitInt,
-		Offset:      offsetInt,
-		DateFrom:    dateFrom,
-		DateTo:      dateTo,
-	}
-
-	places, err := h.adUseCase.GetAllPlaces(ctx, filter)
+	response, err := h.client.GetAllPlaces(ctx, &gen.AdFilterRequest{
+		Location:    queryParams.Get("location"),
+		Rating:      queryParams.Get("rating"),
+		NewThisWeek: queryParams.Get("new"),
+		HostGender:  queryParams.Get("gender"),
+		GuestCount:  queryParams.Get("guests"),
+		Limit:       queryParams.Get("limit"),
+		Offset:      queryParams.Get("offset"),
+		DateFrom:    queryParams.Get("dateFrom"),
+		DateTo:      queryParams.Get("dateTo"),
+	})
 	if err != nil {
+		logger.AccessLogger.Error("Failed to GetAllPlaces",
+			zap.Error(err),
+			zap.String("request_id", requestID),
+			zap.String("method", r.Method))
 		h.handleError(w, err, requestID)
-		return
 	}
 
 	body := map[string]interface{}{
-		"places": places,
+		"places": response,
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -149,10 +94,6 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	adId := mux.Vars(r)["adId"]
-	sanitizer := bluemonday.UGCPolicy()
-
-	adId = sanitizer.Sanitize(adId)
-
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
 
@@ -180,7 +121,10 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 		isAuthorized = false
 	}
 
-	place, err := h.adUseCase.GetOnePlace(ctx, adId, isAuthorized) // Go to usercase
+	place, err := h.client.GetOnePlace(ctx, &gen.GetPlaceByIdRequest{
+		AdId:         adId,
+		IsAuthorized: isAuthorized,
+	})
 	if err != nil {
 		h.handleError(w, err, requestID)
 		return
@@ -205,7 +149,6 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 
 func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
 
 	ctx, cancel := middleware.WithTimeout(r.Context())
@@ -217,30 +160,28 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		zap.String("request_id", requestID),
 	)
 
-	authHeader := r.Header.Get("X-CSRF-Token")
-	if authHeader == "" {
-		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
-			zap.Error(errors.New("Missing X-CSRF-Token header")),
-		)
-		h.handleError(w, errors.New("Missing X-CSRF-Token header"), requestID)
+			zap.Error(err))
+		h.handleError(w, err, requestID)
 		return
 	}
 
-	tokenString := authHeader[len("Bearer "):]
-	_, err := h.jwtToken.Validate(tokenString)
-	if err != nil {
-		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, errors.New("Invalid JWT token"), requestID)
-		return
-	}
+	authHeader := r.Header.Get("X-CSRF-Token")
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	r.ParseMultipartForm(10 << 20) // 10 MB
+
+	err = r.ParseMultipartForm(10 << 20) // 10 MB
+	if err != nil {
+		logger.AccessLogger.Error("Failed to parse multipart form", zap.String("request_id", requestID), zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
 
 	metadata := r.FormValue("metadata")
 	var newPlace domain.CreateAdRequest
-	var place domain.Ad
 	if err := json.Unmarshal([]byte(metadata), &newPlace); err != nil {
 		logger.AccessLogger.Error("Failed to decode metadata", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, errors.New("Failed to decode metadata"), requestID)
@@ -265,7 +206,6 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		}
 		defer file.Close()
 
-		// Чтение содержимого файла в []byte
 		data, err := io.ReadAll(file)
 		if err != nil {
 			logger.AccessLogger.Error("Failed to read file", zap.String("request_id", requestID), zap.Error(err))
@@ -276,29 +216,17 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		files = append(files, data)
 	}
 
-	newPlace.CityName = sanitizer.Sanitize(newPlace.CityName)
-	newPlace.Description = sanitizer.Sanitize(newPlace.Description)
-	newPlace.Address = sanitizer.Sanitize(newPlace.Address)
-
-	sessionID, err := session.GetSessionId(r)
-	if err != nil {
-		logger.AccessLogger.Error("Failed to get session ID",
-			zap.String("request_id", requestID),
-			zap.Error(err))
-		h.handleError(w, err, requestID)
-		return
-	}
-
-	userID, err := h.sessionService.GetUserID(ctx, sessionID)
-	if err != nil {
-		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
-		h.handleError(w, errors.New("no active session"), requestID)
-		return
-	}
-
-	place.AuthorUUID = userID
-
-	err = h.adUseCase.CreatePlace(ctx, &place, files, newPlace, userID)
+	response, err := h.client.CreatePlace(ctx, &gen.CreateAdRequest{
+		CityName:    newPlace.CityName,
+		Description: newPlace.Description,
+		Address:     newPlace.Address,
+		RoomsNumber: int32(newPlace.RoomsNumber),
+		DateFrom:    timestamppb.New(newPlace.DateFrom),
+		DateTo:      timestamppb.New(newPlace.DateTo),
+		Images:      files,
+		AuthHeader:  authHeader,
+		SessionID:   sessionID,
+	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to create place", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
@@ -306,7 +234,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body := map[string]interface{}{
-		"place": place,
+		"place": response,
 	}
 
 	if err := json.NewEncoder(w).Encode(body); err != nil {
@@ -325,11 +253,8 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 
 func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
 	adId := mux.Vars(r)["adId"]
-
-	adId = sanitizer.Sanitize(adId)
 
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
@@ -342,26 +267,10 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	)
 
 	authHeader := r.Header.Get("X-CSRF-Token")
-	if authHeader == "" {
-		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
-			zap.String("request_id", requestID),
-			zap.Error(errors.New("Missing X-CSRF-Token header")),
-		)
-		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
-		return
-	}
-
-	tokenString := authHeader[len("Bearer "):]
-	_, err := h.jwtToken.Validate(tokenString)
-	if err != nil {
-		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, errors.New("Invalid JWT token"), requestID)
-		return
-	}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	err = r.ParseMultipartForm(10 << 20) // 10 MB
+	err := r.ParseMultipartForm(10 << 20) // 10 MB
 	if err != nil {
 		logger.AccessLogger.Error("Failed to parse multipart form", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, errors.New("Invalid multipart form"), requestID)
@@ -399,10 +308,6 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		files = append(files, data)
 	}
 
-	updatedPlace.CityName = sanitizer.Sanitize(updatedPlace.CityName)
-	updatedPlace.Description = sanitizer.Sanitize(updatedPlace.Description)
-	updatedPlace.Address = sanitizer.Sanitize(updatedPlace.Address)
-
 	sessionID, err := session.GetSessionId(r)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get session ID",
@@ -412,15 +317,18 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.sessionService.GetUserID(ctx, sessionID)
-	if err != nil {
-		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
-		h.handleError(w, errors.New("no active session"), requestID)
-		return
-	}
-
-	var place domain.Ad
-	err = h.adUseCase.UpdatePlace(ctx, &place, adId, userID, files, updatedPlace)
+	response, err := h.client.UpdatePlace(ctx, &gen.UpdateAdRequest{
+		AdId:        adId,
+		CityName:    updatedPlace.CityName,
+		Address:     updatedPlace.Address,
+		Description: updatedPlace.Description,
+		RoomsNumber: int32(updatedPlace.RoomsNumber),
+		SessionID:   sessionID,
+		AuthHeader:  authHeader,
+		Images:      files,
+		DateFrom:    timestamppb.New(updatedPlace.DateFrom),
+		DateTo:      timestamppb.New(updatedPlace.DateTo),
+	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to update place", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
@@ -428,13 +336,12 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	updateResponse := map[string]string{"response": "Update successfully"}
+	updateResponse := map[string]string{"response": response.Response}
 	if err := json.NewEncoder(w).Encode(updateResponse); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	duration := time.Since(start)
 	logger.AccessLogger.Info("Completed UpdatePlace request",
 		zap.String("request_id", requestID),
@@ -447,9 +354,6 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	adId := mux.Vars(r)["adId"]
-	sanitizer := bluemonday.UGCPolicy()
-
-	adId = sanitizer.Sanitize(adId)
 
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
@@ -462,22 +366,6 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 	)
 
 	authHeader := r.Header.Get("X-CSRF-Token")
-	if authHeader == "" {
-		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
-			zap.String("request_id", requestID),
-			zap.Error(errors.New("Missing X-CSRF-Token header")),
-		)
-		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
-		return
-	}
-
-	tokenString := authHeader[len("Bearer "):]
-	_, err := h.jwtToken.Validate(tokenString)
-	if err != nil {
-		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
-		return
-	}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
@@ -490,14 +378,11 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.sessionService.GetUserID(ctx, sessionID)
-	if err != nil {
-		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
-		h.handleError(w, errors.New("no active session"), requestID)
-		return
-	}
-
-	err = h.adUseCase.DeletePlace(ctx, adId, userID)
+	response, err := h.client.DeletePlace(ctx, &gen.DeletePlaceRequest{
+		AdId:       adId,
+		SessionID:  sessionID,
+		AuthHeader: authHeader,
+	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to delete place", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
@@ -505,7 +390,7 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	updateResponse := map[string]string{"response": "Delete successfully"}
+	updateResponse := map[string]string{"response": response.Response}
 	if err := json.NewEncoder(w).Encode(updateResponse); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -523,9 +408,6 @@ func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	city := mux.Vars(r)["city"]
-	sanitizer := bluemonday.UGCPolicy()
-
-	city = sanitizer.Sanitize(city)
 
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
@@ -538,14 +420,16 @@ func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 	)
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	ads, err := h.adUseCase.GetPlacesPerCity(ctx, city)
+	response, err := h.client.GetPlacesPerCity(ctx, &gen.GetPlacesPerCityRequest{
+		CityName: city,
+	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get places per city", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
 		return
 	}
 	body := map[string]interface{}{
-		"places": ads,
+		"places": response,
 	}
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
@@ -566,9 +450,6 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	userId := mux.Vars(r)["userId"]
-	sanitizer := bluemonday.UGCPolicy()
-
-	userId = sanitizer.Sanitize(userId)
 
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
@@ -581,13 +462,15 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 	)
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	places, err := h.adUseCase.GetUserPlaces(ctx, userId)
+	response, err := h.client.GetUserPlaces(ctx, &gen.GetUserPlacesRequest{
+		UserId: userId,
+	})
 	if err != nil {
 		h.handleError(w, err, requestID)
 		return
 	}
 	body := map[string]interface{}{
-		"places": places,
+		"places": response,
 	}
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
@@ -609,10 +492,6 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 
 	imageId := mux.Vars(r)["imageId"]
 	adId := mux.Vars(r)["adId"]
-	sanitizer := bluemonday.UGCPolicy()
-
-	adId = sanitizer.Sanitize(adId)
-	imageId = sanitizer.Sanitize(imageId)
 
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
@@ -625,22 +504,6 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 		zap.String("imageId", imageId))
 
 	authHeader := r.Header.Get("X-CSRF-Token")
-	if authHeader == "" {
-		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
-			zap.String("request_id", requestID),
-			zap.Error(errors.New("Missing X-CSRF-Token header")),
-		)
-		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
-		return
-	}
-
-	tokenString := authHeader[len("Bearer "):]
-	_, err := h.jwtToken.Validate(tokenString)
-	if err != nil {
-		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
-		return
-	}
 
 	sessionID, err := session.GetSessionId(r)
 	if err != nil {
@@ -651,16 +514,14 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.sessionService.GetUserID(ctx, sessionID)
-	if err != nil {
-		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
-		h.handleError(w, errors.New("no active session"), requestID)
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	err = h.adUseCase.DeleteAdImage(ctx, adId, imageId, userID)
+	response, err := h.client.DeleteAdImage(ctx, &gen.DeleteAdImageRequest{
+		AdId:       adId,
+		ImageId:    imageId,
+		AuthHeader: authHeader,
+		SessionID:  sessionID,
+	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to delete ad image", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
@@ -668,7 +529,7 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	updateResponse := map[string]string{"response": "Delete image successfully"}
+	updateResponse := map[string]string{"response": response.Response}
 	if err := json.NewEncoder(w).Encode(updateResponse); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)

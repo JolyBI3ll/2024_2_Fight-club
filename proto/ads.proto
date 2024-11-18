@@ -1,0 +1,134 @@
+syntax = "proto3";
+
+option go_package = "../internal/ads/controller/grpc/gen/;gen";
+import "google/protobuf/timestamp.proto";
+
+package ads;
+
+service Ads {
+  rpc GetAllPlaces (AdFilterRequest) returns (GetAllAdsResponseList);
+  rpc GetOnePlace (GetPlaceByIdRequest) returns (GetAllAdsResponse);
+  rpc CreatePlace (CreateAdRequest) returns (Ad);
+  rpc UpdatePlace (UpdateAdRequest) returns (AdResponse);
+  rpc DeletePlace (DeletePlaceRequest) returns (DeleteResponse);
+  rpc GetPlacesPerCity (GetPlacesPerCityRequest) returns (GetAllAdsResponseList);
+  rpc GetUserPlaces (GetUserPlacesRequest) returns (GetAllAdsResponseList);
+  rpc DeleteAdImage (DeleteAdImageRequest) returns (DeleteResponse);
+}
+
+message Ad {
+  string uuid = 1;
+  int32 cityId = 2;
+  string authorUUID = 3;
+  string address = 4;
+  string publicationDate = 5;
+  string description = 6;
+  int32 roomsNumber = 7;
+  int32 viewsCount = 8;
+}
+
+message CreateAdRequest {
+  string cityName = 1;
+  string address = 2;
+  string description = 3;
+  int32 roomsNumber = 4;
+  google.protobuf.Timestamp dateFrom = 5;
+  google.protobuf.Timestamp dateTo = 6;
+  repeated bytes images = 7;
+  string authHeader = 8;
+  string sessionID = 9;
+  string authorID = 10;
+}
+
+message UpdateAdRequest {
+  string adId = 1;
+  string cityName = 2;
+  string address = 3;
+  string description = 4;
+  int32 roomsNumber = 5;
+  google.protobuf.Timestamp dateFrom = 6;
+  google.protobuf.Timestamp dateTo = 7;
+  repeated bytes images = 8;
+  string authHeader = 9;
+  string sessionID = 10;
+}
+
+message DeletePlaceRequest {
+  string adId = 1;
+  string authHeader = 2;
+  string sessionID = 3;
+}
+
+message DeleteAdImageRequest {
+  string adId = 1;
+  string imageId = 2;
+  string authHeader = 3;
+  string sessionID = 4;
+}
+
+message GetPlacesPerCityRequest {
+  string cityName = 1;
+}
+
+message GetUserPlacesRequest {
+  string userId = 1;
+}
+
+message AdFilterRequest {
+  string location = 1;
+  string rating = 2;
+  string newThisWeek = 3;
+  string hostGender = 4;
+  string guestCount = 5;
+  string limit = 6;
+  string offset = 7;
+  string dateFrom = 8;
+  string dateTo = 9;
+}
+
+message GetAllAdsResponse {
+  string id = 1;
+  int32 cityId = 2;
+  string authorUUID = 3;
+  string address = 4;
+  string publicationDate = 5;
+  string description = 6;
+  int32 roomsNumber = 7;
+  int32 viewsCount = 8;
+  string cityName = 9;
+  string adDateFrom = 10;
+  string adDateTo = 11;
+  UserResponse adAuthor = 12;
+  repeated ImageResponse images = 13;
+}
+
+message GetAllAdsResponseList {
+  repeated GetAllAdsResponse ads = 1;
+}
+
+message GetPlaceByIdRequest {
+  string adId = 1;
+  bool isAuthorized = 2;
+}
+
+message AdResponse {
+  string response = 1;
+}
+
+message DeleteResponse {
+  string response = 1;
+}
+
+message ImageResponse {
+  int32 id = 1;
+  string imagePath = 2;
+}
+
+message UserResponse {
+  optional float rating = 1;
+  string avatar = 2;
+  string name = 3;
+  string sex = 4;
+  string birthDate = 5;
+  int32 guestCount = 6;
+}

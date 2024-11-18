@@ -1,7 +1,8 @@
 package main
 
 import (
-	adHttpDelivery "2024_2_FIGHT-CLUB/internal/ads/controller"
+	generatedAds "2024_2_FIGHT-CLUB/internal/ads/controller/grpc/gen"
+	adHttpDelivery "2024_2_FIGHT-CLUB/internal/ads/controller/http"
 	adRepository "2024_2_FIGHT-CLUB/internal/ads/repository"
 	adUseCase "2024_2_FIGHT-CLUB/internal/ads/usecase"
 	generatedAuth "2024_2_FIGHT-CLUB/internal/auth/controller/grpc/gen"
@@ -57,9 +58,16 @@ func main() {
 	auUseCase := authUseCase.NewAuthUseCase(auRepository, minioService)
 	authHandler := authHttpDelivery.NewAuthHandler(authClient, auUseCase, sessionService, jwtToken)
 
+	adsConn, err := grpc.NewClient("localhost:50052", grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("Failed to connect to AdsService: %v", err)
+	}
+	defer adsConn.Close()
+
+	adsClient := generatedAds.NewAdsClient(adsConn)
 	adsRepository := adRepository.NewAdRepository(db)
 	adsUseCase := adUseCase.NewAdUseCase(adsRepository, minioService)
-	adsHandler := adHttpDelivery.NewAdHandler(adsUseCase, sessionService, jwtToken)
+	adsHandler := adHttpDelivery.NewAdHandler(adsClient, adsUseCase, sessionService, jwtToken)
 
 	citiesRepository := cityRepository.NewCityRepository(db)
 	citiesUseCase := cityUseCase.NewCityUseCase(citiesRepository)

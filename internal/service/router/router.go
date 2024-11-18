@@ -1,7 +1,7 @@
 package router
 
 import (
-	ads "2024_2_FIGHT-CLUB/internal/ads/controller"
+	ads "2024_2_FIGHT-CLUB/internal/ads/controller/http"
 	auth "2024_2_FIGHT-CLUB/internal/auth/controller/http"
 	city "2024_2_FIGHT-CLUB/internal/cities/controller"
 	"github.com/gorilla/mux"
