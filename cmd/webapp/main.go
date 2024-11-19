@@ -9,6 +9,9 @@ import (
 	authHttpDelivery "2024_2_FIGHT-CLUB/internal/auth/controller/http"
 	authRepository "2024_2_FIGHT-CLUB/internal/auth/repository"
 	authUseCase "2024_2_FIGHT-CLUB/internal/auth/usecase"
+	chatHttpDelivery "2024_2_FIGHT-CLUB/internal/chat/controller/http"
+	chatRepository "2024_2_FIGHT-CLUB/internal/chat/repository"
+	chatUseCase "2024_2_FIGHT-CLUB/internal/chat/usecase"
 	cityHttpDelivery "2024_2_FIGHT-CLUB/internal/cities/controller"
 	cityRepository "2024_2_FIGHT-CLUB/internal/cities/repository"
 	cityUseCase "2024_2_FIGHT-CLUB/internal/cities/usecase"
@@ -73,7 +76,11 @@ func main() {
 	citiesUseCase := cityUseCase.NewCityUseCase(citiesRepository)
 	cityHandler := cityHttpDelivery.NewCityHandler(citiesUseCase)
 
-	mainRouter := router.SetUpRoutes(authHandler, adsHandler, cityHandler)
+	chatsRepository := chatRepository.NewChatRepository(db)
+	chatsUseCase := chatUseCase.NewChatService(chatsRepository)
+	chatsHandler := chatHttpDelivery.NewChatController(chatsUseCase, sessionService)
+
+	mainRouter := router.SetUpRoutes(authHandler, adsHandler, cityHandler, chatsHandler)
 	mainRouter.Use(middleware.RequestIDMiddleware)
 	mainRouter.Use(middleware.RateLimitMiddleware)
 	http.Handle("/", middleware.EnableCORS(mainRouter))
