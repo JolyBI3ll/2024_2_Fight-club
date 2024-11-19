@@ -152,7 +152,7 @@ func (h *GrpcAuthHandler) LogoutUser(ctx context.Context, in *generatedAuth.Logo
 	}
 
 	tokenString := in.AuthHeader[len("Bearer "):]
-	_, err := h.jwtToken.Validate(tokenString)
+	_, err := h.jwtToken.Validate(tokenString, in.SessionId)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("invalid JWT token")
@@ -184,7 +184,7 @@ func (h *GrpcAuthHandler) PutUser(ctx context.Context, in *generatedAuth.PutUser
 	}
 
 	tokenString := in.AuthHeader[len("Bearer "):]
-	_, err := h.jwtToken.Validate(tokenString)
+	_, err := h.jwtToken.Validate(tokenString, in.SessionId)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("invalid JWT token")

@@ -9,7 +9,7 @@ import (
 
 type JwtTokenService interface {
 	Create(session_id string, tokenExpTime int64) (string, error)
-	Validate(tokenString string) (*JwtCsrfClaims, error)
+	Validate(tokenString string, expectedSessionId string) (*JwtCsrfClaims, error)
 	ParseSecretGetter(token *jwt.Token) (interface{}, error)
 }
 
@@ -40,13 +40,8 @@ func (tk *JwtToken) Create(session_id string, tokenExpTime int64) (string, error
 	return token.SignedString(tk.Secret)
 }
 
-func (tk *JwtToken) Validate(tokenString string) (*JwtCsrfClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &JwtCsrfClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return tk.Secret, nil
-	})
+func (tk *JwtToken) Validate(tokenString string, expectedSessionId string) (*JwtCsrfClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &JwtCsrfClaims{}, tk.ParseSecretGetter)
 	if err != nil {
 		return nil, fmt.Errorf("invalid token: %w", err)
 	}
@@ -59,6 +54,10 @@ func (tk *JwtToken) Validate(tokenString string) (*JwtCsrfClaims, error) {
 	// Проверка срока действия (дополнительно)
 	if claims.ExpiresAt < time.Now().Unix() {
 		return nil, fmt.Errorf("token has expired")
+	}
+
+	if claims.SessionID != expectedSessionId {
+		return nil, fmt.Errorf("invalid token")
 	}
 
 	return claims, nil

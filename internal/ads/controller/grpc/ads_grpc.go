@@ -208,7 +208,7 @@ func (adh *GrpcAdHandler) CreatePlace(ctx context.Context, in *generatedAds.Crea
 	in.Address = sanitizer.Sanitize(in.Address)
 
 	tokenString := in.AuthHeader[len("Bearer "):]
-	_, err := adh.jwtToken.Validate(tokenString)
+	_, err := adh.jwtToken.Validate(tokenString, in.SessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("Invalid JWT token")
@@ -270,7 +270,7 @@ func (adh *GrpcAdHandler) UpdatePlace(ctx context.Context, in *generatedAds.Upda
 	}
 
 	tokenString := in.AuthHeader[len("Bearer "):]
-	_, err := adh.jwtToken.Validate(tokenString)
+	_, err := adh.jwtToken.Validate(tokenString, in.SessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("Invalid JWT token")
@@ -315,7 +315,7 @@ func (adh *GrpcAdHandler) DeletePlace(ctx context.Context, in *generatedAds.Dele
 	}
 
 	tokenString := in.AuthHeader[len("Bearer "):]
-	_, err := adh.jwtToken.Validate(tokenString)
+	_, err := adh.jwtToken.Validate(tokenString, in.SessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("Invalid JWT token")
@@ -439,7 +439,7 @@ func (adh *GrpcAdHandler) DeleteAdImage(ctx context.Context, in *generatedAds.De
 	}
 
 	tokenString := in.AuthHeader[len("Bearer "):]
-	_, err := adh.jwtToken.Validate(tokenString)
+	_, err := adh.jwtToken.Validate(tokenString, in.SessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("Invalid JWT token")
