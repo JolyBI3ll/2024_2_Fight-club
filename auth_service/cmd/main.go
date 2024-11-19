@@ -1,10 +1,10 @@
 package main
 
 import (
-	grpcAuth "2024_2_FIGHT-CLUB/internal/auth/controller/grpc"
-	generatedAuth "2024_2_FIGHT-CLUB/internal/auth/controller/grpc/gen"
-	authRepository "2024_2_FIGHT-CLUB/internal/auth/repository"
-	authUseCase "2024_2_FIGHT-CLUB/internal/auth/usecase"
+	grpcAuth "2024_2_FIGHT-CLUB/auth_service/controller/grpc"
+	generatedAuth "2024_2_FIGHT-CLUB/auth_service/controller/grpc/gen"
+	authRepository "2024_2_FIGHT-CLUB/auth_service/repository"
+	authUseCase "2024_2_FIGHT-CLUB/auth_service/usecase"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"

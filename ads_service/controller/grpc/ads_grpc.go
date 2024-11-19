@@ -1,9 +1,9 @@
 package grpc
 
 import (
+	generatedAds "2024_2_FIGHT-CLUB/ads_service/controller/grpc/gen"
+	"2024_2_FIGHT-CLUB/ads_service/usecase"
 	"2024_2_FIGHT-CLUB/domain"
-	generatedAds "2024_2_FIGHT-CLUB/internal/ads/controller/grpc/gen"
-	"2024_2_FIGHT-CLUB/internal/ads/usecase"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
