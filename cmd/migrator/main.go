@@ -111,7 +111,7 @@ func seedCities(db *gorm.DB, minioClient *minio.Client) error {
 	}
 
 	for i, city := range cities {
-		imagePath := fmt.Sprintf("CitiesImages/%s.jpg", city.EnTitle)
+		imagePath := fmt.Sprintf("cities_images/%s.jpg", city.EnTitle)
 		objectName := fmt.Sprintf("%s.jpg", city.EnTitle)
 
 		imageURL, err := uploadImage(minioClient, bucketName, objectName, imagePath)
