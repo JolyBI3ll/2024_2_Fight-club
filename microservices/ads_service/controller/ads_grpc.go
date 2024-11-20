@@ -1,12 +1,12 @@
-package grpc
+package controller
 
 import (
-	generatedAds "2024_2_FIGHT-CLUB/ads_service/controller/grpc/gen"
-	"2024_2_FIGHT-CLUB/ads_service/usecase"
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
+	"2024_2_FIGHT-CLUB/microservices/ads_service/usecase"
 	"context"
 	"errors"
 	"github.com/microcosm-cc/bluemonday"
@@ -16,7 +16,7 @@ import (
 )
 
 type GrpcAdHandler struct {
-	generatedAds.AdsServer
+	gen.AdsServer
 	sessionService session.InterfaceSession
 	usecase        usecase.AdUseCase
 	jwtToken       middleware.JwtTokenService
@@ -30,7 +30,7 @@ func NewGrpcAdHandler(sessionService session.InterfaceSession, usecase usecase.A
 	}
 }
 
-func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *generatedAds.AdFilterRequest) (*generatedAds.GetAllAdsResponseList, error) {
+func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequest) (*gen.GetAllAdsResponseList, error) {
 	requestID := middleware.GetRequestID(ctx)
 	sanitizer := bluemonday.UGCPolicy()
 	logger.AccessLogger.Info("Received GetAllPlaces request in microservice",
@@ -113,9 +113,9 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *generatedAds.AdF
 			zap.String("request_id", requestID))
 		return nil, err
 	}
-	var responseList generatedAds.GetAllAdsResponseList
+	var responseList gen.GetAllAdsResponseList
 	for _, place := range places {
-		ad := &generatedAds.GetAllAdsResponse{
+		ad := &gen.GetAllAdsResponse{
 			Id:              place.UUID,
 			CityId:          int32(place.CityID),
 			AuthorUUID:      place.AuthorUUID,
@@ -127,7 +127,7 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *generatedAds.AdF
 			CityName:        place.Cityname,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
-			AdAuthor: &generatedAds.UserResponse{
+			AdAuthor: &gen.UserResponse{
 				Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
 				Avatar:     place.AdAuthor.Avatar,
 				Name:       place.AdAuthor.Name,
@@ -144,7 +144,7 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *generatedAds.AdF
 	return &responseList, nil
 }
 
-func (adh *GrpcAdHandler) GetOnePlace(ctx context.Context, in *generatedAds.GetPlaceByIdRequest) (*generatedAds.GetAllAdsResponse, error) {
+func (adh *GrpcAdHandler) GetOnePlace(ctx context.Context, in *gen.GetPlaceByIdRequest) (*gen.GetAllAdsResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	sanitizer := bluemonday.UGCPolicy()
 	logger.AccessLogger.Info("Received GetAllPlaces request in microservice",
@@ -163,7 +163,7 @@ func (adh *GrpcAdHandler) GetOnePlace(ctx context.Context, in *generatedAds.GetP
 		return nil, err
 	}
 
-	return &generatedAds.GetAllAdsResponse{
+	return &gen.GetAllAdsResponse{
 		Id:              place.UUID,
 		CityId:          int32(place.CityID),
 		AuthorUUID:      place.AuthorUUID,
@@ -175,7 +175,7 @@ func (adh *GrpcAdHandler) GetOnePlace(ctx context.Context, in *generatedAds.GetP
 		CityName:        place.Cityname,
 		AdDateFrom:      place.AdDateFrom.Format(layout),
 		AdDateTo:        place.AdDateTo.Format(layout),
-		AdAuthor: &generatedAds.UserResponse{
+		AdAuthor: &gen.UserResponse{
 			Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
 			Avatar:     place.AdAuthor.Avatar,
 			Name:       place.AdAuthor.Name,
@@ -187,7 +187,7 @@ func (adh *GrpcAdHandler) GetOnePlace(ctx context.Context, in *generatedAds.GetP
 	}, nil
 }
 
-func (adh *GrpcAdHandler) CreatePlace(ctx context.Context, in *generatedAds.CreateAdRequest) (*generatedAds.Ad, error) {
+func (adh *GrpcAdHandler) CreatePlace(ctx context.Context, in *gen.CreateAdRequest) (*gen.Ad, error) {
 	requestID := middleware.GetRequestID(ctx)
 	sanitizer := bluemonday.UGCPolicy()
 	layout := "2006-01-02"
@@ -237,7 +237,7 @@ func (adh *GrpcAdHandler) CreatePlace(ctx context.Context, in *generatedAds.Crea
 		return nil, err
 	}
 
-	return &generatedAds.Ad{
+	return &gen.Ad{
 		Uuid:            place.UUID,
 		CityId:          int32(place.CityID),
 		AuthorUUID:      place.AuthorUUID,
@@ -249,7 +249,7 @@ func (adh *GrpcAdHandler) CreatePlace(ctx context.Context, in *generatedAds.Crea
 	}, nil
 }
 
-func (adh *GrpcAdHandler) UpdatePlace(ctx context.Context, in *generatedAds.UpdateAdRequest) (*generatedAds.AdResponse, error) {
+func (adh *GrpcAdHandler) UpdatePlace(ctx context.Context, in *gen.UpdateAdRequest) (*gen.AdResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	sanitizer := bluemonday.UGCPolicy()
 	logger.AccessLogger.Info("Received UpdatePlace request in microservice",
@@ -295,10 +295,10 @@ func (adh *GrpcAdHandler) UpdatePlace(ctx context.Context, in *generatedAds.Upda
 		logger.AccessLogger.Warn("Failed to update place", zap.String("request_id", requestID), zap.Error(err))
 		return nil, err
 	}
-	return &generatedAds.AdResponse{Response: "Update successfully"}, nil
+	return &gen.AdResponse{Response: "Update successfully"}, nil
 }
 
-func (adh *GrpcAdHandler) DeletePlace(ctx context.Context, in *generatedAds.DeletePlaceRequest) (*generatedAds.DeleteResponse, error) {
+func (adh *GrpcAdHandler) DeletePlace(ctx context.Context, in *gen.DeletePlaceRequest) (*gen.DeleteResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	sanitizer := bluemonday.UGCPolicy()
 	logger.AccessLogger.Info("Received DeletePlace request in microservice",
@@ -332,10 +332,10 @@ func (adh *GrpcAdHandler) DeletePlace(ctx context.Context, in *generatedAds.Dele
 		logger.AccessLogger.Warn("Failed to delete place", zap.String("request_id", requestID), zap.Error(err))
 		return nil, err
 	}
-	return &generatedAds.DeleteResponse{Response: "Delete successfully"}, nil
+	return &gen.DeleteResponse{Response: "Delete successfully"}, nil
 }
 
-func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *generatedAds.GetPlacesPerCityRequest) (*generatedAds.GetAllAdsResponseList, error) {
+func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *gen.GetPlacesPerCityRequest) (*gen.GetAllAdsResponseList, error) {
 	requestID := middleware.GetRequestID(ctx)
 	sanitizer := bluemonday.UGCPolicy()
 	layout := "2006-01-02"
@@ -349,9 +349,9 @@ func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *generatedAds
 		logger.AccessLogger.Warn("Failed to get places per city", zap.String("request_id", requestID), zap.Error(err))
 		return nil, err
 	}
-	var responseList generatedAds.GetAllAdsResponseList
+	var responseList gen.GetAllAdsResponseList
 	for _, place := range places {
-		ad := &generatedAds.GetAllAdsResponse{
+		ad := &gen.GetAllAdsResponse{
 			Id:              place.UUID,
 			CityId:          int32(place.CityID),
 			AuthorUUID:      place.AuthorUUID,
@@ -363,7 +363,7 @@ func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *generatedAds
 			CityName:        place.Cityname,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
-			AdAuthor: &generatedAds.UserResponse{
+			AdAuthor: &gen.UserResponse{
 				Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
 				Avatar:     place.AdAuthor.Avatar,
 				Name:       place.AdAuthor.Name,
@@ -378,7 +378,7 @@ func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *generatedAds
 	return &responseList, nil
 }
 
-func (adh *GrpcAdHandler) GetUserPlaces(ctx context.Context, in *generatedAds.GetUserPlacesRequest) (*generatedAds.GetAllAdsResponseList, error) {
+func (adh *GrpcAdHandler) GetUserPlaces(ctx context.Context, in *gen.GetUserPlacesRequest) (*gen.GetAllAdsResponseList, error) {
 	requestID := middleware.GetRequestID(ctx)
 	sanitizer := bluemonday.UGCPolicy()
 	layout := "2006-01-02"
@@ -391,9 +391,9 @@ func (adh *GrpcAdHandler) GetUserPlaces(ctx context.Context, in *generatedAds.Ge
 		logger.AccessLogger.Warn("Failed to get user places", zap.String("request_id", requestID), zap.Error(err))
 		return nil, err
 	}
-	var responseList generatedAds.GetAllAdsResponseList
+	var responseList gen.GetAllAdsResponseList
 	for _, place := range places {
-		ad := &generatedAds.GetAllAdsResponse{
+		ad := &gen.GetAllAdsResponse{
 			Id:              place.UUID,
 			CityId:          int32(place.CityID),
 			AuthorUUID:      place.AuthorUUID,
@@ -405,7 +405,7 @@ func (adh *GrpcAdHandler) GetUserPlaces(ctx context.Context, in *generatedAds.Ge
 			CityName:        place.Cityname,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
-			AdAuthor: &generatedAds.UserResponse{
+			AdAuthor: &gen.UserResponse{
 				Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
 				Avatar:     place.AdAuthor.Avatar,
 				Name:       place.AdAuthor.Name,
@@ -420,7 +420,7 @@ func (adh *GrpcAdHandler) GetUserPlaces(ctx context.Context, in *generatedAds.Ge
 	return &responseList, nil
 }
 
-func (adh *GrpcAdHandler) DeleteAdImage(ctx context.Context, in *generatedAds.DeleteAdImageRequest) (*generatedAds.DeleteResponse, error) {
+func (adh *GrpcAdHandler) DeleteAdImage(ctx context.Context, in *gen.DeleteAdImageRequest) (*gen.DeleteResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	sanitizer := bluemonday.UGCPolicy()
 	logger.AccessLogger.Info("Received DeleteAdImage request in microservice",
@@ -456,17 +456,17 @@ func (adh *GrpcAdHandler) DeleteAdImage(ctx context.Context, in *generatedAds.De
 		logger.AccessLogger.Warn("Failed to delete ad image", zap.String("request_id", requestID), zap.Error(err))
 		return nil, err
 	}
-	return &generatedAds.DeleteResponse{Response: "Delete image successfully"}, nil
+	return &gen.DeleteResponse{Response: "Delete image successfully"}, nil
 }
 
 func float32Ptr(f float32) *float32 {
 	return &f
 }
 
-func convertImagesToGRPC(images []domain.ImageResponse) []*generatedAds.ImageResponse {
-	var grpcImages []*generatedAds.ImageResponse
+func convertImagesToGRPC(images []domain.ImageResponse) []*gen.ImageResponse {
+	var grpcImages []*gen.ImageResponse
 	for _, img := range images {
-		grpcImages = append(grpcImages, &generatedAds.ImageResponse{
+		grpcImages = append(grpcImages, &gen.ImageResponse{
 			Id:        int32(img.ID),
 			ImagePath: img.ImagePath,
 		})

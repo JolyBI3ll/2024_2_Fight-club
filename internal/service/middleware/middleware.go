@@ -1,8 +1,8 @@
 package middleware
 
 import (
+	"2024_2_FIGHT-CLUB/internal/service/dsn"
 	"2024_2_FIGHT-CLUB/internal/service/images"
-	"2024_2_FIGHT-CLUB/module/dsn"
 	"context"
 	"fmt"
 	"github.com/google/uuid"

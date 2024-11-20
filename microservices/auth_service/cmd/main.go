@@ -1,11 +1,13 @@
 package main
 
 import (
-	grpcAuth "2024_2_FIGHT-CLUB/internal/auth/controller/grpc"
-	generatedAuth "2024_2_FIGHT-CLUB/internal/auth/controller/grpc/gen"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	grpcAuth "2024_2_FIGHT-CLUB/microservices/auth_service/controller"
+	generatedAuth "2024_2_FIGHT-CLUB/microservices/auth_service/controller/gen"
+	authRepository "2024_2_FIGHT-CLUB/microservices/auth_service/repository"
+	authUseCase "2024_2_FIGHT-CLUB/microservices/auth_service/usecase"
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 	"log"
@@ -24,11 +26,13 @@ func main() {
 	db := middleware.DbConnect()
 	minioService := middleware.MinioConnect()
 
+	// Создание JWT сервиса
 	jwtToken, err := middleware.NewJwtToken("secret-key")
 	if err != nil {
 		log.Fatalf("Failed to create JWT token: %v", err)
 	}
 
+	// Инициализация логгеров
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
@@ -38,6 +42,9 @@ func main() {
 		}
 	}()
 
+	sessionService := session.NewSessionService(redisStore)
+	auRepository := authRepository.NewAuthRepository(db)
+	auUseCase := authUseCase.NewAuthUseCase(auRepository, minioService)
 	authServer := grpcAuth.NewGrpcAuthHandler(auUseCase, sessionService, jwtToken)
 
 	grpcServer := grpc.NewServer()

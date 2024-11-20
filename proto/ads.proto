@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "../internal/ads/controller/grpc/gen/;gen";
+option go_package = "../microservices/ads_service/controller/gen/;gen";
 import "google/protobuf/timestamp.proto";
 
 package ads;

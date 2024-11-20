@@ -1,5 +1,5 @@
 syntax = "proto3";
-option go_package = "../internal/auth/controller/grpc/gen/;gen";
+option go_package = "../microservices/auth_service/controller/gen/;gen";
 import "google/protobuf/timestamp.proto";
 package auth;
 

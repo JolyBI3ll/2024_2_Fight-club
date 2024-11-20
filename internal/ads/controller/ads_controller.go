@@ -1,12 +1,11 @@
-package http
+package controller
 
 import (
-	"2024_2_FIGHT-CLUB/ads_service/controller/grpc/gen"
-	"2024_2_FIGHT-CLUB/ads_service/usecase"
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
@@ -19,15 +18,13 @@ import (
 
 type AdHandler struct {
 	client         gen.AdsClient
-	adUseCase      usecase.AdUseCase
 	sessionService session.InterfaceSession
 	jwtToken       middleware.JwtTokenService
 }
 
-func NewAdHandler(client gen.AdsClient, adUseCase usecase.AdUseCase, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService) *AdHandler {
+func NewAdHandler(client gen.AdsClient, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService) *AdHandler {
 	return &AdHandler{
 		client:         client,
-		adUseCase:      adUseCase,
 		sessionService: sessionService,
 		jwtToken:       jwtToken,
 	}
@@ -201,7 +198,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		file, err := fileHeader.Open()
 		if err != nil {
 			logger.AccessLogger.Error("Failed to open file", zap.String("request_id", requestID), zap.Error(err))
-			h.handleError(w, errors.New("Failed to open file"), requestID)
+			h.handleError(w, errors.New("failed to open file"), requestID)
 			return
 		}
 		defer file.Close()
@@ -209,7 +206,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		data, err := io.ReadAll(file)
 		if err != nil {
 			logger.AccessLogger.Error("Failed to read file", zap.String("request_id", requestID), zap.Error(err))
-			h.handleError(w, errors.New("Failed to read file"), requestID)
+			h.handleError(w, errors.New("failed to read file"), requestID)
 			return
 		}
 
@@ -239,7 +236,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, errors.New("Failed to encode response"), requestID)
+		h.handleError(w, errors.New("failed to encode response"), requestID)
 		return
 	}
 
@@ -273,7 +270,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseMultipartForm(10 << 20) // 10 MB
 	if err != nil {
 		logger.AccessLogger.Error("Failed to parse multipart form", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, errors.New("Invalid multipart form"), requestID)
+		h.handleError(w, errors.New("invalid multipart form"), requestID)
 		return
 	}
 
@@ -281,7 +278,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	var updatedPlace domain.UpdateAdRequest
 	if err := json.Unmarshal([]byte(metadata), &updatedPlace); err != nil {
 		logger.AccessLogger.Error("Failed to decode metadata", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, errors.New("Invalid metadata JSON"), requestID)
+		h.handleError(w, errors.New("invalid metadata JSON"), requestID)
 		return
 	}
 
@@ -293,7 +290,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		file, err := fileHeader.Open()
 		if err != nil {
 			logger.AccessLogger.Error("Failed to open file", zap.String("request_id", requestID), zap.Error(err))
-			h.handleError(w, errors.New("Failed to open file"), requestID)
+			h.handleError(w, errors.New("failed to open file"), requestID)
 			return
 		}
 		defer file.Close()
@@ -302,7 +299,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		data, err := io.ReadAll(file)
 		if err != nil {
 			logger.AccessLogger.Error("Failed to read file", zap.String("request_id", requestID), zap.Error(err))
-			h.handleError(w, errors.New("Failed to read file"), requestID)
+			h.handleError(w, errors.New("failed to read file"), requestID)
 			return
 		}
 		files = append(files, data)

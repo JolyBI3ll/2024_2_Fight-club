@@ -1,4 +1,4 @@
-package http
+package controller
 
 import (
 	"2024_2_FIGHT-CLUB/domain"

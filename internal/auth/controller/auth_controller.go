@@ -1,12 +1,11 @@
-package http
+package controller
 
 import (
-	"2024_2_FIGHT-CLUB/auth_service/controller/grpc/gen"
-	"2024_2_FIGHT-CLUB/auth_service/usecase"
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	"2024_2_FIGHT-CLUB/microservices/auth_service/controller/gen"
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
@@ -20,15 +19,13 @@ import (
 
 type AuthHandler struct {
 	client         gen.AuthClient
-	authUseCase    usecase.AuthUseCase
 	sessionService session.InterfaceSession
 	jwtToken       middleware.JwtTokenService
 }
 
-func NewAuthHandler(client gen.AuthClient, authUseCase usecase.AuthUseCase, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService) *AuthHandler {
+func NewAuthHandler(client gen.AuthClient, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService) *AuthHandler {
 	return &AuthHandler{
 		client:         client,
-		authUseCase:    authUseCase,
 		sessionService: sessionService,
 		jwtToken:       jwtToken,
 	}

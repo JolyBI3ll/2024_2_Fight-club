@@ -1,12 +1,12 @@
-package grpc
+package controller
 
 import (
-	generatedAuth "2024_2_FIGHT-CLUB/auth_service/controller/grpc/gen"
-	"2024_2_FIGHT-CLUB/auth_service/usecase"
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	"2024_2_FIGHT-CLUB/microservices/auth_service/controller/gen"
+	"2024_2_FIGHT-CLUB/microservices/auth_service/usecase"
 	"context"
 	"errors"
 	"github.com/microcosm-cc/bluemonday"
@@ -16,7 +16,7 @@ import (
 )
 
 type GrpcAuthHandler struct {
-	generatedAuth.AuthServer
+	gen.AuthServer
 	usecase        usecase.AuthUseCase
 	sessionService session.InterfaceSession
 	jwtToken       middleware.JwtTokenService
@@ -30,7 +30,7 @@ func NewGrpcAuthHandler(usecase usecase.AuthUseCase, sessionService session.Inte
 	}
 }
 
-func (h *GrpcAuthHandler) RegisterUser(ctx context.Context, in *generatedAuth.RegisterUserRequest) (*generatedAuth.UserResponse, error) {
+func (h *GrpcAuthHandler) RegisterUser(ctx context.Context, in *gen.RegisterUserRequest) (*gen.UserResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	sanitizer := bluemonday.UGCPolicy()
 	logger.AccessLogger.Info("Received RegisterUser request in microservice",
@@ -77,10 +77,10 @@ func (h *GrpcAuthHandler) RegisterUser(ctx context.Context, in *generatedAuth.Re
 		return nil, err
 	}
 
-	return &generatedAuth.UserResponse{
+	return &gen.UserResponse{
 		SessionId: userSession,
 		Jwttoken:  jwtToken,
-		User: &generatedAuth.User{
+		User: &gen.User{
 			Id:       payload.UUID,
 			Username: payload.Username,
 			Email:    payload.Email,
@@ -88,7 +88,7 @@ func (h *GrpcAuthHandler) RegisterUser(ctx context.Context, in *generatedAuth.Re
 	}, nil
 }
 
-func (h *GrpcAuthHandler) LoginUser(ctx context.Context, in *generatedAuth.LoginUserRequest) (*generatedAuth.UserResponse, error) {
+func (h *GrpcAuthHandler) LoginUser(ctx context.Context, in *gen.LoginUserRequest) (*gen.UserResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	sanitizer := bluemonday.UGCPolicy()
 	logger.AccessLogger.Info("Received LoginUser request in microservice",
@@ -131,10 +131,10 @@ func (h *GrpcAuthHandler) LoginUser(ctx context.Context, in *generatedAuth.Login
 		return nil, err
 	}
 
-	return &generatedAuth.UserResponse{
+	return &gen.UserResponse{
 		SessionId: userSession,
 		Jwttoken:  jwtToken,
-		User: &generatedAuth.User{
+		User: &gen.User{
 			Id:       response.UUID,
 			Username: response.Username,
 			Email:    response.Email,
@@ -142,7 +142,7 @@ func (h *GrpcAuthHandler) LoginUser(ctx context.Context, in *generatedAuth.Login
 	}, nil
 }
 
-func (h *GrpcAuthHandler) LogoutUser(ctx context.Context, in *generatedAuth.LogoutRequest) (*generatedAuth.LogoutUserResponse, error) {
+func (h *GrpcAuthHandler) LogoutUser(ctx context.Context, in *gen.LogoutRequest) (*gen.LogoutUserResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	logger.AccessLogger.Info("Received Logout request in microservice",
 		zap.String("request_id", requestID))
@@ -164,12 +164,12 @@ func (h *GrpcAuthHandler) LogoutUser(ctx context.Context, in *generatedAuth.Logo
 			zap.Error(err))
 		return nil, err
 	}
-	return &generatedAuth.LogoutUserResponse{
+	return &gen.LogoutUserResponse{
 		Response: "Success",
 	}, nil
 }
 
-func (h *GrpcAuthHandler) PutUser(ctx context.Context, in *generatedAuth.PutUserRequest) (*generatedAuth.UpdateResponse, error) {
+func (h *GrpcAuthHandler) PutUser(ctx context.Context, in *gen.PutUserRequest) (*gen.UpdateResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	sanitizer := bluemonday.UGCPolicy()
 	logger.AccessLogger.Info("Received LoginUser request in microservice",
@@ -226,12 +226,12 @@ func (h *GrpcAuthHandler) PutUser(ctx context.Context, in *generatedAuth.PutUser
 			zap.Error(err))
 		return nil, err
 	}
-	return &generatedAuth.UpdateResponse{
+	return &gen.UpdateResponse{
 		Response: "Success",
 	}, nil
 }
 
-func (h *GrpcAuthHandler) GetUserById(ctx context.Context, in *generatedAuth.GetUserByIdRequest) (*generatedAuth.GetUserByIdResponse, error) {
+func (h *GrpcAuthHandler) GetUserById(ctx context.Context, in *gen.GetUserByIdRequest) (*gen.GetUserByIdResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	sanitizer := bluemonday.UGCPolicy()
 	in.UserId = sanitizer.Sanitize(in.UserId)
@@ -246,7 +246,7 @@ func (h *GrpcAuthHandler) GetUserById(ctx context.Context, in *generatedAuth.Get
 		return nil, err
 	}
 
-	userMetadata := &generatedAuth.Metadata{
+	userMetadata := &gen.Metadata{
 		Uuid:       user.UUID,
 		Username:   user.Username,
 		Password:   user.Password,
@@ -259,12 +259,12 @@ func (h *GrpcAuthHandler) GetUserById(ctx context.Context, in *generatedAuth.Get
 		Birthdate:  timestamppb.New(user.Birthdate),
 		IsHost:     user.IsHost,
 	}
-	return &generatedAuth.GetUserByIdResponse{
+	return &gen.GetUserByIdResponse{
 		User: userMetadata,
 	}, nil
 }
 
-func (h *GrpcAuthHandler) GetAllUsers(ctx context.Context, in *generatedAuth.Empty) (*generatedAuth.AllUsersResponse, error) {
+func (h *GrpcAuthHandler) GetAllUsers(ctx context.Context, in *gen.Empty) (*gen.AllUsersResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	logger.AccessLogger.Info("Received GetAllUsers request in microservice",
 		zap.String("request_id", requestID))
@@ -277,9 +277,9 @@ func (h *GrpcAuthHandler) GetAllUsers(ctx context.Context, in *generatedAuth.Emp
 		return nil, err
 	}
 
-	var userMetadata []*generatedAuth.Metadata
+	var userMetadata []*gen.Metadata
 	for _, user := range users {
-		userMetadata = append(userMetadata, &generatedAuth.Metadata{
+		userMetadata = append(userMetadata, &gen.Metadata{
 			Uuid:       user.UUID,
 			Username:   user.Username,
 			Password:   user.Password,
@@ -294,12 +294,12 @@ func (h *GrpcAuthHandler) GetAllUsers(ctx context.Context, in *generatedAuth.Emp
 		})
 	}
 
-	return &generatedAuth.AllUsersResponse{
+	return &gen.AllUsersResponse{
 		Users: userMetadata,
 	}, nil
 }
 
-func (h *GrpcAuthHandler) GetSessionData(ctx context.Context, in *generatedAuth.GetSessionDataRequest) (*generatedAuth.SessionDataResponse, error) {
+func (h *GrpcAuthHandler) GetSessionData(ctx context.Context, in *gen.GetSessionDataRequest) (*gen.SessionDataResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	logger.AccessLogger.Info("Received GetSessionData request in microservice",
 		zap.String("request_id", requestID))
@@ -326,13 +326,13 @@ func (h *GrpcAuthHandler) GetSessionData(ctx context.Context, in *generatedAuth.
 		return nil, errors.New("invalid type for avatar in session data")
 	}
 
-	return &generatedAuth.SessionDataResponse{
+	return &gen.SessionDataResponse{
 		Id:     id,
 		Avatar: avatar,
 	}, nil
 }
 
-func (h *GrpcAuthHandler) RefreshCsrfToken(ctx context.Context, in *generatedAuth.RefreshCsrfTokenRequest) (*generatedAuth.RefreshCsrfTokenResponse, error) {
+func (h *GrpcAuthHandler) RefreshCsrfToken(ctx context.Context, in *gen.RefreshCsrfTokenRequest) (*gen.RefreshCsrfTokenResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	logger.AccessLogger.Info("Received RefreshCsrfToken request in microservice",
 		zap.String("request_id", requestID))
@@ -343,7 +343,7 @@ func (h *GrpcAuthHandler) RefreshCsrfToken(ctx context.Context, in *generatedAut
 			zap.Error(err))
 		return nil, err
 	}
-	return &generatedAuth.RefreshCsrfTokenResponse{
+	return &gen.RefreshCsrfTokenResponse{
 		CsrfToken: newCsrfToken,
 	}, nil
 }

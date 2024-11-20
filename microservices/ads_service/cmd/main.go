@@ -1,13 +1,13 @@
 package main
 
 import (
-	grpcAd "2024_2_FIGHT-CLUB/ads_service/controller/grpc"
-	generatedAds "2024_2_FIGHT-CLUB/ads_service/controller/grpc/gen"
-	adRepository "2024_2_FIGHT-CLUB/ads_service/repository"
-	adUseCase "2024_2_FIGHT-CLUB/ads_service/usecase"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	grpcAd "2024_2_FIGHT-CLUB/microservices/ads_service/controller"
+	generatedAds "2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
+	adRepository "2024_2_FIGHT-CLUB/microservices/ads_service/repository"
+	adUseCase "2024_2_FIGHT-CLUB/microservices/ads_service/usecase"
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 	"log"

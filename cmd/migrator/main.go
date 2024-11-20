@@ -2,7 +2,7 @@ package main
 
 import (
 	"2024_2_FIGHT-CLUB/domain"
-	"2024_2_FIGHT-CLUB/module/dsn"
+	"2024_2_FIGHT-CLUB/internal/service/dsn"
 	"context"
 	"fmt"
 	"github.com/joho/godotenv"
