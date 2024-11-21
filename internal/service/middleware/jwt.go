@@ -2,15 +2,14 @@ package middleware
 
 import (
 	"fmt"
-	"github.com/gorilla/sessions"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt"
 )
 
 type JwtTokenService interface {
-	Create(s *sessions.Session, tokenExpTime int64) (string, error)
-	Validate(tokenString string) (*JwtCsrfClaims, error)
+	Create(session_id string, tokenExpTime int64) (string, error)
+	Validate(tokenString string, expectedSessionId string) (*JwtCsrfClaims, error)
 	ParseSecretGetter(token *jwt.Token) (interface{}, error)
 }
 
@@ -26,14 +25,12 @@ func NewJwtToken(secret string) (JwtTokenService, error) {
 
 type JwtCsrfClaims struct {
 	SessionID string `json:"sid"`
-	UserID    string `json:"uid"`
 	jwt.StandardClaims
 }
 
-func (tk *JwtToken) Create(s *sessions.Session, tokenExpTime int64) (string, error) {
+func (tk *JwtToken) Create(session_id string, tokenExpTime int64) (string, error) {
 	data := JwtCsrfClaims{
-		SessionID: s.Values["session_id"].(string),
-		UserID:    s.Values["id"].(string),
+		SessionID: session_id,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: tokenExpTime,
 			IssuedAt:  time.Now().Unix(),
@@ -43,7 +40,7 @@ func (tk *JwtToken) Create(s *sessions.Session, tokenExpTime int64) (string, err
 	return token.SignedString(tk.Secret)
 }
 
-func (tk *JwtToken) Validate(tokenString string) (*JwtCsrfClaims, error) {
+func (tk *JwtToken) Validate(tokenString string, expectedSessionId string) (*JwtCsrfClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JwtCsrfClaims{}, tk.ParseSecretGetter)
 	if err != nil {
 		return nil, fmt.Errorf("invalid token: %w", err)
@@ -54,8 +51,13 @@ func (tk *JwtToken) Validate(tokenString string) (*JwtCsrfClaims, error) {
 		return nil, fmt.Errorf("invalid token")
 	}
 
+	// Проверка срока действия (дополнительно)
 	if claims.ExpiresAt < time.Now().Unix() {
 		return nil, fmt.Errorf("token has expired")
+	}
+
+	if claims.SessionID != expectedSessionId {
+		return nil, fmt.Errorf("invalid token")
 	}
 
 	return claims, nil

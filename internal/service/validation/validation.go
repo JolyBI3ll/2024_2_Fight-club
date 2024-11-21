@@ -1,12 +1,12 @@
 package validation
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
 	"image/png"
-	"mime/multipart"
 	"net/http"
 	"regexp"
 	"strings"
@@ -32,31 +32,21 @@ func ValidateName(name string) bool {
 	return re.MatchString(name)
 }
 
-func ValidateImages(files []*multipart.FileHeader, maxSize int64, allowedMimeTypes []string, maxWidth, maxHeight int) error {
-	for _, file := range files {
+func ValidateImages(files [][]byte, maxSize int64, allowedMimeTypes []string, maxWidth, maxHeight int) error {
+	for i, file := range files {
 		if err := ValidateImage(file, maxSize, allowedMimeTypes, maxWidth, maxHeight); err != nil {
-			return fmt.Errorf("file %s is invalid: %w", file.Filename, err)
+			return fmt.Errorf("file at index %d is invalid: %w", i, err)
 		}
 	}
 	return nil
 }
 
-func ValidateImage(file *multipart.FileHeader, maxSize int64, allowedMimeTypes []string, maxWidth, maxHeight int) error {
-	if file.Size > maxSize {
+func ValidateImage(file []byte, maxSize int64, allowedMimeTypes []string, maxWidth, maxHeight int) error {
+	if int64(len(file)) > maxSize {
 		return fmt.Errorf("file exceeds maximum size of %d bytes", maxSize)
 	}
 
-	src, err := file.Open()
-	if err != nil {
-		return fmt.Errorf("could not open file: %v", err)
-	}
-	defer src.Close()
-
-	buffer := make([]byte, 512)
-	if _, err := src.Read(buffer); err != nil {
-		return fmt.Errorf("could not read file buffer: %v", err)
-	}
-
+	buffer := file[:512]
 	mimeType := http.DetectContentType(buffer)
 	allowed := false
 	for _, t := range allowedMimeTypes {
@@ -65,23 +55,19 @@ func ValidateImage(file *multipart.FileHeader, maxSize int64, allowedMimeTypes [
 			break
 		}
 	}
-
 	if !allowed {
 		return fmt.Errorf("file type %s is not allowed", mimeType)
 	}
 
-	_, err = src.Seek(0, 0)
-	if err != nil {
-		return fmt.Errorf("could not seek file: %v", err)
-	}
 	var img image.Image
+	var err error
+	reader := bytes.NewReader(file)
+
 	switch {
-	case strings.HasSuffix(mimeType, "jpeg"):
-		img, err = jpeg.Decode(src)
+	case strings.HasSuffix(mimeType, "jpeg") || strings.HasSuffix(mimeType, "jpg"):
+		img, err = jpeg.Decode(reader)
 	case strings.HasSuffix(mimeType, "png"):
-		img, err = png.Decode(src)
-	case strings.HasSuffix(mimeType, "jpg"):
-		img, err = jpeg.Decode(src)
+		img, err = png.Decode(reader)
 	default:
 		return errors.New("unsupported image format")
 	}

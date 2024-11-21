@@ -2,21 +2,21 @@ package main
 
 import (
 	adHttpDelivery "2024_2_FIGHT-CLUB/internal/ads/controller"
-	adRepository "2024_2_FIGHT-CLUB/internal/ads/repository"
-	adUseCase "2024_2_FIGHT-CLUB/internal/ads/usecase"
 	authHttpDelivery "2024_2_FIGHT-CLUB/internal/auth/controller"
-	authRepository "2024_2_FIGHT-CLUB/internal/auth/repository"
-	authUseCase "2024_2_FIGHT-CLUB/internal/auth/usecase"
+	chatHttpDelivery "2024_2_FIGHT-CLUB/internal/chat/controller"
+	chatRepository "2024_2_FIGHT-CLUB/internal/chat/repository"
+	chatUseCase "2024_2_FIGHT-CLUB/internal/chat/usecase"
 	cityHttpDelivery "2024_2_FIGHT-CLUB/internal/cities/controller"
-	cityRepository "2024_2_FIGHT-CLUB/internal/cities/repository"
-	cityUseCase "2024_2_FIGHT-CLUB/internal/cities/usecase"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/router"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	generatedAds "2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
+	generatedAuth "2024_2_FIGHT-CLUB/microservices/auth_service/controller/gen"
+	generatedCity "2024_2_FIGHT-CLUB/microservices/city_service/controller/gen"
 	"fmt"
-	"github.com/gorilla/sessions"
 	"github.com/joho/godotenv"
+	"google.golang.org/grpc"
 	"log"
 	"net/http"
 	"os"
@@ -24,9 +24,9 @@ import (
 
 func main() {
 	_ = godotenv.Load()
-	store := sessions.NewCookieStore([]byte("super-secret-key"))
+	middleware.InitRedis()
+	redisStore := session.NewRedisSessionStore(middleware.RedisClient)
 	db := middleware.DbConnect()
-	minioService := middleware.MinioConnect()
 	jwtToken, err := middleware.NewJwtToken("secret-key")
 	if err != nil {
 		log.Fatalf("Failed to create JWT token: %v", err)
@@ -42,25 +42,40 @@ func main() {
 		}
 	}()
 
-	sessionService := session.NewSessionService(store)
+	authConn, err := grpc.Dial("localhost:50051", grpc.WithInsecure()) // Укажите адрес AuthService
+	if err != nil {
+		log.Fatalf("Failed to connect to AuthService: %v", err)
+	}
+	defer authConn.Close()
 
-	auRepository := authRepository.NewAuthRepository(db)
-	auUseCase := authUseCase.NewAuthUseCase(auRepository, minioService)
-	authHandler := authHttpDelivery.NewAuthHandler(auUseCase, sessionService, jwtToken)
+	adsConn, err := grpc.NewClient("localhost:50052", grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("Failed to connect to AdsService: %v", err)
+	}
+	defer adsConn.Close()
 
-	adsRepository := adRepository.NewAdRepository(db)
-	adsUseCase := adUseCase.NewAdUseCase(adsRepository, minioService)
-	adsHandler := adHttpDelivery.NewAdHandler(adsUseCase, sessionService, jwtToken)
+	cityConn, err := grpc.NewClient("localhost:50053", grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("Failed to connect to AdsService: %v", err)
+	}
+	defer adsConn.Close()
 
-	citiesRepository := cityRepository.NewCityRepository(db)
-	citiesUseCase := cityUseCase.NewCityUseCase(citiesRepository)
-	cityHandler := cityHttpDelivery.NewCityHandler(citiesUseCase)
+	sessionService := session.NewSessionService(redisStore)
 
-	store.Options.HttpOnly = true
-	store.Options.Secure = false
-	store.Options.SameSite = http.SameSiteStrictMode
+	authClient := generatedAuth.NewAuthClient(authConn)
+	authHandler := authHttpDelivery.NewAuthHandler(authClient, sessionService, jwtToken)
 
-	mainRouter := router.SetUpRoutes(authHandler, adsHandler, cityHandler)
+	adsClient := generatedAds.NewAdsClient(adsConn)
+	adsHandler := adHttpDelivery.NewAdHandler(adsClient, sessionService, jwtToken)
+
+	cityClient := generatedCity.NewCityServiceClient(cityConn)
+	cityHandler := cityHttpDelivery.NewCityHandler(cityClient)
+
+	chatsRepository := chatRepository.NewChatRepository(db)
+	chatsUseCase := chatUseCase.NewChatService(chatsRepository)
+	chatsHandler := chatHttpDelivery.NewChatController(chatsUseCase, sessionService)
+
+	mainRouter := router.SetUpRoutes(authHandler, adsHandler, cityHandler, chatsHandler)
 	mainRouter.Use(middleware.RequestIDMiddleware)
 	mainRouter.Use(middleware.RateLimitMiddleware)
 	http.Handle("/", middleware.EnableCORS(mainRouter))

@@ -2,7 +2,7 @@ package main
 
 import (
 	"2024_2_FIGHT-CLUB/domain"
-	"2024_2_FIGHT-CLUB/module/dsn"
+	"2024_2_FIGHT-CLUB/internal/service/dsn"
 	"context"
 	"fmt"
 	"github.com/joho/godotenv"
@@ -50,7 +50,7 @@ func migrate() (err error) {
 	if err != nil {
 		return err
 	}
-	err = db.AutoMigrate(&domain.User{}, &domain.City{}, &domain.Ad{}, &domain.AdPosition{}, &domain.AdAvailableDate{}, &domain.Image{}, &domain.Request{}, &domain.Review{})
+	err = db.AutoMigrate(&domain.User{}, &domain.City{}, &domain.Ad{}, &domain.AdPosition{}, &domain.AdAvailableDate{}, &domain.Image{}, &domain.Request{}, &domain.Review{}, &domain.Message{})
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func seedCities(db *gorm.DB, minioClient *minio.Client) error {
 	}
 
 	for i, city := range cities {
-		imagePath := fmt.Sprintf("CitiesImages/%s.jpg", city.EnTitle)
+		imagePath := fmt.Sprintf("cities_images/%s.jpg", city.EnTitle)
 		objectName := fmt.Sprintf("%s.jpg", city.EnTitle)
 
 		imageURL, err := uploadImage(minioClient, bucketName, objectName, imagePath)

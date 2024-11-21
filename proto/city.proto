@@ -1,0 +1,32 @@
+syntax = "proto3";
+option go_package = "../microservices/city_service/controller/gen/;gen";
+package cities;
+
+// Город
+message City {
+  int32 id = 1;
+  string title = 2;
+  string entitle = 3;
+  string description = 4;
+  string image = 5;
+}
+
+// Запрос на получение списка городов
+message GetCitiesRequest {}
+
+message GetCitiesResponse {
+  repeated City cities = 1; // Список городов
+}
+
+message GetOneCityRequest {
+  string en_name = 1; // Английское название города
+}
+
+message GetOneCityResponse {
+  City city = 1; // Информация о городе
+}
+
+service CityService {
+  rpc GetCities (GetCitiesRequest) returns (GetCitiesResponse);
+  rpc GetOneCity (GetOneCityRequest) returns (GetOneCityResponse);
+}
