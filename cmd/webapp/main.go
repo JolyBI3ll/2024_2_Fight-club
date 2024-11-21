@@ -45,23 +45,35 @@ func main() {
 		}
 	}()
 
-	authConn, err := grpc.Dial("localhost:50051", grpc.WithInsecure()) // Укажите адрес AuthService
+	authAdress := os.Getenv("AUTH_SERVICE_ADDRESS")
+	if authAdress == "" {
+		log.Fatalf("AUTH_SERVICE_ADDRESS is not set")
+	}
+	authConn, err := grpc.NewClient(authAdress, grpc.WithInsecure()) // Укажите адрес AuthService
 	if err != nil {
 		log.Fatalf("Failed to connect to AuthService: %v", err)
 	}
 	defer authConn.Close()
 
-	adsConn, err := grpc.NewClient("localhost:50052", grpc.WithInsecure())
+	adsAdress := os.Getenv("ADS_SERVICE_ADDRESS")
+	if adsAdress == "" {
+		log.Fatalf("ADS_SERVICE_ADDRESS is not set")
+	}
+	adsConn, err := grpc.NewClient(adsAdress, grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("Failed to connect to AdsService: %v", err)
 	}
 	defer adsConn.Close()
 
-	cityConn, err := grpc.NewClient("localhost:50053", grpc.WithInsecure())
+	cityAdress := os.Getenv("CITY_SERVICE_ADDRESS")
+	if cityAdress == "" {
+		log.Fatalf("CITY_SERVICE_ADDRESS is not set")
+	}
+	cityConn, err := grpc.NewClient(cityAdress, grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("Failed to connect to AdsService: %v", err)
 	}
-	defer adsConn.Close()
+	defer cityConn.Close()
 
 	sessionService := session.NewSessionService(redisStore)
 
