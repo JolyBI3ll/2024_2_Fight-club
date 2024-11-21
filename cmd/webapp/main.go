@@ -7,6 +7,9 @@ import (
 	chatRepository "2024_2_FIGHT-CLUB/internal/chat/repository"
 	chatUseCase "2024_2_FIGHT-CLUB/internal/chat/usecase"
 	cityHttpDelivery "2024_2_FIGHT-CLUB/internal/cities/controller"
+	reviewContoller "2024_2_FIGHT-CLUB/internal/reviews/contoller"
+	reviewRepository "2024_2_FIGHT-CLUB/internal/reviews/repository"
+	reviewUsecase "2024_2_FIGHT-CLUB/internal/reviews/usecase"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/router"
@@ -75,7 +78,11 @@ func main() {
 	chatsUseCase := chatUseCase.NewChatService(chatsRepository)
 	chatsHandler := chatHttpDelivery.NewChatController(chatsUseCase, sessionService)
 
-	mainRouter := router.SetUpRoutes(authHandler, adsHandler, cityHandler, chatsHandler)
+	reviewsRepository := reviewRepository.NewReviewRepository(db)
+	reviewsUsecase := reviewUsecase.NewReviewUsecase(reviewsRepository)
+	reviewsHandler := reviewContoller.NewReviewHandler(reviewsUsecase, sessionService, jwtToken)
+
+	mainRouter := router.SetUpRoutes(authHandler, adsHandler, cityHandler, chatsHandler, reviewsHandler)
 	mainRouter.Use(middleware.RequestIDMiddleware)
 	mainRouter.Use(middleware.RateLimitMiddleware)
 	http.Handle("/", middleware.EnableCORS(mainRouter))
