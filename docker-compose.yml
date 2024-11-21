@@ -42,10 +42,13 @@ services:
             - MINIO_PORT=${MINIO_PORT}
             - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
             - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
         depends_on:
             - postgres
             - minio
             - certs
+            - redis
         networks:
             - app-network
 
@@ -60,6 +63,14 @@ services:
             POSTGRES_DB: ${DB_NAME}
         volumes:
             - postgres_data:/var/lib/postgresql/data
+        networks:
+            - app-network
+
+    # Redis for caching
+    redis:
+        image: redis:7
+        ports:
+            - "6379:6379"
         networks:
             - app-network
 
@@ -91,6 +102,75 @@ services:
             /usr/bin/mc anonymous set download myminio/images;
             /usr/bin/mc anonymous set download myminio/cities;
             "
+        networks:
+            - app-network
+
+    # Ads service
+    ads_service:
+        image: golang:1.23.1
+        working_dir: /app
+        ports:
+            - "50052:50052"
+        volumes:
+            - .:/app
+        command: go run ./microservices/ads_service/cmd/main.go
+        depends_on:
+            - redis
+            - postgres
+        environment:
+            - DB_HOST=${DB_HOST}
+            - DB_PORT=${DB_PORT}
+            - DB_USER=${DB_USER}
+            - DB_PASSWORD=${DB_PASS}
+            - DB_NAME=${DB_NAME}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+        networks:
+            - app-network
+
+    # Auth service
+    auth_service:
+        image: golang:1.23.1
+        working_dir: /app
+        ports:
+            - "50051:50051"
+        volumes:
+            - .:/app
+        command: go run ./microservices/auth_service/cmd/main.go
+        depends_on:
+            - redis
+            - postgres
+        environment:
+            - DB_HOST=${DB_HOST}
+            - DB_PORT=${DB_PORT}
+            - DB_USER=${DB_USER}
+            - DB_PASSWORD=${DB_PASS}
+            - DB_NAME=${DB_NAME}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+        networks:
+            - app-network
+
+    # City service
+    city_service:
+        image: golang:1.23.1
+        working_dir: /app
+        ports:
+            - "50053:50053"
+        volumes:
+            - .:/app
+        command: go run ./microservices/city_service/cmd/main.go
+        depends_on:
+            - redis
+            - postgres
+        environment:
+            - DB_HOST=${DB_HOST}
+            - DB_PORT=${DB_PORT}
+            - DB_USER=${DB_USER}
+            - DB_PASSWORD=${DB_PASS}
+            - DB_NAME=${DB_NAME}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
         networks:
             - app-network
 
