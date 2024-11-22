@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"time"
@@ -411,7 +412,7 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		Password:   user.User.Password,
 		Email:      user.User.Email,
 		Name:       user.User.Name,
-		Score:      float64(user.User.Score),
+		Score:      math.Round(float64(user.User.Score)*10) / 10,
 		Avatar:     user.User.Avatar,
 		Sex:        user.User.Sex,
 		GuestCount: int(user.User.GuestCount),

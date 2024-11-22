@@ -44,12 +44,12 @@ func (r *ReviewRepository) CreateReview(ctx context.Context, review *domain.Revi
 	return nil
 }
 
-func (r *ReviewRepository) GetUserReviews(ctx context.Context, userId string) ([]domain.UserReviews, error) {
+func (r *ReviewRepository) GetUserReviews(ctx context.Context, userId string) ([]domain.Review, error) {
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("GetUserReviews called", zap.String("request_id", requestID), zap.String("userID", userId))
 
 	var user domain.User
-	var reviews []domain.UserReviews
+	var reviews []domain.Review
 	if err := r.db.Where("uuid = ?", userId).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			logger.DBLogger.Warn("User not found", zap.String("request_id", requestID), zap.String("userID", userId))

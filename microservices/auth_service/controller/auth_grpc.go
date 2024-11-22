@@ -259,6 +259,7 @@ func (h *GrpcAuthHandler) GetUserById(ctx context.Context, in *gen.GetUserByIdRe
 		Birthdate:  timestamppb.New(user.Birthdate),
 		IsHost:     user.IsHost,
 	}
+
 	return &gen.GetUserByIdResponse{
 		User: userMetadata,
 	}, nil
