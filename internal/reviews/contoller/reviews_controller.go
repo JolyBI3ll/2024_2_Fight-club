@@ -148,11 +148,9 @@ func (rh *ReviewHandler) GetUserReviews(w http.ResponseWriter, r *http.Request) 
 		rh.handleError(w, err, requestID)
 		return
 	}
-	body := map[string]interface{}{
-		"reviews": reviews,
-	}
+
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
+	if err := json.NewEncoder(w).Encode(reviews); err != nil {
 		logger.AccessLogger.Warn("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		rh.handleError(w, err, requestID)
 		return
