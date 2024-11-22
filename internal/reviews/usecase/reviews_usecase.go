@@ -13,7 +13,7 @@ import (
 
 type ReviewUsecase interface {
 	CreateReview(ctx context.Context, review *domain.Review, userId string) error
-	GetUserReviews(ctx context.Context, userId string) ([]domain.Review, error)
+	GetUserReviews(ctx context.Context, userId string) ([]domain.UserReviews, error)
 }
 
 type reviewUsecase struct {
@@ -60,7 +60,7 @@ func (r *reviewUsecase) CreateReview(ctx context.Context, review *domain.Review,
 	return nil
 }
 
-func (r *reviewUsecase) GetUserReviews(ctx context.Context, userId string) ([]domain.Review, error) {
+func (r *reviewUsecase) GetUserReviews(ctx context.Context, userId string) ([]domain.UserReviews, error) {
 	requestID := middleware.GetRequestID(ctx)
 	const maxLen = 255
 	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)

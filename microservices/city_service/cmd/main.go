@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 	"log"
 	"net"
+	"os"
 )
 
 func main() {
@@ -41,12 +42,12 @@ func main() {
 	generatedCity.RegisterCityServiceServer(grpcServer, cityServer)
 
 	// Запуск gRPC сервера
-	listener, err := net.Listen("tcp", ":50053")
+	listener, err := net.Listen("tcp", os.Getenv("CITY_SERVICE_ADDRESS"))
 	if err != nil {
-		log.Fatalf("Failed to listen on port 50053: %v", err)
+		log.Fatalf("Failed to listen on address: %s %v", os.Getenv("CITY_SERVICE_ADDRESS"), err)
 	}
 
-	log.Println("AuthService is running on port 50053")
+	log.Printf("AuthService is running on address: %s", os.Getenv("CITY_SERVICE_ADDRESS"))
 	if err := grpcServer.Serve(listener); err != nil {
 		log.Fatalf("Failed to serve gRPC server: %v", err)
 	}

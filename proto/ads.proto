@@ -121,7 +121,7 @@ message DeleteResponse {
 
 message ImageResponse {
   int32 id = 1;
-  string imagePath = 2;
+  string path = 2;
 }
 
 message UserResponse {

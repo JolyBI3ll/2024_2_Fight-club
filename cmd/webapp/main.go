@@ -99,13 +99,13 @@ func main() {
 	mainRouter.Use(middleware.RateLimitMiddleware)
 	http.Handle("/", middleware.EnableCORS(mainRouter))
 	if os.Getenv("HTTPS") == "TRUE" {
-		fmt.Println("Starting HTTPS server on port 8008")
-		if err := http.ListenAndServeTLS("0.0.0.0:8008", "ssl/pootnick.crt", "ssl/pootnick.key", nil); err != nil {
+		fmt.Printf("Starting HTTPS server on address %s\n", os.Getenv("BACKEND_URL"))
+		if err := http.ListenAndServeTLS(os.Getenv("BACKEND_URL"), "ssl/pootnick.crt", "ssl/pootnick.key", nil); err != nil {
 			fmt.Printf("Error on starting server: %s", err)
 		}
 	} else {
-		fmt.Println("Starting HTTP server on port 8008")
-		if err := http.ListenAndServe("0.0.0.0:8008", nil); err != nil {
+		fmt.Printf("Starting HTTP server on adress %s\n", os.Getenv("BACKEND_URL"))
+		if err := http.ListenAndServe(os.Getenv("BACKEND_URL"), nil); err != nil {
 			fmt.Printf("Error on starting server: %s", err)
 		}
 	}

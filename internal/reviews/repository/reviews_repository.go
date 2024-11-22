@@ -44,12 +44,12 @@ func (r *ReviewRepository) CreateReview(ctx context.Context, review *domain.Revi
 	return nil
 }
 
-func (r *ReviewRepository) GetUserReviews(ctx context.Context, userId string) ([]domain.Review, error) {
+func (r *ReviewRepository) GetUserReviews(ctx context.Context, userId string) ([]domain.UserReviews, error) {
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("GetUserReviews called", zap.String("request_id", requestID), zap.String("userID", userId))
 
 	var user domain.User
-	var reviews []domain.Review
+	var reviews []domain.UserReviews
 	if err := r.db.Where("uuid = ?", userId).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			logger.DBLogger.Warn("User not found", zap.String("request_id", requestID), zap.String("userID", userId))
@@ -59,7 +59,12 @@ func (r *ReviewRepository) GetUserReviews(ctx context.Context, userId string) ([
 		return nil, err
 	}
 
-	if err := r.db.Model(&domain.Review{}).Where("\"hostId\" = ?", userId).Order("\"createdAt\" ASC").Find(&reviews).Error; err != nil {
+	if err := r.db.Model(&domain.Review{}).
+		Select("reviews.*, users.avatar as \"UserAvatar\", users.name as \"UserName\"").
+		Joins("JOIN users ON reviews.\"userId\" = users.uuid").
+		Where("reviews.\"hostId\" = ?", userId).
+		Order("reviews.\"createdAt\" ASC").
+		Find(&reviews).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			logger.DBLogger.Warn("No reviews found", zap.String("request_id", requestID), zap.String("userID", userId))
 			return nil, nil
