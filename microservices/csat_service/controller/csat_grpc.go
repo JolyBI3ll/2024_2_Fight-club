@@ -47,6 +47,7 @@ func (adh *GrpcCsatHandler) GetSurvey(ctx context.Context, in *gen.GetSurveyRequ
 		grpcSurvey.Ques = append(grpcSurvey.Ques, &gen.Question{
 			Id:    int32(question.ID),
 			Title: question.Title,
+			Type:  question.Type,
 		})
 	}
 

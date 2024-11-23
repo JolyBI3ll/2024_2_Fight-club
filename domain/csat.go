@@ -32,7 +32,6 @@ type Answer struct {
 type SurveyResponse struct {
 	ID        int        `json:"id"`
 	Title     string     `json:"title"`
-	Type      string     `json:"type"`
 	Questions []Question `json:"questions"`
 }
 

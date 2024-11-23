@@ -6,6 +6,7 @@ package csat;
 message Question {
   int32 id = 1;
   string title = 2;
+  string type = 3;
 }
 
 // Опрос

@@ -49,7 +49,6 @@ func (r *csatRepository) GetSurvey(ctx context.Context, surveyId int) (domain.Su
 	for _, question := range questions {
 		response.Questions = append(response.Questions, question)
 	}
-
 	return response, nil
 }
 
