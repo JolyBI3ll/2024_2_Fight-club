@@ -28,8 +28,6 @@ message GetSurveyResponse {
 // Запрос на получение опроса
 message GetSurveyRequest {
   int32 surveyId = 1;
-  string session_id = 2;
-  string authHeader = 3;
 }
 
 message PostAnswersRequest {

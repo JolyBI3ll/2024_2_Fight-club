@@ -4,6 +4,10 @@ import (
 	"context"
 )
 
+const STARS = 5
+const SMILES = 5
+const RATE = 10
+
 type Survey struct {
 	ID    int    `gorm:"primary_key;auto_increment;column:id" json:"id"`
 	Title string `gorm:"type:text;size:3000;column:title" json:"title"`
@@ -12,6 +16,7 @@ type Survey struct {
 type Question struct {
 	ID       int    `gorm:"primary_key;auto_increment;column:id" json:"id"`
 	Title    string `gorm:"type:text;size:3000;column:title" json:"title"`
+	Type     string `gorm:"type:text;size:3000;column:type" json:"type"`
 	SurveyId string `gorm:"column:surveyId;not null" json:"surveyId"`
 	Survey   Survey `gorm:"foreignkey:surveyId;references:ID" json:"-"`
 }
@@ -34,6 +39,12 @@ type PostSurvey struct {
 	QuestionId int `json:"questionId"`
 	Value      int `json:"value"`
 }
+
+//type GetStatictics struct {
+//	Avg           float32     `json:"avg"`
+//	AnswerNumbers map[int]int `json:"answerNumbers"`
+//	QuestionId
+//}
 
 type CSATRepository interface {
 	GetSurvey(ctx context.Context, surveyId int) (survey SurveyResponse, err error)

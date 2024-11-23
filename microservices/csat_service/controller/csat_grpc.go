@@ -33,27 +33,6 @@ func (adh *GrpcCsatHandler) GetSurvey(ctx context.Context, in *gen.GetSurveyRequ
 		zap.String("request_id", requestID),
 	)
 
-	if in.AuthHeader == "" {
-		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
-			zap.String("request_id", requestID),
-			zap.Error(errors.New("missing X-CSRF-Token header")),
-		)
-		return nil, errors.New("missing X-CSRF-Token header")
-	}
-
-	tokenString := in.AuthHeader[len("Bearer "):]
-	_, err := adh.jwtToken.Validate(tokenString, in.SessionId)
-	if err != nil {
-		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		return nil, errors.New("invalid JWT token")
-	}
-
-	_, err = adh.sessionService.GetUserID(ctx, in.SessionId)
-	if err != nil {
-		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
-		return nil, errors.New("no active session")
-	}
-
 	survey, err := adh.usecase.GetSurvey(ctx, int(in.SurveyId))
 	if err != nil {
 		logger.AccessLogger.Warn("GetSurvey failed", zap.String("request_id", requestID), zap.Error(err))
@@ -81,7 +60,6 @@ func (adh *GrpcCsatHandler) PostAnswers(ctx context.Context, in *gen.PostAnswers
 	logger.AccessLogger.Info("Received GetSurvey request in microservice",
 		zap.String("request_id", requestID),
 	)
-
 	if in.AuthHeader == "" {
 		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
 			zap.String("request_id", requestID),

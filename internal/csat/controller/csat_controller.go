@@ -51,20 +51,8 @@ func (h *CsatHandler) GetServey(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
-	sessionID, err := session.GetSessionId(r)
-	if err != nil {
-		logger.AccessLogger.Error("Failed to get session ID",
-			zap.String("request_id", requestID),
-			zap.Error(err))
-		h.handleError(w, err, requestID)
-		return
-	}
-	authHeader := r.Header.Get("X-CSRF-Token")
-
 	response, err := h.client.GetSurvey(ctx, &gen.GetSurveyRequest{
-		SurveyId:   int32(surveyId),
-		SessionId:  sessionID,
-		AuthHeader: authHeader,
+		SurveyId: int32(surveyId),
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get survey",
@@ -158,6 +146,36 @@ func (h *CsatHandler) PostAnswer(w http.ResponseWriter, r *http.Request) {
 		zap.Int("status", http.StatusOK),
 	)
 }
+
+//func (h *CsatHandler) GetStatistics(w http.ResponseWriter, r *http.Request) {
+//	start := time.Now()
+//	requestID := middleware.GetRequestID(r.Context())
+//	ctx, cancel := middleware.WithTimeout(r.Context())
+//	defer cancel()
+//
+//	logger.AccessLogger.Info("Received GetStatistics request",
+//		zap.String("request_id", requestID),
+//		zap.String("method", r.Method),
+//		zap.String("url", r.URL.String()),
+//	)
+//
+//	sessionID, err := session.GetSessionId(r)
+//	if err != nil {
+//		logger.AccessLogger.Error("Failed to get session ID",
+//			zap.String("request_id", requestID),
+//			zap.Error(err))
+//		h.handleError(w, err, requestID)
+//		return
+//	}
+//	authHeader := r.Header.Get("X-CSRF-Token")
+//
+//	duration := time.Since(start)
+//	logger.AccessLogger.Info("Completed GetSurvey request",
+//		zap.String("request_id", requestID),
+//		zap.Duration("duration", duration),
+//		zap.Int("status", http.StatusOK),
+//	)
+//}
 
 func (h *CsatHandler) handleError(w http.ResponseWriter, err error, requestID string) {
 	logger.AccessLogger.Error("Handling error",
