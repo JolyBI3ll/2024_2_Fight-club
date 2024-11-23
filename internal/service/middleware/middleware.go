@@ -133,6 +133,15 @@ func DbConnect() *gorm.DB {
 	return db
 }
 
+func DbCSATConnect() *gorm.DB {
+	db, err := gorm.Open(postgres.Open(dsn.FromEnvCSAT()), &gorm.Config{})
+	if err != nil {
+		log.Fatal("Failed to connect to database:", err)
+	}
+	fmt.Println("Connected to database")
+	return db
+}
+
 func HashPassword(password string) (string, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {

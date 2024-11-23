@@ -21,7 +21,7 @@ func main() {
 	}
 	middleware.InitRedis()
 	redisStore := session.NewRedisSessionStore(middleware.RedisClient)
-	db := middleware.DbCSATConnect()
+	db := middleware.DbConnect()
 	minioService := middleware.MinioConnect()
 
 	// Инициализация логгеров

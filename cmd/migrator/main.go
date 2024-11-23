@@ -16,8 +16,8 @@ import (
 
 func connectMinio() (*minio.Client, error) {
 	endpoint := os.Getenv("MINIO_ENDPOINT")
-	accessKeyID := os.Getenv("MINIO_ACCESS_KEY")
-	secretAccessKey := os.Getenv("MINIO_SECRET_KEY")
+	accessKeyID := os.Getenv("MINIO_ROOT_USER")
+	secretAccessKey := os.Getenv("MINIO_ROOT_PASSWORD")
 	useSSL := false
 
 	minioClient, err := minio.New(endpoint, &minio.Options{
