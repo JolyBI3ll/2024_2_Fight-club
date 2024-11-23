@@ -69,12 +69,8 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body := map[string]interface{}{
-		"places": response,
-	}
-
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
 		return

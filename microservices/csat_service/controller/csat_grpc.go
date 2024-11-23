@@ -111,7 +111,7 @@ func (adh *GrpcCsatHandler) GetStatistics(ctx context.Context, in *gen.Empty) (*
 		logger.AccessLogger.Warn("GetStatistics failed", zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("get statistics failed")
 	}
-	
+
 	var grpcStats []*gen.GetStatistics
 	for _, stat := range statistics {
 		var grpcMap []*gen.Map
