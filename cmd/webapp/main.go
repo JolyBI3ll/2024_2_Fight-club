@@ -7,6 +7,7 @@ import (
 	chatRepository "2024_2_FIGHT-CLUB/internal/chat/repository"
 	chatUseCase "2024_2_FIGHT-CLUB/internal/chat/usecase"
 	cityHttpDelivery "2024_2_FIGHT-CLUB/internal/cities/controller"
+	csatHttpDelivery "2024_2_FIGHT-CLUB/internal/csat/controller"
 	reviewContoller "2024_2_FIGHT-CLUB/internal/reviews/contoller"
 	reviewRepository "2024_2_FIGHT-CLUB/internal/reviews/repository"
 	reviewUsecase "2024_2_FIGHT-CLUB/internal/reviews/usecase"
@@ -17,6 +18,7 @@ import (
 	generatedAds "2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
 	generatedAuth "2024_2_FIGHT-CLUB/microservices/auth_service/controller/gen"
 	generatedCity "2024_2_FIGHT-CLUB/microservices/city_service/controller/gen"
+	generatedCsat "2024_2_FIGHT-CLUB/microservices/csat_service/controller/gen"
 	"fmt"
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
@@ -71,9 +73,19 @@ func main() {
 	}
 	cityConn, err := grpc.NewClient(cityAdress, grpc.WithInsecure())
 	if err != nil {
-		log.Fatalf("Failed to connect to AdsService: %v", err)
+		log.Fatalf("Failed to connect to CityService: %v", err)
 	}
 	defer cityConn.Close()
+
+	csatAdress := os.Getenv("CSAT_SERVICE_ADDRESS")
+	if csatAdress == "" {
+		log.Fatalf("CSAT_SERVICE_ADDRESS is not set")
+	}
+	csatConn, err := grpc.NewClient(csatAdress, grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("Failed to connect to CsatService: %v", err)
+	}
+	defer csatConn.Close()
 
 	sessionService := session.NewSessionService(redisStore)
 
@@ -86,6 +98,9 @@ func main() {
 	cityClient := generatedCity.NewCityServiceClient(cityConn)
 	cityHandler := cityHttpDelivery.NewCityHandler(cityClient)
 
+	csatClient := generatedCsat.NewCsatClient(csatConn)
+	csatHandler := csatHttpDelivery.NewCsatHandler(csatClient, sessionService, jwtToken)
+
 	chatsRepository := chatRepository.NewChatRepository(db)
 	chatsUseCase := chatUseCase.NewChatService(chatsRepository)
 	chatsHandler := chatHttpDelivery.NewChatController(chatsUseCase, sessionService)
@@ -94,7 +109,7 @@ func main() {
 	reviewsUsecase := reviewUsecase.NewReviewUsecase(reviewsRepository)
 	reviewsHandler := reviewContoller.NewReviewHandler(reviewsUsecase, sessionService, jwtToken)
 
-	mainRouter := router.SetUpRoutes(authHandler, adsHandler, cityHandler, chatsHandler, reviewsHandler)
+	mainRouter := router.SetUpRoutes(authHandler, adsHandler, cityHandler, chatsHandler, reviewsHandler, csatHandler)
 	mainRouter.Use(middleware.RequestIDMiddleware)
 	mainRouter.Use(middleware.RateLimitMiddleware)
 	http.Handle("/", middleware.EnableCORS(mainRouter))

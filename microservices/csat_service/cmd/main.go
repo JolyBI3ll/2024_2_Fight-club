@@ -4,10 +4,10 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
-	grpcAd "2024_2_FIGHT-CLUB/microservices/ads_service/controller"
-	generatedAds "2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
-	adRepository "2024_2_FIGHT-CLUB/microservices/ads_service/repository"
-	adUseCase "2024_2_FIGHT-CLUB/microservices/ads_service/usecase"
+	grpcCsat "2024_2_FIGHT-CLUB/microservices/csat_service/controller"
+	generatedCsat "2024_2_FIGHT-CLUB/microservices/csat_service/controller/gen"
+	csatRepository "2024_2_FIGHT-CLUB/microservices/csat_service/repository"
+	csatUseCase "2024_2_FIGHT-CLUB/microservices/csat_service/usecase"
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 	"log"
@@ -21,8 +21,7 @@ func main() {
 	}
 	middleware.InitRedis()
 	redisStore := session.NewRedisSessionStore(middleware.RedisClient)
-	db := middleware.DbConnect()
-	minioService := middleware.MinioConnect()
+	db := middleware.DbCSATConnect()
 
 	// Инициализация логгеров
 	if err := logger.InitLoggers(); err != nil {
@@ -39,19 +38,19 @@ func main() {
 		log.Fatalf("Failed to create JWT token: %v", err)
 	}
 
-	adsRepository := adRepository.NewAdRepository(db)
+	csatRepo := csatRepository.NewCsatRepository(db)
 	sessionService := session.NewSessionService(redisStore)
-	adsUseCase := adUseCase.NewAdUseCase(adsRepository, minioService)
-	adsServer := grpcAd.NewGrpcAdHandler(sessionService, adsUseCase, jwtToken)
+	csatUC := csatUseCase.NewCSATUseCase(csatRepo)
+	csatServer := grpcCsat.NewGrpcCsatHandler(csatUC, sessionService, jwtToken)
 
 	grpcServer := grpc.NewServer()
-	generatedAds.RegisterAdsServer(grpcServer, adsServer)
+	generatedCsat.RegisterCsatServer(grpcServer, csatServer)
 
-	listener, err := net.Listen("tcp", os.Getenv("ADS_SERVICE_ADDRESS"))
+	listener, err := net.Listen("tcp", os.Getenv("CSAT_SERVICE_ADDRESS"))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	log.Printf("AdsServer is listening on address: %s\n", os.Getenv("ADS_SERVICE_ADDRESS"))
+	log.Printf("CsatServer is listening on address: %s\n", os.Getenv("CSAT_SERVICE_ADDRESS"))
 	if err := grpcServer.Serve(listener); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}

@@ -57,6 +57,14 @@ func migrate() (err error) {
 	if err := seedCities(db, minioClient); err != nil {
 		return err
 	}
+	dbCSAT, err := gorm.Open(postgres.Open(dsn.FromEnvCSAT()), &gorm.Config{})
+	if err != nil {
+		return err
+	}
+	err = dbCSAT.AutoMigrate(&domain.Survey{}, &domain.Question{}, &domain.Answer{})
+	if err != nil {
+		return err
+	}
 	fmt.Println("Database migrated")
 	return nil
 }

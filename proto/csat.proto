@@ -1,0 +1,48 @@
+syntax = "proto3";
+option go_package = "../microservices/csat_service/controller/gen/;gen";
+package csat;
+
+// Вопрос
+message Question {
+  int32 id = 1;
+  string title = 2;
+}
+
+// Опрос
+message Survey {
+  int32 id = 1;
+  string title = 2;
+  repeated Question ques = 3;
+}
+
+// Ответ
+message Answer {
+  int32 questionId = 1;
+  int32 values = 2;
+}
+
+// Ответ на получение опроса
+message GetSurveyResponse {
+  Survey Survey = 1;
+}
+// Запрос на получение опроса
+message GetSurveyRequest {
+  int32 surveyId = 1;
+  string session_id = 2;
+  string authHeader = 3;
+}
+
+message PostAnswersRequest {
+  string session_id = 1;
+  string authHeader = 2;
+  repeated Answer answer = 3;
+}
+
+message PostResponse {
+  string response = 1;
+}
+
+service csat {
+  rpc GetSurvey(GetSurveyRequest) returns (GetSurveyResponse);
+  rpc PostAnswers(PostAnswersRequest) returns (PostResponse);
+}
