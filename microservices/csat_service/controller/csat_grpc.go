@@ -99,3 +99,36 @@ func (adh *GrpcCsatHandler) PostAnswers(ctx context.Context, in *gen.PostAnswers
 		Response: "Success",
 	}, nil
 }
+
+func (adh *GrpcCsatHandler) GetStatistics(ctx context.Context, in *gen.Empty) (*gen.GetStatisticsResponse, error) {
+	requestID := middleware.GetRequestID(ctx)
+	logger.AccessLogger.Info("Received GetStatistics request in microservice",
+		zap.String("request_id", requestID),
+	)
+
+	statistics, err := adh.usecase.GetStatistics(ctx)
+	if err != nil {
+		logger.AccessLogger.Warn("GetStatistics failed", zap.String("request_id", requestID), zap.Error(err))
+		return nil, errors.New("get statistics failed")
+	}
+	
+	var grpcStats []*gen.GetStatistics
+	for _, stat := range statistics {
+		var grpcMap []*gen.Map
+		for key, value := range stat.AnswerNumbers {
+			grpcMap = append(grpcMap, &gen.Map{
+				Key:    int32(key),
+				Values: int32(value),
+			})
+		}
+		grpcStats = append(grpcStats, &gen.GetStatistics{
+			Average: stat.Avg,
+			Title:   stat.Title,
+			Map:     grpcMap,
+		})
+	}
+
+	return &gen.GetStatisticsResponse{
+		Statistics: grpcStats,
+	}, nil
+}

@@ -47,5 +47,7 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler, cityH
 
 	router.HandleFunc(api+"/csat/{surveyId}", csatHandler.GetServey).Methods("GET")
 	router.HandleFunc(api+"/csat", csatHandler.PostAnswer).Methods("POST")
+	router.HandleFunc(api+"/statistics", csatHandler.GetStatistics).Methods("GET")
+
 	return router
 }

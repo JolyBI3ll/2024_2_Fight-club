@@ -40,7 +40,26 @@ message PostResponse {
   string response = 1;
 }
 
+message Empty{}
+
+message Map {
+  int32 key = 1;
+  int32 values = 2;
+}
+
+message GetStatistics{
+  float average = 1;
+  string title = 2;
+  repeated Map Map = 3;
+}
+
+message GetStatisticsResponse {
+  repeated GetStatistics statistics = 1;
+}
+
+
 service csat {
   rpc GetSurvey(GetSurveyRequest) returns (GetSurveyResponse);
   rpc PostAnswers(PostAnswersRequest) returns (PostResponse);
+  rpc GetStatistics(Empty) returns (GetStatisticsResponse);
 }

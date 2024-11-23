@@ -40,13 +40,14 @@ type PostSurvey struct {
 	Value      int `json:"value"`
 }
 
-//type GetStatictics struct {
-//	Avg           float32     `json:"avg"`
-//	AnswerNumbers map[int]int `json:"answerNumbers"`
-//	QuestionId
-//}
+type GetStatictics struct {
+	Avg           float32     `json:"avg"`
+	AnswerNumbers map[int]int `json:"answerNumbers"`
+	Title         string      `json:"title"`
+}
 
 type CSATRepository interface {
 	GetSurvey(ctx context.Context, surveyId int) (survey SurveyResponse, err error)
 	PostSurvey(ctx context.Context, answers []PostSurvey, userId string) (err error)
+	GetStatistics(ctx context.Context) ([]GetStatictics, error)
 }

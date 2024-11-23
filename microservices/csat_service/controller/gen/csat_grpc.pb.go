@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 type CsatClient interface {
 	GetSurvey(ctx context.Context, in *GetSurveyRequest, opts ...grpc.CallOption) (*GetSurveyResponse, error)
 	PostAnswers(ctx context.Context, in *PostAnswersRequest, opts ...grpc.CallOption) (*PostResponse, error)
+	GetStatistics(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*GetStatisticsResponse, error)
 }
 
 type csatClient struct {
@@ -48,12 +49,22 @@ func (c *csatClient) PostAnswers(ctx context.Context, in *PostAnswersRequest, op
 	return out, nil
 }
 
+func (c *csatClient) GetStatistics(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*GetStatisticsResponse, error) {
+	out := new(GetStatisticsResponse)
+	err := c.cc.Invoke(ctx, "/csat.csat/GetStatistics", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CsatServer is the server API for Csat service.
 // All implementations must embed UnimplementedCsatServer
 // for forward compatibility
 type CsatServer interface {
 	GetSurvey(context.Context, *GetSurveyRequest) (*GetSurveyResponse, error)
 	PostAnswers(context.Context, *PostAnswersRequest) (*PostResponse, error)
+	GetStatistics(context.Context, *Empty) (*GetStatisticsResponse, error)
 	mustEmbedUnimplementedCsatServer()
 }
 
@@ -66,6 +77,9 @@ func (UnimplementedCsatServer) GetSurvey(context.Context, *GetSurveyRequest) (*G
 }
 func (UnimplementedCsatServer) PostAnswers(context.Context, *PostAnswersRequest) (*PostResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PostAnswers not implemented")
+}
+func (UnimplementedCsatServer) GetStatistics(context.Context, *Empty) (*GetStatisticsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetStatistics not implemented")
 }
 func (UnimplementedCsatServer) mustEmbedUnimplementedCsatServer() {}
 
@@ -116,6 +130,24 @@ func _Csat_PostAnswers_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Csat_GetStatistics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CsatServer).GetStatistics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/csat.csat/GetStatistics",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CsatServer).GetStatistics(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Csat_ServiceDesc is the grpc.ServiceDesc for Csat service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -130,6 +162,10 @@ var Csat_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PostAnswers",
 			Handler:    _Csat_PostAnswers_Handler,
+		},
+		{
+			MethodName: "GetStatistics",
+			Handler:    _Csat_GetStatistics_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

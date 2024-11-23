@@ -9,6 +9,7 @@ import (
 type CsatUseCase interface {
 	GetSurvey(ctx context.Context, surveyId int) (domain.SurveyResponse, error)
 	PostSurvey(ctx context.Context, answers []domain.PostSurvey, userId string) error
+	GetStatistics(ctx context.Context) ([]domain.GetStatictics, error)
 }
 
 type csatUseCase struct {
@@ -35,4 +36,12 @@ func (uc *csatUseCase) PostSurvey(ctx context.Context, answers []domain.PostSurv
 		return errors.New("failed to insert")
 	}
 	return nil
+}
+
+func (uc *csatUseCase) GetStatistics(ctx context.Context) ([]domain.GetStatictics, error) {
+	statistics, err := uc.csatRepository.GetStatistics(ctx)
+	if err != nil {
+		return statistics, errors.New("statistics not found")
+	}
+	return statistics, nil
 }

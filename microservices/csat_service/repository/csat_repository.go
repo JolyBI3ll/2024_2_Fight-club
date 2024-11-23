@@ -6,6 +6,7 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"context"
 	"errors"
+	"fmt"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -68,4 +69,65 @@ func (r *csatRepository) PostSurvey(ctx context.Context, answers []domain.PostSu
 		}
 	}
 	return nil
+}
+
+func (r *csatRepository) GetStatistics(ctx context.Context) ([]domain.GetStatictics, error) {
+	requestID := middleware.GetRequestID(ctx)
+	logger.DBLogger.Info("GetStatistics called", zap.String("request_id", requestID))
+
+	var questions []domain.Question
+	if err := r.db.Find(&questions).Error; err != nil {
+		logger.DBLogger.Error("Error fetching questions", zap.String("request_id", requestID), zap.Error(err))
+		return nil, fmt.Errorf("error fetching questions: %w", err)
+	}
+
+	var statistics []domain.GetStatictics
+
+	for _, question := range questions {
+		var answers []domain.Answer
+		if err := r.db.Where("\"questionId\" = ?", question.ID).Find(&answers).Error; err != nil {
+			logger.DBLogger.Error("Error fetching answers", zap.String("request_id", requestID), zap.Error(err))
+			return nil, errors.New("error fetching answers for question")
+		}
+
+		stat := domain.GetStatictics{
+			Title:         question.Title,
+			AnswerNumbers: make(map[int]int),
+		}
+
+		maxValue := 0
+		switch question.Type {
+		case "STARS":
+			maxValue = 5
+		case "SMILE":
+			maxValue = 5
+		case "RATE":
+			maxValue = 10
+		default:
+			logger.DBLogger.Warn("Unknown question type", zap.String("request_id", requestID), zap.String("type", question.Type))
+			continue
+		}
+
+		for i := 1; i <= maxValue; i++ {
+			stat.AnswerNumbers[i] = 0
+		}
+
+		var totalValue int
+		for _, answer := range answers {
+			if answer.Value >= 1 && answer.Value <= maxValue {
+				stat.AnswerNumbers[answer.Value]++
+				totalValue += answer.Value
+			}
+		}
+
+		if len(answers) > 0 {
+			stat.Avg = float32(totalValue) / float32(len(answers))
+		} else {
+			stat.Avg = 0
+		}
+
+		statistics = append(statistics, stat)
+	}
+
+	return statistics, nil
 }

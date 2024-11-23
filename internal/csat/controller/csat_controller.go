@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
@@ -50,6 +51,24 @@ func (h *CsatHandler) GetServey(w http.ResponseWriter, r *http.Request) {
 		zap.String("method", r.Method),
 		zap.String("url", r.URL.String()),
 	)
+
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	_, err = h.sessionService.GetUserID(ctx, sessionID)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get user ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
 
 	response, err := h.client.GetSurvey(ctx, &gen.GetSurveyRequest{
 		SurveyId: int32(surveyId),
@@ -147,35 +166,77 @@ func (h *CsatHandler) PostAnswer(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-//func (h *CsatHandler) GetStatistics(w http.ResponseWriter, r *http.Request) {
-//	start := time.Now()
-//	requestID := middleware.GetRequestID(r.Context())
-//	ctx, cancel := middleware.WithTimeout(r.Context())
-//	defer cancel()
-//
-//	logger.AccessLogger.Info("Received GetStatistics request",
-//		zap.String("request_id", requestID),
-//		zap.String("method", r.Method),
-//		zap.String("url", r.URL.String()),
-//	)
-//
-//	sessionID, err := session.GetSessionId(r)
-//	if err != nil {
-//		logger.AccessLogger.Error("Failed to get session ID",
-//			zap.String("request_id", requestID),
-//			zap.Error(err))
-//		h.handleError(w, err, requestID)
-//		return
-//	}
-//	authHeader := r.Header.Get("X-CSRF-Token")
-//
-//	duration := time.Since(start)
-//	logger.AccessLogger.Info("Completed GetSurvey request",
-//		zap.String("request_id", requestID),
-//		zap.Duration("duration", duration),
-//		zap.Int("status", http.StatusOK),
-//	)
-//}
+func (h *CsatHandler) GetStatistics(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
+	defer cancel()
+
+	logger.AccessLogger.Info("Received GetStatistics request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
+
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
+		return
+	}
+	_, err = h.sessionService.GetUserID(ctx, sessionID)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get user ID",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	grpcResponse, err := h.client.GetStatistics(ctx, &gen.Empty{})
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to get statistics",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	var response []domain.GetStatictics
+	for _, grpcStat := range grpcResponse.Statistics {
+		answerNumbers := make(map[int]int)
+		for _, item := range grpcStat.Map {
+			answerNumbers[int(item.Key)] = int(item.Values)
+		}
+		response = append(response, domain.GetStatictics{
+			Avg:           grpcStat.Average,
+			Title:         grpcStat.Title,
+			AnswerNumbers: answerNumbers,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.AccessLogger.Error("Failed to encode statistics response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		h.handleError(w, err, requestID)
+		return
+	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed GetStatistics request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
+}
 
 func (h *CsatHandler) handleError(w http.ResponseWriter, err error, requestID string) {
 	logger.AccessLogger.Error("Handling error",
