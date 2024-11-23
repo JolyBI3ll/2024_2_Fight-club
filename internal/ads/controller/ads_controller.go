@@ -66,6 +66,7 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.String("method", r.Method))
 		h.handleError(w, err, requestID)
+		return
 	}
 
 	body := map[string]interface{}{
