@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"log"
 	"net"
+	"os"
 )
 
 func main() {
@@ -46,11 +47,11 @@ func main() {
 	grpcServer := grpc.NewServer()
 	generatedAds.RegisterAdsServer(grpcServer, adsServer)
 
-	listener, err := net.Listen("tcp", ":50052")
+	listener, err := net.Listen("tcp", os.Getenv("ADS_SERVICE_ADDRESS"))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	log.Printf("AdsServer is listening on port 50052")
+	log.Printf("AdsServer is listening on address: %s\n", os.Getenv("ADS_SERVICE_ADDRESS"))
 	if err := grpcServer.Serve(listener); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}

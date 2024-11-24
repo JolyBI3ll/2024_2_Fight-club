@@ -7,6 +7,9 @@ import (
 	chatRepository "2024_2_FIGHT-CLUB/internal/chat/repository"
 	chatUseCase "2024_2_FIGHT-CLUB/internal/chat/usecase"
 	cityHttpDelivery "2024_2_FIGHT-CLUB/internal/cities/controller"
+	reviewContoller "2024_2_FIGHT-CLUB/internal/reviews/contoller"
+	reviewRepository "2024_2_FIGHT-CLUB/internal/reviews/repository"
+	reviewUsecase "2024_2_FIGHT-CLUB/internal/reviews/usecase"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/router"
@@ -42,23 +45,35 @@ func main() {
 		}
 	}()
 
-	authConn, err := grpc.Dial("localhost:50051", grpc.WithInsecure()) // Укажите адрес AuthService
+	authAdress := os.Getenv("AUTH_SERVICE_ADDRESS")
+	if authAdress == "" {
+		log.Fatalf("AUTH_SERVICE_ADDRESS is not set")
+	}
+	authConn, err := grpc.NewClient(authAdress, grpc.WithInsecure()) // Укажите адрес AuthService
 	if err != nil {
 		log.Fatalf("Failed to connect to AuthService: %v", err)
 	}
 	defer authConn.Close()
 
-	adsConn, err := grpc.NewClient("localhost:50052", grpc.WithInsecure())
+	adsAdress := os.Getenv("ADS_SERVICE_ADDRESS")
+	if adsAdress == "" {
+		log.Fatalf("ADS_SERVICE_ADDRESS is not set")
+	}
+	adsConn, err := grpc.NewClient(adsAdress, grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("Failed to connect to AdsService: %v", err)
 	}
 	defer adsConn.Close()
 
-	cityConn, err := grpc.NewClient("localhost:50053", grpc.WithInsecure())
+	cityAdress := os.Getenv("CITY_SERVICE_ADDRESS")
+	if cityAdress == "" {
+		log.Fatalf("CITY_SERVICE_ADDRESS is not set")
+	}
+	cityConn, err := grpc.NewClient(cityAdress, grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("Failed to connect to AdsService: %v", err)
 	}
-	defer adsConn.Close()
+	defer cityConn.Close()
 
 	sessionService := session.NewSessionService(redisStore)
 
@@ -75,18 +90,22 @@ func main() {
 	chatsUseCase := chatUseCase.NewChatService(chatsRepository)
 	chatsHandler := chatHttpDelivery.NewChatController(chatsUseCase, sessionService)
 
-	mainRouter := router.SetUpRoutes(authHandler, adsHandler, cityHandler, chatsHandler)
+	reviewsRepository := reviewRepository.NewReviewRepository(db)
+	reviewsUsecase := reviewUsecase.NewReviewUsecase(reviewsRepository)
+	reviewsHandler := reviewContoller.NewReviewHandler(reviewsUsecase, sessionService, jwtToken)
+
+	mainRouter := router.SetUpRoutes(authHandler, adsHandler, cityHandler, chatsHandler, reviewsHandler)
 	mainRouter.Use(middleware.RequestIDMiddleware)
 	mainRouter.Use(middleware.RateLimitMiddleware)
 	http.Handle("/", middleware.EnableCORS(mainRouter))
 	if os.Getenv("HTTPS") == "TRUE" {
-		fmt.Println("Starting HTTPS server on port 8008")
-		if err := http.ListenAndServeTLS("0.0.0.0:8008", "ssl/pootnick.crt", "ssl/pootnick.key", nil); err != nil {
+		fmt.Printf("Starting HTTPS server on address %s\n", os.Getenv("BACKEND_URL"))
+		if err := http.ListenAndServeTLS(os.Getenv("BACKEND_URL"), "ssl/pootnick.crt", "ssl/pootnick.key", nil); err != nil {
 			fmt.Printf("Error on starting server: %s", err)
 		}
 	} else {
-		fmt.Println("Starting HTTP server on port 8008")
-		if err := http.ListenAndServe("0.0.0.0:8008", nil); err != nil {
+		fmt.Printf("Starting HTTP server on adress %s\n", os.Getenv("BACKEND_URL"))
+		if err := http.ListenAndServe(os.Getenv("BACKEND_URL"), nil); err != nil {
 			fmt.Printf("Error on starting server: %s", err)
 		}
 	}

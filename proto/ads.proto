@@ -103,7 +103,7 @@ message GetAllAdsResponse {
 }
 
 message GetAllAdsResponseList {
-  repeated GetAllAdsResponse ads = 1;
+  repeated GetAllAdsResponse housing = 1;
 }
 
 message GetPlaceByIdRequest {
@@ -121,7 +121,7 @@ message DeleteResponse {
 
 message ImageResponse {
   int32 id = 1;
-  string imagePath = 2;
+  string path = 2;
 }
 
 message UserResponse {

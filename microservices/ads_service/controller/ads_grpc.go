@@ -467,8 +467,8 @@ func convertImagesToGRPC(images []domain.ImageResponse) []*gen.ImageResponse {
 	var grpcImages []*gen.ImageResponse
 	for _, img := range images {
 		grpcImages = append(grpcImages, &gen.ImageResponse{
-			Id:        int32(img.ID),
-			ImagePath: img.ImagePath,
+			Id:   int32(img.ID),
+			Path: img.ImagePath,
 		})
 	}
 	return grpcImages
