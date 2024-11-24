@@ -125,12 +125,31 @@ func MinioConnect() images.MinioServiceInterface {
 }
 
 func DbConnect() *gorm.DB {
-	db, err := gorm.Open(postgres.Open(dsn.FromEnv()), &gorm.Config{
-		ConnPool:
-	})
+	dsn := dsn.FromEnv()
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("Failed to get SQL DB from GORM: %v", err)
+	}
+
+	const maxOpenConns = 10
+
+	// Настройки пула соединений для всех сервисов
+	sqlDB.SetMaxOpenConns(maxOpenConns)
+	sqlDB.SetMaxIdleConns(5)
+	sqlDB.SetConnMaxIdleTime(10 * time.Minute)
+	sqlDB.SetConnMaxLifetime(1 * time.Hour)
+
+	// Проверка подключения
+	if err := sqlDB.Ping(); err != nil {
+		log.Fatalf("Failed to ping database: %v", err)
+	}
+
 	fmt.Println("Connected to database")
 	return db
 }
