@@ -137,7 +137,7 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequ
 			},
 			Images: convertImagesToGRPC(place.Images),
 		}
-		responseList.Ads = append(responseList.Ads, ad)
+		responseList.Housing = append(responseList.Housing, ad)
 	}
 
 	logger.AccessLogger.Info("Successfully fetched all places", zap.String("request_id", requestID), zap.Int("count", len(places)))
@@ -373,7 +373,7 @@ func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *gen.GetPlace
 			},
 			Images: convertImagesToGRPC(place.Images),
 		}
-		responseList.Ads = append(responseList.Ads, ad)
+		responseList.Housing = append(responseList.Housing, ad)
 	}
 	return &responseList, nil
 }
@@ -415,7 +415,7 @@ func (adh *GrpcAdHandler) GetUserPlaces(ctx context.Context, in *gen.GetUserPlac
 			},
 			Images: convertImagesToGRPC(place.Images),
 		}
-		responseList.Ads = append(responseList.Ads, ad)
+		responseList.Housing = append(responseList.Housing, ad)
 	}
 	return &responseList, nil
 }
