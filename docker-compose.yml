@@ -65,7 +65,7 @@ services:
             - postgres_data:/var/lib/postgresql/data
         networks:
             - app-network
-
+        command: postgres -c config_file=/etc/postgresql/postgresql.conf
     # Redis for caching
     redis:
         image: redis:7

@@ -125,7 +125,9 @@ func MinioConnect() images.MinioServiceInterface {
 }
 
 func DbConnect() *gorm.DB {
-	db, err := gorm.Open(postgres.Open(dsn.FromEnv()), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn.FromEnv()), &gorm.Config{
+		ConnPool:
+	})
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
