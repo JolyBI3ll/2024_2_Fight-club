@@ -1,13 +1,13 @@
 -- Write your migrate up statements here
 
 CREATE TABLE IF NOT EXISTS reviews (
-    id              SERIAL PRIMARY KEY,
+    id              INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id         UUID NOT NULL,
     host_id         UUID NOT NULL,
-    text            TEXT NOT NULL CHECK (char_length(text) <= 1000),
-    rating          NUMERIC,
-    FOREIGN KEY (user_id) REFERENCES users(uuid),
-    FOREIGN KEY (host_id) REFERENCES users(uuid)
+    text            TEXT NOT NULL CONSTRAINT review_text_length CHECK (char_length(text) <= 1000),
+    rating          NUMERIC CHECK (rating >= 0 AND rating <= 5),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (host_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
 ---- create above / drop below ----

@@ -1,10 +1,10 @@
 -- Write your migrate up statements here
 
 CREATE TABLE IF NOT EXISTS cities (
-    id              SERIAL PRIMARY KEY,
-    title           VARCHAR(100),
-    description     TEXT CHECK (char_length(description) <= 3000)
-);
+    id              INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    title           TEXT NOT NULL CONSTRAINT title_length CHECK (char_length(title) <= 100),
+    description     TEXT CONSTRAINT description_length CHECK (char_length(description) <= 3000)
+    );
 
 ---- create above / drop below ----
 

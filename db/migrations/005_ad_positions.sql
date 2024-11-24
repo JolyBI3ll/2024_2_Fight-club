@@ -1,11 +1,11 @@
 -- Write your migrate up statements here
 
 CREATE TABLE IF NOT EXISTS ad_positions (
-        id              SERIAL PRIMARY KEY,
-        ad_id           UUID NOT NULL,
-        latitude        NUMERIC,
-        longitude       NUMERIC,
-        FOREIGN KEY (ad_id) REFERENCES ads(uuid)
+    id              INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    ad_id           UUID NOT NULL,
+    latitude        NUMERIC,
+    longitude       NUMERIC,
+    FOREIGN KEY (ad_id) REFERENCES ads(id) ON DELETE CASCADE
 );
 
 ---- create above / drop below ----

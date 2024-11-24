@@ -1,10 +1,10 @@
 -- Write your migrate up statements here
 
 CREATE TABLE IF NOT EXISTS ad_available_dates (
-        id              SERIAL PRIMARY KEY,
-        ad_id           UUID NOT NULL,
-        available_date  DATE,
-        FOREIGN KEY (ad_id) REFERENCES ads(uuid)
+      id              INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      ad_id           UUID NOT NULL,
+      available_date  DATE,
+      FOREIGN KEY (ad_id) REFERENCES ads(id) ON DELETE CASCADE
 );
 
 ---- create above / drop below ----
