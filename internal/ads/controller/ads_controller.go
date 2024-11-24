@@ -177,14 +177,14 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	var newPlace domain.CreateAdRequest
 	if err := json.Unmarshal([]byte(metadata), &newPlace); err != nil {
 		logger.AccessLogger.Error("Failed to decode metadata", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, errors.New("Failed to decode metadata"), requestID)
+		h.handleError(w, errors.New("failed to decode metadata"), requestID)
 		return
 	}
 
 	fileHeaders := r.MultipartForm.File["images"]
 	if len(fileHeaders) == 0 {
 		logger.AccessLogger.Warn("No images", zap.String("request_id", requestID))
-		h.handleError(w, errors.New("No images provided"), requestID)
+		h.handleError(w, errors.New("no images provided"), requestID)
 		return
 	}
 
@@ -462,10 +462,7 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err, requestID)
 		return
 	}
-	body := map[string]interface{}{
-		"places": response,
-	}
-	if err := json.NewEncoder(w).Encode(body); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
 		return
