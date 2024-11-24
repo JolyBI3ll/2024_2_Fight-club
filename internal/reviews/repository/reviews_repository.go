@@ -28,17 +28,30 @@ func (r *ReviewRepository) CreateReview(ctx context.Context, review *domain.Revi
 
 	if err := r.db.Where("uuid = ?", review.HostID).First(&domain.User{}).Error; err != nil {
 		logger.DBLogger.Error("Error finding host", zap.String("userId", review.HostID), zap.String("request_id", requestID), zap.Error(err))
-		return errors.New("Error finding host")
+		return errors.New("error finding host")
+	}
+
+	var query domain.Review
+	if err := r.db.Where("user_id = ? AND host_id = ?", review.UserID, review.HostID).First(&query).Error; err == nil {
+		logger.DBLogger.Warn("Review already exists", zap.String("userId", review.UserID), zap.String("hostId", review.HostID), zap.String("request_id", requestID))
+		return errors.New("review already exist")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		logger.DBLogger.Error("Error finding review",
+			zap.String("userId", review.UserID),
+			zap.String("hostId", review.HostID),
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		return errors.New("error finding review")
 	}
 
 	if err := r.db.Create(&review).Error; err != nil {
 		logger.DBLogger.Error("Error creating review", zap.String("userId", review.UserID), zap.String("request_id", requestID), zap.Error(err))
-		return errors.New("Error creating review")
+		return errors.New("error creating review")
 	}
 
 	if err := r.updateHostScore(ctx, review.HostID); err != nil {
 		logger.DBLogger.Error("Error updating host score", zap.String("hostId", review.HostID), zap.String("request_id", requestID), zap.Error(err))
-		return errors.New("Error updating host score")
+		return errors.New("error updating host score")
 	}
 
 	return nil
