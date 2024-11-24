@@ -2,46 +2,40 @@ package controller
 
 import (
 	"2024_2_FIGHT-CLUB/domain"
-	"2024_2_FIGHT-CLUB/internal/auth/usecase"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
-	"context"
+	"2024_2_FIGHT-CLUB/microservices/auth_service/controller/gen"
 	"encoding/json"
 	"errors"
-	"github.com/microcosm-cc/bluemonday"
+	"github.com/gorilla/mux"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"io"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"time"
 )
 
 type AuthHandler struct {
-	authUseCase    usecase.AuthUseCase
+	client         gen.AuthClient
 	sessionService session.InterfaceSession
-	jwtToken       *middleware.JwtToken
+	jwtToken       middleware.JwtTokenService
 }
 
-func NewAuthHandler(authUseCase usecase.AuthUseCase, sessionService session.InterfaceSession, jwtToken *middleware.JwtToken) *AuthHandler {
+func NewAuthHandler(client gen.AuthClient, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService) *AuthHandler {
 	return &AuthHandler{
-		authUseCase:    authUseCase,
+		client:         client,
 		sessionService: sessionService,
 		jwtToken:       jwtToken,
 	}
 }
 
-const requestTimeout = 5 * time.Second
-
-func withTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, requestTimeout)
-}
-
 func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
-
-	ctx, cancel := withTimeout(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
 
 	logger.AccessLogger.Info("Received RegisterUser request",
@@ -56,20 +50,16 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.handleError(w, err, requestID)
 		return
 	}
 
-	creds.Avatar = sanitizer.Sanitize(creds.Avatar)
-	creds.Username = sanitizer.Sanitize(creds.Username)
-	creds.Email = sanitizer.Sanitize(creds.Email)
-	creds.Password = sanitizer.Sanitize(creds.Password)
-	creds.UUID = sanitizer.Sanitize(creds.UUID)
-	creds.Address = sanitizer.Sanitize(creds.Address)
-	creds.Name = sanitizer.Sanitize(creds.Name)
-
-	err := h.authUseCase.RegisterUser(ctx, &creds)
-
+	response, err := h.client.RegisterUser(ctx, &gen.RegisterUserRequest{
+		Username: creds.Username,
+		Email:    creds.Email,
+		Name:     creds.Name,
+		Password: creds.Password,
+	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to register user",
 			zap.String("request_id", requestID),
@@ -79,26 +69,15 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userSession, err := h.sessionService.CreateSession(ctx, r, w, &creds)
-	if err != nil {
-		logger.AccessLogger.Error("Failed create session",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		h.handleError(w, err, requestID)
-		return
-	}
+	userSession := response.SessionId
+	jwtToken := response.Jwttoken
 
-	tokenExpTime := time.Now().Add(24 * time.Hour).Unix() // например, срок действия 24 часа
-	jwtToken, err := h.jwtToken.Create(userSession, tokenExpTime)
-	if err != nil {
-		logger.AccessLogger.Error("Failed to create JWT token",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		h.handleError(w, err, requestID)
-		return
-	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_id",
+		Value:    userSession,
+		Path:     "/",
+		SameSite: http.SameSiteStrictMode,
+	})
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "csrf_token",
@@ -107,23 +86,23 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	response := map[string]interface{}{
-		"session_id": userSession.Values["session_id"],
-		"user": map[string]string{
-			"id":       creds.UUID,
-			"username": creds.Username,
-			"email":    creds.Email,
+	body := map[string]interface{}{
+		"session_id": userSession,
+		"user": gen.User{
+			Id:       response.User.Id,
+			Username: response.User.Username,
+			Email:    response.User.Email,
 		},
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	if err := json.NewEncoder(w).Encode(body); err != nil {
 		logger.AccessLogger.Error("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -137,10 +116,8 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
-
-	ctx, cancel := withTimeout(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
 
 	logger.AccessLogger.Info("Received LoginUser request",
@@ -155,20 +132,24 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.handleError(w, err, requestID)
 		return
 	}
 
-	creds.Avatar = sanitizer.Sanitize(creds.Avatar)
-	creds.Username = sanitizer.Sanitize(creds.Username)
-	creds.Email = sanitizer.Sanitize(creds.Email)
-	creds.Password = sanitizer.Sanitize(creds.Password)
-	creds.UUID = sanitizer.Sanitize(creds.UUID)
-	creds.Address = sanitizer.Sanitize(creds.Address)
-	creds.Name = sanitizer.Sanitize(creds.Name)
+	csrfToken, _ := r.Cookie("csrf_token")
+	if csrfToken != nil {
+		logger.AccessLogger.Error("csrf_token already exists",
+			zap.String("request_id", requestID),
+			zap.Error(errors.New("csrf_token already exists")),
+		)
+		h.handleError(w, errors.New("csrf_token already exists"), requestID)
+		return
+	}
 
-	requestedUser, err := h.authUseCase.LoginUser(ctx, &creds)
-
+	response, err := h.client.LoginUser(ctx, &gen.LoginUserRequest{
+		Username: creds.Username,
+		Password: creds.Password,
+	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to login user",
 			zap.String("request_id", requestID),
@@ -178,37 +159,15 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userSession, err := h.sessionService.CreateSession(ctx, r, w, requestedUser)
+	userSession := response.SessionId
+	jwtToken := response.Jwttoken
 
-	if err != nil {
-		logger.AccessLogger.Error("Failed create session",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		h.handleError(w, err, requestID)
-		return
-	}
-
-	csrfToken, _ := r.Cookie("csrf_token")
-	if csrfToken != nil {
-		logger.AccessLogger.Error("csrf_token already exists",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		h.handleError(w, errors.New("csrf_token already exists"), requestID)
-		return
-	}
-
-	tokenExpTime := time.Now().Add(24 * time.Hour).Unix()
-	jwtToken, err := h.jwtToken.Create(userSession, tokenExpTime)
-	if err != nil {
-		logger.AccessLogger.Error("Failed to create JWT token",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		h.handleError(w, err, requestID)
-		return
-	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_id",
+		Value:    userSession,
+		Path:     "/",
+		SameSite: http.SameSiteStrictMode,
+	})
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "csrf_token",
@@ -217,18 +176,18 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	response := map[string]interface{}{
-		"session_id": userSession.Values["session_id"],
+	body := map[string]interface{}{
+		"session_id": userSession,
 		"user": map[string]interface{}{
-			"id":       requestedUser.UUID,
-			"username": requestedUser.Username,
-			"email":    requestedUser.Email,
+			"id":       response.User.Id,
+			"username": response.User.Username,
+			"email":    response.User.Email,
 		},
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	if err := json.NewEncoder(w).Encode(body); err != nil {
 		logger.AccessLogger.Error("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -248,8 +207,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
-
-	ctx, cancel := withTimeout(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
 
 	logger.AccessLogger.Info("Received LogoutUser request",
@@ -258,22 +216,21 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
-	authHeader := r.Header.Get("X-CSRF-Token")
-	if authHeader == "" {
-		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
-		return
-	}
-
-	tokenString := authHeader[len("Bearer "):]
-	_, err := h.jwtToken.Validate(tokenString)
+	sessionID, err := session.GetSessionId(r)
 	if err != nil {
-		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
 		return
 	}
+	authHeader := r.Header.Get("X-CSRF-Token")
 
-	if err := h.sessionService.LogoutSession(ctx, r, w); err != nil {
-
+	response, err := h.client.LogoutUser(ctx, &gen.LogoutRequest{
+		AuthHeader: authHeader,
+		SessionId:  sessionID,
+	})
+	if err != nil {
 		logger.AccessLogger.Error("Failed to logout user",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -281,6 +238,16 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err, requestID)
 		return
 	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_id",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		Expires:  time.Unix(0, 0),
+		SameSite: http.SameSiteStrictMode,
+	})
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "csrf_token",
@@ -294,13 +261,13 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	logoutResponse := map[string]string{"response": "Logout successfully"}
+	logoutResponse := map[string]string{"response": response.Response}
 	if err := json.NewEncoder(w).Encode(logoutResponse); err != nil {
 		logger.AccessLogger.Error("Failed to encode logout response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -314,10 +281,8 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	sanitizer := bluemonday.UGCPolicy()
 	requestID := middleware.GetRequestID(r.Context())
-
-	ctx, cancel := withTimeout(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
 
 	logger.AccessLogger.Info("Received PutUser request",
@@ -326,63 +291,77 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
-	authHeader := r.Header.Get("X-CSRF-Token")
-	if authHeader == "" {
-		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
-			zap.String("request_id", requestID),
-			zap.Error(errors.New("Missing X-CSRF-Token header")),
-		)
-		http.Error(w, "Missing X-CSRF-Token header", http.StatusUnauthorized)
-		return
-	}
-
-	tokenString := authHeader[len("Bearer "):]
-	_, err := h.jwtToken.Validate(tokenString)
+	sessionID, err := session.GetSessionId(r)
 	if err != nil {
-		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
 		return
 	}
+	authHeader := r.Header.Get("X-CSRF-Token")
 
-	r.ParseMultipartForm(10 << 20)
-
+	err = r.ParseMultipartForm(10 << 20)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to parse multipart form", zap.String("request_id", requestID), zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
 	metadata := r.FormValue("metadata")
 
 	var creds domain.User
 	if err := json.Unmarshal([]byte(metadata), &creds); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		logger.AccessLogger.Warn("Failed to parse metadat",
+		logger.AccessLogger.Warn("Failed to parse metadata",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, "Invalid metadata JSON", http.StatusBadRequest)
+		h.handleError(w, errors.New("invalid metadata JSON"), requestID)
 		return
 	}
-
-	creds.Avatar = sanitizer.Sanitize(creds.Avatar)
-	creds.Username = sanitizer.Sanitize(creds.Username)
-	creds.Email = sanitizer.Sanitize(creds.Email)
-	creds.Password = sanitizer.Sanitize(creds.Password)
-	creds.UUID = sanitizer.Sanitize(creds.UUID)
-	creds.Address = sanitizer.Sanitize(creds.Address)
-	creds.Name = sanitizer.Sanitize(creds.Name)
-
+	var fileBytes []byte
 	var avatar *multipart.FileHeader
 	if len(r.MultipartForm.File["avatar"]) > 0 {
 		avatar = r.MultipartForm.File["avatar"][0]
+		file, err := avatar.Open()
+		if err != nil {
+			logger.AccessLogger.Error("Failed to open avatar file",
+				zap.String("request_id", requestID),
+				zap.Error(err))
+			h.handleError(w, err, requestID)
+			return
+		}
+		defer file.Close()
+
+		fileBytes, err = io.ReadAll(file)
+		if err != nil {
+			logger.AccessLogger.Error("Failed to read avatar file",
+				zap.String("request_id", requestID),
+				zap.Error(err))
+			h.handleError(w, err, requestID)
+			return
+		}
 	}
 
-	userID, err := h.sessionService.GetUserID(ctx, r)
+	response, err := h.client.PutUser(ctx, &gen.PutUserRequest{
+		Creds: &gen.Metadata{
+			Uuid:       creds.UUID,
+			Username:   creds.Username,
+			Password:   creds.Password,
+			Email:      creds.Email,
+			Name:       creds.Name,
+			Score:      float32(creds.Score),
+			Avatar:     creds.Avatar,
+			Sex:        creds.Sex,
+			GuestCount: int32(creds.GuestCount),
+			Birthdate:  timestamppb.New(creds.Birthdate),
+			IsHost:     creds.IsHost,
+		},
+		AuthHeader: authHeader,
+		SessionId:  sessionID,
+		Avatar:     fileBytes,
+	})
 	if err != nil {
-		logger.AccessLogger.Warn("Failed to get user ID from session",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		h.handleError(w, err, requestID)
-		return
-	}
-
-	if err := h.authUseCase.PutUser(ctx, &creds, userID, avatar); err != nil {
 		logger.AccessLogger.Error("Failed to update user data",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -393,12 +372,12 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode("Update successful"); err != nil {
+	if err := json.NewEncoder(w).Encode(response.Response); err != nil {
 		logger.AccessLogger.Error("Failed to encode update response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -413,8 +392,8 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
-
-	ctx, cancel := withTimeout(r.Context())
+	userId := mux.Vars(r)["userId"]
+	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
 
 	logger.AccessLogger.Info("Received GetUserById request",
@@ -423,18 +402,24 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
-	w.Header().Set("Content-Type", "application/json")
-	userID, err := h.sessionService.GetUserID(ctx, r)
-	if err != nil {
-		logger.AccessLogger.Error("Failed to get user ID from session",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		h.handleError(w, err, requestID)
-		return
+	user, err := h.client.GetUserById(ctx, &gen.GetUserByIdRequest{
+		UserId: userId,
+	})
+
+	response := &domain.User{
+		UUID:       user.User.Uuid,
+		Username:   user.User.Username,
+		Password:   user.User.Password,
+		Email:      user.User.Email,
+		Name:       user.User.Name,
+		Score:      math.Round(float64(user.User.Score)*10) / 10,
+		Avatar:     user.User.Avatar,
+		Sex:        user.User.Sex,
+		GuestCount: int(user.User.GuestCount),
+		Birthdate:  (user.User.Birthdate).AsTime(),
+		IsHost:     user.User.IsHost,
 	}
 
-	user, err := h.authUseCase.GetUserById(ctx, userID)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get user by id",
 			zap.String("request_id", requestID),
@@ -443,14 +428,14 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err, requestID)
 		return
 	}
-
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(user); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		logger.AccessLogger.Error("Failed to encode user data",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -465,8 +450,7 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
-
-	ctx, cancel := withTimeout(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
 
 	logger.AccessLogger.Info("Received GetAllUsers request",
@@ -475,8 +459,7 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
-	w.Header().Set("Content-Type", "application/json")
-	users, err := h.authUseCase.GetAllUser(ctx)
+	users, err := h.client.GetAllUsers(ctx, &gen.Empty{})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get all users data",
 			zap.String("request_id", requestID),
@@ -486,17 +469,33 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := map[string]interface{}{
-		"users": users,
+	var body []*domain.User
+	for _, user := range users.Users {
+		body = append(body, &domain.User{
+			UUID:       user.Uuid,
+			Username:   user.Username,
+			Password:   user.Password,
+			Email:      user.Email,
+			Name:       user.Name,
+			Score:      float64(user.Score),
+			Avatar:     user.Avatar,
+			Sex:        user.Sex,
+			GuestCount: int(user.GuestCount),
+			Birthdate:  (user.Birthdate).AsTime(),
+			IsHost:     user.IsHost,
+		})
 	}
-
+	response := map[string]interface{}{
+		"users": body,
+	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		logger.AccessLogger.Error("Failed to encode users response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -511,8 +510,7 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
-
-	ctx, cancel := withTimeout(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
 
 	logger.AccessLogger.Info("Received GetSessionData request",
@@ -521,8 +519,18 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
-	sessionData, err := h.sessionService.GetSessionData(ctx, r)
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
 
+	sessionData, err := h.client.GetSessionData(ctx, &gen.GetSessionDataRequest{
+		SessionId: sessionID,
+	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get session data",
 			zap.String("request_id", requestID),
@@ -539,7 +547,7 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handleError(w, err, requestID)
 		return
 	}
 
@@ -554,6 +562,10 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
+	defer cancel()
+
+	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received RefreshCsrfToken request",
 		zap.String("request_id", requestID),
@@ -561,16 +573,17 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 	)
 
-	userSession, err := h.sessionService.GetSession(r.Context(), r)
+	sessionID, err := session.GetSessionId(r)
 	if err != nil {
-		logger.AccessLogger.Error("Failed to session",
+		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			zap.Error(err))
+		h.handleError(w, err, requestID)
 		return
 	}
-	newCsrfToken, err := h.jwtToken.Create(userSession, time.Now().Add(1*time.Hour).Unix())
+	newCsrfToken, err := h.client.RefreshCsrfToken(ctx, &gen.RefreshCsrfTokenRequest{
+		SessionId: sessionID,
+	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to generate CSRF",
 			zap.String("request_id", requestID),
@@ -582,13 +595,21 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "csrf_token",
-		Value:    newCsrfToken,
+		Value:    newCsrfToken.CsrfToken,
 		Path:     "/",
 		SameSite: http.SameSiteStrictMode,
 	})
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"csrf_token": newCsrfToken})
+	err = json.NewEncoder(w).Encode(map[string]string{"csrf_token": newCsrfToken.CsrfToken})
+	if err != nil {
+		logger.AccessLogger.Error("Failed to encode CSRF token",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
+
 	duration := time.Since(start)
 	logger.AccessLogger.Info("Completed RefreshCsrfToken request",
 		zap.String("request_id", requestID),
@@ -609,10 +630,12 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 	switch err.Error() {
 	case "username, password, and email are required",
 		"username and password are required",
-		"invalid credentials", "csrf_token already exists":
+		"invalid credentials", "csrf_token already exists", "Input contains invalid characters",
+		"Input exceeds character limit", "Invalid size, type or resolution of image":
 		w.WriteHeader(http.StatusBadRequest)
 	case "user already exists",
-		"session already exists":
+		"session already exists",
+		"email already exists":
 		w.WriteHeader(http.StatusConflict)
 	case "no active session", "already logged in":
 		w.WriteHeader(http.StatusUnauthorized)

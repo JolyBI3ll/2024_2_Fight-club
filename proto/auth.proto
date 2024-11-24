@@ -1,0 +1,105 @@
+syntax = "proto3";
+option go_package = "../microservices/auth_service/controller/gen/;gen";
+import "google/protobuf/timestamp.proto";
+package auth;
+
+service Auth {
+  rpc RegisterUser (RegisterUserRequest) returns (UserResponse);
+  rpc LoginUser (LoginUserRequest) returns (UserResponse);
+  rpc LogoutUser (logoutRequest) returns (LogoutUserResponse);
+  rpc PutUser (PutUserRequest) returns (UpdateResponse);
+  rpc GetUserById (GetUserByIdRequest) returns (GetUserByIdResponse);
+  rpc GetAllUsers (Empty) returns (AllUsersResponse);
+  rpc GetSessionData (GetSessionDataRequest) returns (SessionDataResponse);
+  rpc RefreshCsrfToken (RefreshCsrfTokenRequest) returns (RefreshCsrfTokenResponse);
+}
+
+message RefreshCsrfTokenRequest {
+  string session_id = 1;
+}
+
+message Metadata {
+  string uuid = 1;
+  string username = 2;
+  string password = 3;
+  string email = 4;
+  string name = 5;
+  float score = 6;
+  string avatar = 7;
+  string sex = 8;
+  int32 guest_count = 9;
+  google.protobuf.Timestamp birthdate = 10;
+  bool is_host = 11;
+}
+
+message logoutRequest {
+  string authHeader = 1;
+  string session_id = 2;
+}
+
+message User {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+}
+
+message RegisterUserRequest {
+  string username = 1;
+  string email = 2;
+  string name = 3;
+  string password = 4;
+}
+
+message LoginUserRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message GetSessionDataRequest{
+  string session_id = 1;
+}
+
+message Empty {}
+
+message PutUserRequest {
+  Metadata creds = 1;
+  string authHeader = 2;
+  string session_id = 3;
+  bytes avatar = 4;
+}
+
+message GetUserByIdRequest {
+  string user_id = 1;
+}
+
+message UserResponse {
+  string session_id = 1;
+  string jwttoken = 2;
+  User user = 3;
+}
+
+message LogoutUserResponse {
+  string response = 1;
+}
+
+message UpdateResponse {
+  string response = 1;
+}
+
+message AllUsersResponse {
+  repeated Metadata users = 1;
+}
+
+message GetUserByIdResponse {
+  Metadata user = 1;
+}
+
+message SessionDataResponse {
+  string id = 1;
+  string avatar = 2;
+}
+
+message RefreshCsrfTokenResponse{
+  string csrf_token = 1;
+}
+
