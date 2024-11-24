@@ -134,7 +134,8 @@ func (r *adRepository) GetPlaceById(ctx context.Context, adId string) (domain.Ge
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").
 		Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
 		Joins("JOIN ad_available_dates ON ad_available_dates.\"adId\" = ads.uuid").
-		Select("ads.*, cities.title as cityName, ad_available_dates.\"availableDateFrom\" as \"AdDateFrom\", ad_available_dates.\"availableDateTo\" as \"AdDateTo\"")
+		Select("ads.*, cities.title as cityName, ad_available_dates.\"availableDateFrom\" as \"AdDateFrom\", ad_available_dates.\"availableDateTo\" as \"AdDateTo\"").
+		Where("\"adId\" = ?", adId)
 
 	if err := query.Find(&ad).Error; err != nil {
 		logger.DBLogger.Error("Error fetching place", zap.String("request_id", requestID), zap.Error(err))
