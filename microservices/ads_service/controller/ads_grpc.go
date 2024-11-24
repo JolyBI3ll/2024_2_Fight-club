@@ -123,7 +123,7 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequ
 			PublicationDate: place.PublicationDate.Format(layout),
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
-			ViewsCount:      int32(place.ViewsCount),
+			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
 			CityName:        place.Cityname,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
@@ -131,7 +131,7 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequ
 				Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
 				Avatar:     place.AdAuthor.Avatar,
 				Name:       place.AdAuthor.Name,
-				GuestCount: int32(place.AdAuthor.GuestCount),
+				GuestCount: int32Ptr(int32(place.AdAuthor.GuestCount)),
 				Sex:        place.AdAuthor.Sex,
 				BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 			},
@@ -171,7 +171,7 @@ func (adh *GrpcAdHandler) GetOnePlace(ctx context.Context, in *gen.GetPlaceByIdR
 		PublicationDate: place.PublicationDate.Format(layout),
 		Description:     place.Description,
 		RoomsNumber:     int32(place.RoomsNumber),
-		ViewsCount:      int32(place.ViewsCount),
+		ViewsCount:      int32Ptr(int32(place.ViewsCount)),
 		CityName:        place.Cityname,
 		AdDateFrom:      place.AdDateFrom.Format(layout),
 		AdDateTo:        place.AdDateTo.Format(layout),
@@ -179,7 +179,7 @@ func (adh *GrpcAdHandler) GetOnePlace(ctx context.Context, in *gen.GetPlaceByIdR
 			Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
 			Avatar:     place.AdAuthor.Avatar,
 			Name:       place.AdAuthor.Name,
-			GuestCount: int32(place.AdAuthor.GuestCount),
+			GuestCount: int32Ptr(int32(place.AdAuthor.GuestCount)),
 			Sex:        place.AdAuthor.Sex,
 			BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 		},
@@ -359,7 +359,7 @@ func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *gen.GetPlace
 			PublicationDate: place.PublicationDate.Format(layout),
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
-			ViewsCount:      int32(place.ViewsCount),
+			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
 			CityName:        place.Cityname,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
@@ -367,7 +367,7 @@ func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *gen.GetPlace
 				Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
 				Avatar:     place.AdAuthor.Avatar,
 				Name:       place.AdAuthor.Name,
-				GuestCount: int32(place.AdAuthor.GuestCount),
+				GuestCount: int32Ptr(int32(place.AdAuthor.GuestCount)),
 				Sex:        place.AdAuthor.Sex,
 				BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 			},
@@ -401,7 +401,7 @@ func (adh *GrpcAdHandler) GetUserPlaces(ctx context.Context, in *gen.GetUserPlac
 			PublicationDate: place.PublicationDate.Format(layout),
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
-			ViewsCount:      int32(place.ViewsCount),
+			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
 			CityName:        place.Cityname,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
@@ -409,7 +409,7 @@ func (adh *GrpcAdHandler) GetUserPlaces(ctx context.Context, in *gen.GetUserPlac
 				Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
 				Avatar:     place.AdAuthor.Avatar,
 				Name:       place.AdAuthor.Name,
-				GuestCount: int32(place.AdAuthor.GuestCount),
+				GuestCount: int32Ptr(int32(place.AdAuthor.GuestCount)),
 				Sex:        place.AdAuthor.Sex,
 				BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 			},
@@ -461,6 +461,10 @@ func (adh *GrpcAdHandler) DeleteAdImage(ctx context.Context, in *gen.DeleteAdIma
 
 func float32Ptr(f float32) *float32 {
 	return &f
+}
+
+func int32Ptr(i int32) *int32 {
+	return &i
 }
 
 func convertImagesToGRPC(images []domain.ImageResponse) []*gen.ImageResponse {

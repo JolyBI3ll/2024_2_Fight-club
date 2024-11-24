@@ -94,7 +94,7 @@ message GetAllAdsResponse {
   string publicationDate = 5;
   string description = 6;
   int32 roomsNumber = 7;
-  int32 viewsCount = 8;
+  optional int32 viewsCount = 8;
   string cityName = 9;
   string adDateFrom = 10;
   string adDateTo = 11;
@@ -130,5 +130,5 @@ message UserResponse {
   string name = 3;
   string sex = 4;
   string birthDate = 5;
-  int32 guestCount = 6;
+  optional int32 guestCount = 6;
 }
