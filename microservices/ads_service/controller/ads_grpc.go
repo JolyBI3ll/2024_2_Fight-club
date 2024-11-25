@@ -124,7 +124,7 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequ
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
 			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
-			CityName:        place.Cityname,
+			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
 			AdAuthor: &gen.UserResponse{
@@ -172,7 +172,7 @@ func (adh *GrpcAdHandler) GetOnePlace(ctx context.Context, in *gen.GetPlaceByIdR
 		Description:     place.Description,
 		RoomsNumber:     int32(place.RoomsNumber),
 		ViewsCount:      int32Ptr(int32(place.ViewsCount)),
-		CityName:        place.Cityname,
+		CityName:        place.CityName,
 		AdDateFrom:      place.AdDateFrom.Format(layout),
 		AdDateTo:        place.AdDateTo.Format(layout),
 		AdAuthor: &gen.UserResponse{
@@ -360,7 +360,7 @@ func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *gen.GetPlace
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
 			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
-			CityName:        place.Cityname,
+			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
 			AdAuthor: &gen.UserResponse{
@@ -402,7 +402,7 @@ func (adh *GrpcAdHandler) GetUserPlaces(ctx context.Context, in *gen.GetUserPlac
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
 			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
-			CityName:        place.Cityname,
+			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
 			AdAuthor: &gen.UserResponse{

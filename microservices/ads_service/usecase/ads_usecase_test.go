@@ -2,7 +2,7 @@ package usecase
 
 import (
 	"2024_2_FIGHT-CLUB/domain"
-	"2024_2_FIGHT-CLUB/internal/ads/mocks"
+	"2024_2_FIGHT-CLUB/microservices/ads_service/mocks"
 	"context"
 	"errors"
 	"github.com/stretchr/testify/assert"

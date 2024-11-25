@@ -30,7 +30,7 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
 		Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").
 		Joins("JOIN ad_available_dates ON ad_available_dates.\"adId\" = ads.uuid").
-		Select("ads.*, cities.title as cityName, ad_available_dates.\"availableDateFrom\" as \"AdDateFrom\", ad_available_dates.\"availableDateTo\" as \"AdDateTo\"")
+		Select("ads.*, cities.title as \"CityName\", ad_available_dates.\"availableDateFrom\" as \"AdDateFrom\", ad_available_dates.\"availableDateTo\" as \"AdDateTo\"")
 
 	if filter.Location != "" {
 		query = query.Where("cities.\"enTitle\" = ?", filter.Location)
@@ -132,9 +132,9 @@ func (r *adRepository) GetPlaceById(ctx context.Context, adId string) (domain.Ge
 	var ad domain.GetAllAdsResponse
 
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").
-		Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
+		Joins("JOIN cities ON ads.\"cityId\" = cities.id").
 		Joins("JOIN ad_available_dates ON ad_available_dates.\"adId\" = ads.uuid").
-		Select("ads.*, cities.title as cityName, ad_available_dates.\"availableDateFrom\" as \"AdDateFrom\", ad_available_dates.\"availableDateTo\" as \"AdDateTo\"").
+		Select("ads.*, cities.title as \"CityName\", ad_available_dates.\"availableDateFrom\" as \"AdDateFrom\", ad_available_dates.\"availableDateTo\" as \"AdDateTo\"").
 		Where("\"adId\" = ?", adId)
 
 	if err := query.Find(&ad).Error; err != nil {
@@ -335,7 +335,7 @@ func (r *adRepository) GetPlacesPerCity(ctx context.Context, city string) ([]dom
 
 	var ads []domain.GetAllAdsResponse
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
-		Select("ads.*, cities.title as cityName").Where("cities.\"enTitle\" = ?", city)
+		Select("ads.*, cities.title as \"CityName\"").Where("cities.\"enTitle\" = ?", city)
 	if err := query.Find(&ads).Error; err != nil {
 		logger.DBLogger.Error("Error fetching places per city", zap.String("city", city), zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("error fetching places per city")
