@@ -33,7 +33,7 @@ func (r *ReviewRepository) CreateReview(ctx context.Context, review *domain.Revi
 
 	//Проверка существует ли отзыва
 	var query domain.Review
-	if err := r.db.Where("user_id = ? AND host_id = ?", review.UserID, review.HostID).First(&query).Error; err == nil {
+	if err := r.db.Where("\"userId\" = ? AND \"hostId\" = ?", review.UserID, review.HostID).First(&query).Error; err == nil {
 		logger.DBLogger.Warn("Review already exists", zap.String("userId", review.UserID), zap.String("hostId", review.HostID), zap.String("request_id", requestID))
 		return errors.New("review already exist")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {

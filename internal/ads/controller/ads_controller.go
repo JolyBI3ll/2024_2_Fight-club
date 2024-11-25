@@ -544,16 +544,30 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 	errorResponse := map[string]string{"error": err.Error()}
 
 	switch err.Error() {
-	case "ad not found":
+	case "ad not found", "ad date not found", "image not found":
 		w.WriteHeader(http.StatusNotFound)
-	case "ad already exists":
+	case "ad already exists", "RoomsNumber out of range", "not owner of ad":
 		w.WriteHeader(http.StatusConflict)
-	case "not owner of ad", "no active session", "Missing X-CSRF-Token header", "Invalid JWT token", "User is not host":
+	case "no active session", "missing X-CSRF-Token header",
+		"invalid JWT token", "user is not host", "session not found", "user ID not found in session":
 		w.WriteHeader(http.StatusUnauthorized)
-	case "Invalid metadata JSON", "Invalid multipart form", "Invalid size, type or resolution of image",
-		"Input contains invalid characters", "Input exceeds character limit", "RoomsNumber out of range", "query offset not int",
-		"query limit not int", "No images", "URL contains invalid characters", "URL exceeds character limit":
+	case "invalid metadata JSON", "invalid multipart form", "input contains invalid characters",
+		"input exceeds character limit", "invalid size, type or resolution of image",
+		"query offset not int", "query limit not int", "query dateFrom not int",
+		"query dateTo not int", "URL contains invalid characters", "URL exceeds character limit",
+		"token parse error", "token invalid", "token expired", "bad sign method",
+		"failed to decode metadata", "no images provided", "failed to open file",
+		"failed to read file", "failed to encode response", "invalid rating value":
 		w.WriteHeader(http.StatusBadRequest)
+	case "error fetching all places", "error fetching images for ad", "error fetching user",
+		"error finding user", "error finding city", "error creating place", "error creating date",
+		"error saving place", "error updating place", "error updating date",
+		"error updating views count", "error deleting place", "get places error",
+		"get places per city error", "get user places error", "error creating image",
+		"delete ad image error", "failed to generate session id", "failed to save session",
+		"failed to delete session", "error generating random bytes for session ID",
+		"failed to get session id from request cookie":
+		w.WriteHeader(http.StatusInternalServerError)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}

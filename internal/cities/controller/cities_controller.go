@@ -109,6 +109,14 @@ func (h *CityHandler) handleError(w http.ResponseWriter, err error, requestID st
 	errorResponse := map[string]string{"error": err.Error()}
 
 	switch err.Error() {
+	case "input contains invalid characters",
+		"input exceeds character limit":
+		w.WriteHeader(http.StatusBadRequest)
+
+	case "error fetching all cities",
+		"error fetching city":
+		w.WriteHeader(http.StatusInternalServerError)
+
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}

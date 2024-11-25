@@ -630,22 +630,58 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 	switch err.Error() {
 	case "username, password, and email are required",
 		"username and password are required",
-		"invalid credentials", "csrf_token already exists", "Input contains invalid characters",
-		"Input exceeds character limit", "Invalid size, type or resolution of image":
+		"invalid credentials",
+		"csrf_token already exists",
+		"Input contains invalid characters",
+		"Input exceeds character limit",
+		"Invalid size, type or resolution of image",
+		"invalid metadata JSON",
+		"missing X-CSRF-Token header",
+		"invalid JWT token",
+		"invalid type for id in session data",
+		"invalid type for avatar in session data":
 		w.WriteHeader(http.StatusBadRequest)
+
 	case "user already exists",
+		"email already exists",
 		"session already exists",
-		"email already exists":
+		"already logged in":
 		w.WriteHeader(http.StatusConflict)
-	case "no active session", "already logged in":
+
+	case "no active session",
+		"session not found",
+		"user ID not found in session":
 		w.WriteHeader(http.StatusUnauthorized)
-	case "user not found":
+
+	case "user not found",
+		"error fetching user by ID",
+		"error fetching user by name",
+		"error fetching user by email",
+		"there is none user in db":
 		w.WriteHeader(http.StatusNotFound)
-	case "failed to generate error response",
-		"there is none user in db",
+
+	case "error creating user",
+		"error saving user",
+		"error updating user",
+		"error fetching all users",
+		"failed to generate error response",
+		"failed to hash password",
+		"failed to upload file",
+		"failed to delete file",
 		"failed to generate session id",
-		"failed to save sessions":
+		"failed to save session",
+		"failed to delete session",
+		"failed to get user ID",
+		"failed to get session data",
+		"failed to refresh csrf token",
+		"error generating random bytes for session ID",
+		"failed to get session id from request cookie",
+		"token parse error",
+		"token invalid",
+		"token expired",
+		"bad sign method":
 		w.WriteHeader(http.StatusInternalServerError)
+
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}
