@@ -43,5 +43,8 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler, cityH
 	// Reviews Management Routese
 	router.HandleFunc(api+"/reviews", reviewHandler.CreateReview).Methods("POST")
 	router.HandleFunc(api+"/reviews/{userId}", reviewHandler.GetUserReviews).Methods("GET")
+	router.HandleFunc(api+"/reviews/{hostId}", reviewHandler.DeleteReview).Methods("DELETE")
+	router.HandleFunc(api+"/reviews/{hostId}", reviewHandler.UpdateReview).Methods("PUT")
+
 	return router
 }

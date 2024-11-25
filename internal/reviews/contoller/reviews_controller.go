@@ -60,9 +60,9 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 	if authHeader == "" {
 		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
 			zap.String("request_id", requestID),
-			zap.Error(errors.New("Missing X-CSRF-Token header")),
+			zap.Error(errors.New("missing X-CSRF-Token header")),
 		)
-		rh.handleError(w, errors.New("Missing X-CSRF-Token header"), requestID)
+		rh.handleError(w, errors.New("missing X-CSRF-Token header"), requestID)
 		return
 	}
 
@@ -70,7 +70,7 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 	_, err = rh.jwtToken.Validate(tokenString, sessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, errors.New("Invalid JWT token"), requestID)
+		rh.handleError(w, errors.New("invalid JWT token"), requestID)
 		return
 	}
 
@@ -160,6 +160,167 @@ func (rh *ReviewHandler) GetUserReviews(w http.ResponseWriter, r *http.Request) 
 		zap.String("request_id", requestID),
 		zap.Duration("duration", duration),
 		zap.Int("status", http.StatusOK))
+}
+
+func (rh *ReviewHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
+	sanitizer := bluemonday.UGCPolicy()
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
+	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
+	defer cancel()
+
+	hostId := mux.Vars(r)["hostId"]
+	hostId = sanitizer.Sanitize(hostId)
+
+	logger.AccessLogger.Info("Received DeleteReview request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+		zap.String("query", r.URL.Query().Encode()),
+	)
+
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		rh.handleError(w, err, requestID)
+		return
+	}
+
+	authHeader := r.Header.Get("X-CSRF-Token")
+	if authHeader == "" {
+		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
+			zap.String("request_id", requestID),
+			zap.Error(errors.New("missing X-CSRF-Token header")),
+		)
+		rh.handleError(w, errors.New("missing X-CSRF-Token header"), requestID)
+		return
+	}
+
+	tokenString := authHeader[len("Bearer "):]
+	_, err = rh.jwtToken.Validate(tokenString, sessionID)
+	if err != nil {
+		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+		rh.handleError(w, errors.New("invalid JWT token"), requestID)
+		return
+	}
+
+	userId, err := rh.sessionService.GetUserID(ctx, sessionID)
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to get user ID", zap.String("request_id", requestID), zap.Error(err))
+		rh.handleError(w, err, requestID)
+		return
+	}
+
+	err = rh.usecase.DeleteReview(ctx, userId, hostId)
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to delete review", zap.String("request_id", requestID), zap.Error(err))
+		rh.handleError(w, err, requestID)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode("response: deleted successfully"); err != nil {
+		logger.AccessLogger.Warn("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
+		rh.handleError(w, err, requestID)
+		return
+	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed DeleteReview request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK))
+}
+
+func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
+	defer cancel()
+	sanitizer := bluemonday.UGCPolicy()
+	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
+
+	hostId := mux.Vars(r)["hostId"]
+	hostId = sanitizer.Sanitize(hostId)
+
+	logger.AccessLogger.Info("Received UpdateReview request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+		zap.String("query", r.URL.Query().Encode()),
+	)
+
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		rh.handleError(w, err, requestID)
+		return
+	}
+
+	authHeader := r.Header.Get("X-CSRF-Token")
+	if authHeader == "" {
+		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
+			zap.String("request_id", requestID),
+			zap.Error(errors.New("missing X-CSRF-Token header")),
+		)
+		rh.handleError(w, errors.New("missing X-CSRF-Token header"), requestID)
+		return
+	}
+
+	tokenString := authHeader[len("Bearer "):]
+	_, err = rh.jwtToken.Validate(tokenString, sessionID)
+	if err != nil {
+		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+		rh.handleError(w, errors.New("invalid JWT token"), requestID)
+		return
+	}
+
+	userId, err := rh.sessionService.GetUserID(ctx, sessionID)
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to get user ID", zap.String("request_id", requestID), zap.Error(err))
+		rh.handleError(w, err, requestID)
+		return
+	}
+
+	var updatedReview domain.Review
+	if err := json.NewDecoder(r.Body).Decode(&updatedReview); err != nil {
+		logger.AccessLogger.Warn("Failed to unmarshal review", zap.String("request_id", requestID), zap.Error(err))
+		rh.handleError(w, err, requestID)
+		return
+	}
+
+	updatedReview.Text = sanitizer.Sanitize(updatedReview.Text)
+	updatedReview.Title = sanitizer.Sanitize(updatedReview.Title)
+	updatedReview.HostID = sanitizer.Sanitize(updatedReview.HostID)
+	updatedReview.UserID = sanitizer.Sanitize(updatedReview.UserID)
+
+	err = rh.usecase.UpdateReview(ctx, userId, hostId, &updatedReview)
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to update review", zap.String("request_id", requestID), zap.Error(err))
+		rh.handleError(w, err, requestID)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode("response: updated successfully"); err != nil {
+		logger.AccessLogger.Warn("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
+		rh.handleError(w, err, requestID)
+		return
+	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed UpdateReview request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
 }
 
 func (rh *ReviewHandler) handleError(w http.ResponseWriter, err error, requestID string) {

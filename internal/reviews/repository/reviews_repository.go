@@ -6,7 +6,6 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"context"
 	"errors"
-	"fmt"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"math"
@@ -70,7 +69,7 @@ func (r *ReviewRepository) GetUserReviews(ctx context.Context, userId string) ([
 			return nil, errors.New("user not found")
 		}
 		logger.DBLogger.Error("Error fetching user by ID", zap.String("request_id", requestID), zap.String("userID", userId), zap.Error(err))
-		return nil, err
+		return nil, errors.New("error fetching user by ID")
 	}
 
 	if err := r.db.Model(&domain.Review{}).
@@ -81,14 +80,75 @@ func (r *ReviewRepository) GetUserReviews(ctx context.Context, userId string) ([
 		Find(&reviews).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			logger.DBLogger.Warn("No reviews found", zap.String("request_id", requestID), zap.String("userID", userId))
-			return nil, nil
+			return nil, errors.New("no reviews found")
 		}
 		logger.DBLogger.Error("Error fetching reviews", zap.String("request_id", requestID), zap.String("userID", userId), zap.Error(err))
-		return nil, err
+		return nil, errors.New("error fetching reviews")
 	}
 
 	logger.DBLogger.Info("Successfully fetched user by ID", zap.String("request_id", requestID), zap.String("userID", userId))
 	return reviews, nil
+}
+
+func (r *ReviewRepository) DeleteReview(ctx context.Context, userID, hostID string) error {
+	requestID := middleware.GetRequestID(ctx)
+	logger.DBLogger.Info("DeleteReview called", zap.String("userID", userID), zap.String("hostID", hostID), zap.String("request_id", requestID))
+
+	var review domain.Review
+	if err := r.db.Where("\"userId\" = ? AND \"hostId\" = ?", userID, hostID).First(&review).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			logger.DBLogger.Warn("Review not found", zap.String("userID", userID), zap.String("hostID", hostID), zap.String("request_id", requestID))
+			return errors.New("review not found")
+		}
+		logger.DBLogger.Error("Error finding review", zap.String("userID", userID), zap.String("hostID", hostID), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error finding review")
+	}
+
+	if err := r.db.Delete(&review).Error; err != nil {
+		logger.DBLogger.Error("Error deleting review", zap.String("userID", userID), zap.String("hostID", hostID), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error deleting review")
+	}
+
+	if err := r.updateHostScore(ctx, hostID); err != nil {
+		logger.DBLogger.Error("Error updating host score after review deletion", zap.String("hostID", hostID), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error updating host score")
+	}
+
+	logger.DBLogger.Info("Review successfully deleted", zap.String("userID", userID), zap.String("hostID", hostID), zap.String("request_id", requestID))
+	return nil
+}
+
+func (r *ReviewRepository) UpdateReview(ctx context.Context, userID, hostID string, updatedReview *domain.Review) error {
+	requestID := middleware.GetRequestID(ctx)
+	logger.DBLogger.Info("UpdateReview called", zap.String("userID", userID), zap.String("hostID", hostID), zap.String("request_id", requestID))
+
+	var existingReview domain.Review
+	if err := r.db.Where("\"userId\" = ? AND \"hostId\" = ?", userID, hostID).First(&existingReview).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			logger.DBLogger.Warn("Review not found", zap.String("userID", userID), zap.String("hostID", hostID), zap.String("request_id", requestID))
+			return errors.New("review not found")
+		}
+		logger.DBLogger.Error("Error finding review", zap.String("userID", userID), zap.String("hostID", hostID), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error finding review")
+	}
+
+	// Обновляем только текст и рейтинг.
+	existingReview.Title = updatedReview.Title
+	existingReview.Text = updatedReview.Text
+	existingReview.Rating = updatedReview.Rating
+
+	if err := r.db.Save(&existingReview).Error; err != nil {
+		logger.DBLogger.Error("Error updating review", zap.String("userID", userID), zap.String("hostID", hostID), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error updating review")
+	}
+
+	if err := r.updateHostScore(ctx, hostID); err != nil {
+		logger.DBLogger.Error("Error updating host score after review update", zap.String("hostID", hostID), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error updating host score")
+	}
+
+	logger.DBLogger.Info("Review successfully updated", zap.String("userID", userID), zap.String("hostID", hostID), zap.String("request_id", requestID))
+	return nil
 }
 
 func (r *ReviewRepository) updateHostScore(ctx context.Context, hostID string) error {
@@ -97,7 +157,7 @@ func (r *ReviewRepository) updateHostScore(ctx context.Context, hostID string) e
 	var reviews []domain.Review
 	if err := r.db.Where("\"hostId\" = ?", hostID).Find(&reviews).Error; err != nil {
 		logger.DBLogger.Error("Failed to fetch reviews for host", zap.String("hostId", hostID), zap.String("request_id", requestID), zap.Error(err))
-		return fmt.Errorf("failed to fetch reviews for host: %w", err)
+		return errors.New("failed to fetch reviews for host")
 	}
 
 	if len(reviews) == 0 {
@@ -112,8 +172,7 @@ func (r *ReviewRepository) updateHostScore(ctx context.Context, hostID string) e
 	averageScore = math.Round(averageScore*10) / 10
 
 	if err := r.db.Model(&domain.User{}).Where("uuid = ?", hostID).Update("score", averageScore).Error; err != nil {
-		return fmt.Errorf("failed to update host score: %w", err)
+		return errors.New("failed to update host score")
 	}
-
 	return nil
 }
