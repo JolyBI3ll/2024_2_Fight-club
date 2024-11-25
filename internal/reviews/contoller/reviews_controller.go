@@ -333,12 +333,43 @@ func (rh *ReviewHandler) handleError(w http.ResponseWriter, err error, requestID
 	errorResponse := map[string]string{"error": err.Error()}
 
 	switch err.Error() {
-	case "no active session", "Missing X-CSRF-Token header", "Invalid JWT token", "User is not host":
-		w.WriteHeader(http.StatusUnauthorized)
-	case "Invalid metadata JSON", "Invalid multipart form", "Invalid size, type or resolution of image",
-		"Input contains invalid characters", "Input exceeds character limit", "RoomsNumber out of range", "query offset not int",
-		"query limit not int", "No images", "URL contains invalid characters", "URL exceeds character limit", "Score out of range", "Host and user are the same":
+	case "input contains invalid characters",
+		"score out of range",
+		"input exceeds character limit":
 		w.WriteHeader(http.StatusBadRequest)
+
+	case "host and user are the same",
+		"review already exist":
+		w.WriteHeader(http.StatusConflict)
+
+	case "user not found",
+		"review not found",
+		"session not found",
+		"no reviews found":
+		w.WriteHeader(http.StatusNotFound)
+
+	case "token invalid",
+		"token expired",
+		"bad sign method",
+		"missing X-CSRF-Token header",
+		"invalid JWT token":
+		w.WriteHeader(http.StatusUnauthorized)
+
+	case "failed to generate session id",
+		"failed to save session",
+		"failed to delete session",
+		"error generating random bytes for session ID",
+		"failed to fetch reviews for host",
+		"failed to update host score",
+		"error creating review",
+		"error updating review",
+		"error finding review",
+		"error finding host",
+		"error updating host score",
+		"error fetching reviews",
+		"error fetching user by ID":
+		w.WriteHeader(http.StatusInternalServerError)
+
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}

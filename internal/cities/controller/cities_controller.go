@@ -5,8 +5,10 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/microservices/city_service/controller/gen"
 	"encoding/json"
+	"errors"
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/status"
 	"net/http"
 	"time"
 )
@@ -40,7 +42,10 @@ func (h *CityHandler) GetCities(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -80,7 +85,10 @@ func (h *CityHandler) GetOneCity(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get city data",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")

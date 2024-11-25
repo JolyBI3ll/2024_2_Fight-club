@@ -10,6 +10,7 @@ import (
 	"errors"
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"math"
@@ -65,7 +66,11 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
+
 		return
 	}
 
@@ -155,7 +160,10 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -235,7 +243,10 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -366,7 +377,10 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -405,6 +419,16 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	user, err := h.client.GetUserById(ctx, &gen.GetUserByIdRequest{
 		UserId: userId,
 	})
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get user by id",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
+		return
+	}
 
 	response := &domain.User{
 		UUID:       user.User.Uuid,
@@ -420,14 +444,6 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		IsHost:     user.User.IsHost,
 	}
 
-	if err != nil {
-		logger.AccessLogger.Error("Failed to get user by id",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		h.handleError(w, err, requestID)
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -465,7 +481,10 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -536,7 +555,10 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -589,7 +611,10 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, "Failed to create CSRF token", http.StatusInternalServerError)
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 

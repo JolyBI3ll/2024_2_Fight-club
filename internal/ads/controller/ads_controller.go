@@ -10,6 +10,7 @@ import (
 	"errors"
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"net/http"
@@ -65,7 +66,10 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 			zap.Error(err),
 			zap.String("request_id", requestID),
 			zap.String("method", r.Method))
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -119,7 +123,13 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 		IsAuthorized: isAuthorized,
 	})
 	if err != nil {
-		h.handleError(w, err, requestID)
+		logger.AccessLogger.Error("Failed to GetOnePlace",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -222,7 +232,10 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to create place", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -324,7 +337,10 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to update place", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -378,7 +394,10 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to delete place", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -418,7 +437,10 @@ func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get places per city", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 	body := map[string]interface{}{
@@ -459,7 +481,13 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 		UserId: userId,
 	})
 	if err != nil {
-		h.handleError(w, err, requestID)
+		logger.AccessLogger.Error("Failed to get places per user",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 	if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -514,7 +542,10 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to delete ad image", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
