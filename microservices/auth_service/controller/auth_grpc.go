@@ -246,7 +246,7 @@ func (h *GrpcAuthHandler) GetUserById(ctx context.Context, in *gen.GetUserByIdRe
 		return nil, err
 	}
 
-	userMetadata := &gen.Metadata{
+	userMetadata := &gen.MetadataOneUser{
 		Uuid:       user.UUID,
 		Username:   user.Username,
 		Name:       user.Name,
@@ -276,13 +276,11 @@ func (h *GrpcAuthHandler) GetAllUsers(ctx context.Context, in *gen.Empty) (*gen.
 		return nil, err
 	}
 
-	var userMetadata []*gen.Metadata
+	var userMetadata []*gen.MetadataOneUser
 	for _, user := range users {
-		userMetadata = append(userMetadata, &gen.Metadata{
+		userMetadata = append(userMetadata, &gen.MetadataOneUser{
 			Uuid:       user.UUID,
 			Username:   user.Username,
-			Password:   user.Password,
-			Email:      user.Email,
 			Name:       user.Name,
 			Score:      float32(user.Score),
 			Avatar:     user.Avatar,

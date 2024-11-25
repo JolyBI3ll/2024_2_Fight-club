@@ -491,8 +491,6 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		body = append(body, &domain.User{
 			UUID:       user.Uuid,
 			Username:   user.Username,
-			Password:   user.Password,
-			Email:      user.Email,
 			Name:       user.Name,
 			Score:      float64(user.Score),
 			Avatar:     user.Avatar,
