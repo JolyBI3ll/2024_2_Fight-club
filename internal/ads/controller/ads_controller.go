@@ -101,21 +101,20 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 		zap.String("adId", adId),
 	)
 
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	var isAuthorized bool
 
 	sessionID, err := session.GetSessionId(r)
-	if err != nil {
-		logger.AccessLogger.Error("Failed to get session ID",
+	if err != nil || sessionID == "" {
+		logger.AccessLogger.Warn("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
-		return
+		isAuthorized = false
 	}
-
-	isAuthorized := true
 
 	if _, err := h.sessionService.GetUserID(ctx, sessionID); err != nil {
 		isAuthorized = false
+	} else {
+		isAuthorized = true
 	}
 
 	place, err := h.client.GetOnePlace(ctx, &gen.GetPlaceByIdRequest{
@@ -136,6 +135,8 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 	body := map[string]interface{}{
 		"place": place,
 	}
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		h.handleError(w, err, requestID)
