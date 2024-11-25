@@ -309,7 +309,7 @@ func (h *GrpcAuthHandler) GetSessionData(ctx context.Context, in *gen.GetSession
 		logger.AccessLogger.Warn("Failed to get session data",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		return nil, err
+		return nil, errors.New("failed to get session data")
 	}
 	data := *sessionData
 
@@ -342,7 +342,7 @@ func (h *GrpcAuthHandler) RefreshCsrfToken(ctx context.Context, in *gen.RefreshC
 		logger.AccessLogger.Warn("Failed to refresh csrf token",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		return nil, err
+		return nil, errors.New("failed to refresh csrf token")
 	}
 	return &gen.RefreshCsrfTokenResponse{
 		CsrfToken: newCsrfToken,

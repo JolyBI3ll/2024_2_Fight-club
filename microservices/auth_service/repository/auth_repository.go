@@ -26,7 +26,7 @@ func (r *authRepository) CreateUser(ctx context.Context, creds *domain.User) err
 
 	if err := r.db.Create(creds).Error; err != nil {
 		logger.DBLogger.Error("Error creating user", zap.String("request_id", requestID), zap.String("username", creds.Username), zap.Error(err))
-		return err
+		return errors.New("error creating user")
 	}
 
 	logger.DBLogger.Info("Successfully created user", zap.String("request_id", requestID), zap.String("username", creds.Username))
@@ -38,7 +38,7 @@ func (r *authRepository) SaveUser(ctx context.Context, creds *domain.User) error
 	logger.DBLogger.Info("SaveUser called", zap.String("request_id", requestID), zap.String("username", creds.Username))
 	if err := r.db.Save(creds).Error; err != nil {
 		logger.DBLogger.Error("Error saving user", zap.String("request_id", requestID), zap.String("username", creds.Username), zap.Error(err))
-		return err
+		return errors.New("error saving user")
 	}
 
 	logger.DBLogger.Info("Successfully saved user", zap.String("request_id", requestID), zap.String("username", creds.Username))
@@ -51,12 +51,12 @@ func (r *authRepository) PutUser(ctx context.Context, creds *domain.User, userID
 
 	if err := r.db.Model(&domain.User{}).Where("UUID = ?", userID).Updates(creds).Error; err != nil {
 		logger.DBLogger.Error("Error updating user", zap.String("request_id", requestID), zap.String("userID", userID), zap.Error(err))
-		return err
+		return errors.New("error updating user")
 	}
 	//для булевых false
 	if err := r.db.Model(&domain.User{}).Where("UUID = ?", userID).Update("isHost", creds.IsHost).Error; err != nil {
 		logger.DBLogger.Error("Error updating user", zap.String("request_id", requestID), zap.String("userID", userID), zap.Error(err))
-		return err
+		return errors.New("error updating user")
 	}
 
 	logger.DBLogger.Info("Successfully updated user", zap.String("request_id", requestID), zap.String("userID", userID))
@@ -70,7 +70,7 @@ func (r *authRepository) GetAllUser(ctx context.Context) ([]domain.User, error) 
 	var users []domain.User
 	if err := r.db.Find(&users).Error; err != nil {
 		logger.DBLogger.Error("Error fetching all users", zap.String("request_id", requestID), zap.Error(err))
-		return nil, err
+		return nil, errors.New("error fetching all users")
 	}
 
 	logger.DBLogger.Info("Successfully fetched all users", zap.String("request_id", requestID), zap.Int("count", len(users)))
@@ -88,7 +88,7 @@ func (r *authRepository) GetUserById(ctx context.Context, userID string) (*domai
 			return nil, errors.New("user not found")
 		}
 		logger.DBLogger.Error("Error fetching user by ID", zap.String("request_id", requestID), zap.String("userID", userID), zap.Error(err))
-		return nil, err
+		return nil, errors.New("error fetching user by ID")
 	}
 
 	logger.DBLogger.Info("Successfully fetched user by ID", zap.String("request_id", requestID), zap.String("userID", userID))
@@ -106,7 +106,7 @@ func (r *authRepository) GetUserByName(ctx context.Context, username string) (*d
 			return nil, errors.New("user not found")
 		}
 		logger.DBLogger.Error("Error fetching user by name", zap.String("request_id", requestID), zap.String("username", username), zap.Error(err))
-		return nil, err
+		return nil, errors.New("error fetching user by name")
 	}
 
 	logger.DBLogger.Info("Successfully fetched user by name", zap.String("request_id", requestID), zap.String("username", username))
@@ -124,7 +124,7 @@ func (r *authRepository) GetUserByEmail(ctx context.Context, email string) (*dom
 			return nil, errors.New("user not found")
 		}
 		logger.DBLogger.Error("Error fetching user by email", zap.String("request_id", requestID), zap.String("email", email), zap.Error(err))
-		return nil, err
+		return nil, errors.New("error fetching user by email")
 	}
 
 	logger.DBLogger.Info("Successfully fetched user by email", zap.String("request_id", requestID), zap.String("email", email))

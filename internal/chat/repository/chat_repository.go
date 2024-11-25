@@ -63,7 +63,7 @@ func (cr *Repo) GetChats(ctx context.Context, userID string, lastUpdateTime time
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("error fetching chats")
 		}
-		return nil, err
+		return nil, errors.New("error fetching chats")
 	}
 
 	logger.DBLogger.Info("Successfully fetched chats", zap.String("request_id", requestID), zap.Int("count", len(chats)))
@@ -87,7 +87,7 @@ func (cr *Repo) GetMessages(ctx context.Context, userID1 string, userID2 string,
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("error fetching messages")
 		}
-		return nil, err
+		return nil, errors.New("error fetching messages")
 	}
 
 	logger.DBLogger.Info("Successfully fetched messages", zap.String("request_id", requestID), zap.Int("count", len(messages)))

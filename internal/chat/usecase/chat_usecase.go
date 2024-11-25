@@ -3,8 +3,6 @@ package usecase
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"context"
-	"errors"
-	"fmt"
 	"time"
 )
 
@@ -28,7 +26,7 @@ func (cs *chatUseCase) GetAllChats(ctx context.Context, userID string, lastUpdat
 	chats, err := cs.repo.GetChats(ctx, userID, lastUpdateTime)
 
 	if err != nil {
-		return nil, errors.New("failed to fetch all chats")
+		return nil, err
 	}
 
 	return chats, nil
@@ -37,7 +35,7 @@ func (cs *chatUseCase) GetAllChats(ctx context.Context, userID string, lastUpdat
 func (cs *chatUseCase) GetChat(ctx context.Context, userID1 string, userID2 string, lastSent time.Time) ([]*domain.Message, error) {
 	messages, err := cs.repo.GetMessages(ctx, userID1, userID2, lastSent)
 	if err != nil {
-		return nil, fmt.Errorf("get all messages: %w", err)
+		return nil, err
 	}
 
 	return messages, nil
@@ -46,7 +44,7 @@ func (cs *chatUseCase) GetChat(ctx context.Context, userID1 string, userID2 stri
 func (cs *chatUseCase) SendNewMessage(ctx context.Context, receiver string, sender string, message string) error {
 	err := cs.repo.SendNewMessage(ctx, receiver, sender, message)
 	if err != nil {
-		return fmt.Errorf("send new message: %w", err)
+		return err
 	}
 	return nil
 }

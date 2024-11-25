@@ -5,6 +5,7 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"context"
+	"errors"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -26,7 +27,7 @@ func (c cityRepository) GetCities(ctx context.Context) ([]domain.City, error) {
 	var cities []domain.City
 	if err := c.db.Find(&cities).Error; err != nil {
 		logger.DBLogger.Error("Error fetching all cities", zap.String("request_id", requestID), zap.Error(err))
-		return nil, err
+		return nil, errors.New("error fetching all cities")
 	}
 
 	logger.DBLogger.Info("Successfully fetched all cities", zap.String("request_id", requestID), zap.Int("count", len(cities)))
@@ -40,7 +41,7 @@ func (c cityRepository) GetCityByEnName(ctx context.Context, cityEnName string) 
 	var city domain.City
 	if err := c.db.First(&city, "\"enTitle\" = ?", cityEnName).Error; err != nil {
 		logger.DBLogger.Error("Error fetching city", zap.String("request_id", requestID), zap.Error(err))
-		return domain.City{}, err
+		return domain.City{}, errors.New("error fetching city")
 	}
 
 	logger.DBLogger.Info("Successfully fetched all cities", zap.String("request_id", requestID))
