@@ -159,11 +159,7 @@ func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID s
 	requestID := middleware.GetRequestID(ctx)
 	const maxLen = 255
 	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
-	if !validCharPattern.MatchString(creds.Username) ||
-		!validCharPattern.MatchString(creds.Email) ||
-		!validCharPattern.MatchString(creds.Password) ||
-		!validCharPattern.MatchString(creds.Name) ||
-		!validCharPattern.MatchString(creds.Avatar) ||
+	if !validCharPattern.MatchString(creds.Avatar) ||
 		!validCharPattern.MatchString(creds.UUID) {
 		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
 		return errors.New("input contains invalid characters")
