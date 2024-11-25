@@ -111,7 +111,7 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequ
 		logger.AccessLogger.Error("Failed to get places",
 			zap.Error(err),
 			zap.String("request_id", requestID))
-		return nil, errors.New("get places error")
+		return nil, err
 	}
 	var responseList gen.GetAllAdsResponseList
 	for _, place := range places {
@@ -160,7 +160,7 @@ func (adh *GrpcAdHandler) GetOnePlace(ctx context.Context, in *gen.GetPlaceByIdR
 		logger.AccessLogger.Error("Failed to get places",
 			zap.Error(err),
 			zap.String("request_id", requestID))
-		return nil, errors.New("get places error")
+		return nil, err
 	}
 
 	return &gen.GetAllAdsResponse{
@@ -234,7 +234,7 @@ func (adh *GrpcAdHandler) CreatePlace(ctx context.Context, in *gen.CreateAdReque
 	err = adh.usecase.CreatePlace(ctx, &place, in.Images, newPlace, userID)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to create place", zap.String("request_id", requestID), zap.Error(err))
-		return nil, errors.New("create place error")
+		return nil, err
 	}
 
 	return &gen.Ad{
@@ -293,7 +293,7 @@ func (adh *GrpcAdHandler) UpdatePlace(ctx context.Context, in *gen.UpdateAdReque
 	err = adh.usecase.UpdatePlace(ctx, &place, in.AdId, userID, in.Images, updatedPlace)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to update place", zap.String("request_id", requestID), zap.Error(err))
-		return nil, errors.New("update place error")
+		return nil, err
 	}
 	return &gen.AdResponse{Response: "Update successfully"}, nil
 }
@@ -330,7 +330,7 @@ func (adh *GrpcAdHandler) DeletePlace(ctx context.Context, in *gen.DeletePlaceRe
 	err = adh.usecase.DeletePlace(ctx, in.AdId, userID)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to delete place", zap.String("request_id", requestID), zap.Error(err))
-		return nil, errors.New("delete place error")
+		return nil, err
 	}
 	return &gen.DeleteResponse{Response: "Delete successfully"}, nil
 }
@@ -347,7 +347,7 @@ func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *gen.GetPlace
 	places, err := adh.usecase.GetPlacesPerCity(ctx, in.CityName)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to get places per city", zap.String("request_id", requestID), zap.Error(err))
-		return nil, errors.New("get places per city error")
+		return nil, err
 	}
 	var responseList gen.GetAllAdsResponseList
 	for _, place := range places {
@@ -389,7 +389,7 @@ func (adh *GrpcAdHandler) GetUserPlaces(ctx context.Context, in *gen.GetUserPlac
 	places, err := adh.usecase.GetUserPlaces(ctx, in.UserId)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to get user places", zap.String("request_id", requestID), zap.Error(err))
-		return nil, errors.New("get user places error")
+		return nil, err
 	}
 	var responseList gen.GetAllAdsResponseList
 	for _, place := range places {
@@ -454,7 +454,7 @@ func (adh *GrpcAdHandler) DeleteAdImage(ctx context.Context, in *gen.DeleteAdIma
 	err = adh.usecase.DeleteAdImage(ctx, in.AdId, in.ImageId, userID)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to delete ad image", zap.String("request_id", requestID), zap.Error(err))
-		return nil, errors.New("delete ad image error")
+		return nil, err
 	}
 	return &gen.DeleteResponse{Response: "Delete image successfully"}, nil
 }
