@@ -433,8 +433,6 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	response := &domain.User{
 		UUID:       user.User.Uuid,
 		Username:   user.User.Username,
-		Password:   user.User.Password,
-		Email:      user.User.Email,
 		Name:       user.User.Name,
 		Score:      math.Round(float64(user.User.Score)*10) / 10,
 		Avatar:     user.User.Avatar,

@@ -249,8 +249,6 @@ func (h *GrpcAuthHandler) GetUserById(ctx context.Context, in *gen.GetUserByIdRe
 	userMetadata := &gen.Metadata{
 		Uuid:       user.UUID,
 		Username:   user.Username,
-		Password:   user.Password,
-		Email:      user.Email,
 		Name:       user.Name,
 		Score:      float32(user.Score),
 		Avatar:     user.Avatar,
