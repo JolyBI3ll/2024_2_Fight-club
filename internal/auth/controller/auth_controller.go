@@ -430,8 +430,8 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := &domain.User{
-		UUID:       user.User.Uuid,
+	response := &domain.UserDataResponse{
+		Uuid:       user.User.Uuid,
 		Username:   user.User.Username,
 		Name:       user.User.Name,
 		Score:      math.Round(float64(user.User.Score)*10) / 10,
@@ -486,13 +486,13 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var body []*domain.User
+	var body []*domain.UserDataResponse
 	for _, user := range users.Users {
-		body = append(body, &domain.User{
-			UUID:       user.Uuid,
+		body = append(body, &domain.UserDataResponse{
+			Uuid:       user.Uuid,
 			Username:   user.Username,
 			Name:       user.Name,
-			Score:      float64(user.Score),
+			Score:      math.Round(float64(user.Score)*10) / 10,
 			Avatar:     user.Avatar,
 			Sex:        user.Sex,
 			GuestCount: int(user.GuestCount),
