@@ -123,12 +123,12 @@ func (m *MockAuthRepository) GetUserById(ctx context.Context, userID string) (*d
 }
 
 type MockMinioService struct {
-	UploadFileFunc func(file *multipart.FileHeader, path string) (string, error)
+	UploadFileFunc func(file []byte, contentType string, id string) (string, error)
 	DeleteFileFunc func(path string) error
 }
 
-func (m *MockMinioService) UploadFile(file *multipart.FileHeader, path string) (string, error) {
-	return m.UploadFileFunc(file, path)
+func (m *MockMinioService) UploadFile(file []byte, contentType string, id string) (string, error) {
+	return m.UploadFileFunc(file, contentType, id)
 }
 
 func (m *MockMinioService) DeleteFile(path string) error {

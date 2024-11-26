@@ -112,12 +112,12 @@ func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*doma
 		!validCharPattern.MatchString(creds.Avatar) ||
 		!validCharPattern.MatchString(creds.UUID) {
 		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		return creds, errors.New("input contains invalid characters")
+		return nil, errors.New("input contains invalid characters")
 	}
 
 	if len(creds.Username) > maxLen || len(creds.Email) > maxLen || len(creds.Password) > maxLen || len(creds.Name) > maxLen || len(creds.Avatar) > maxLen || len(creds.UUID) > maxLen {
 		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
-		return creds, errors.New("input exceeds character limit")
+		return nil, errors.New("input exceeds character limit")
 	}
 
 	if creds.Username == "" || creds.Password == "" {
@@ -158,12 +158,8 @@ func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*doma
 func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID string, avatar []byte) error {
 	requestID := middleware.GetRequestID(ctx)
 	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
-	if !validCharPattern.MatchString(creds.Username) ||
-		!validCharPattern.MatchString(creds.Email) ||
-		!validCharPattern.MatchString(creds.Password) ||
-		!validCharPattern.MatchString(creds.Name) ||
-		!validCharPattern.MatchString(creds.Avatar) ||
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s\-_]*$`)
+	if !validCharPattern.MatchString(creds.Avatar) ||
 		!validCharPattern.MatchString(creds.UUID) {
 		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
 		return errors.New("input contains invalid characters")
