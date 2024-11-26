@@ -213,6 +213,7 @@ func (r *adRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd dom
 		return errors.New("error finding city")
 	}
 	ad.CityID = city.ID
+	ad.AuthorUUID = userId
 	ad.PublicationDate = time.Now()
 	if err := r.db.Create(ad).Error; err != nil {
 		logger.DBLogger.Error("Error creating place", zap.String("adId", ad.UUID), zap.String("request_id", requestID), zap.Error(err))
@@ -411,7 +412,7 @@ func (r *adRepository) GetUserPlaces(ctx context.Context, userId string) ([]doma
 
 	var ads []domain.GetAllAdsResponse
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
-		Select("ads.*, users.avatar, users.name, users.score as rating , cities.title as cityName").Where("users.uuid = ?", userId)
+		Select("ads.*, users.avatar, users.name, users.score as rating, cities.title as \"CityName\"").Where("users.uuid = ?", userId)
 	if err := query.Find(&ads).Error; err != nil {
 		logger.DBLogger.Error("Error fetching user places", zap.String("city", userId), zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("error fetching user places")
