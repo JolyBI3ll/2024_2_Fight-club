@@ -3,11 +3,9 @@ package mocks
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
-	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
 	"context"
 	"github.com/golang-jwt/jwt"
 	"github.com/gorilla/sessions"
-	"google.golang.org/grpc"
 	"net/http"
 )
 
@@ -174,47 +172,4 @@ func (m *MockMinioService) UploadFile(file []byte, contentType, id string) (stri
 
 func (m *MockMinioService) DeleteFile(filePath string) error {
 	return m.DeleteFileFunc(filePath)
-}
-
-type MockClient struct {
-	MockGetAllPlaces     func(ctx context.Context, in *gen.AdFilterRequest, opts ...grpc.CallOption) (*gen.GetAllAdsResponseList, error)
-	MockGetOnePlace      func(ctx context.Context, in *gen.GetPlaceByIdRequest, opts ...grpc.CallOption) (*gen.GetAllAdsResponse, error)
-	MockCreatePlace      func(ctx context.Context, in *gen.CreateAdRequest, opts ...grpc.CallOption) (*gen.Ad, error)
-	MockUpdatePlace      func(ctx context.Context, in *gen.UpdateAdRequest, opts ...grpc.CallOption) (*gen.AdResponse, error)
-	MockDeletePlace      func(ctx context.Context, in *gen.DeletePlaceRequest, opts ...grpc.CallOption) (*gen.DeleteResponse, error)
-	MockGetPlacesPerCity func(ctx context.Context, in *gen.GetPlacesPerCityRequest, opts ...grpc.CallOption) (*gen.GetAllAdsResponseList, error)
-	MockGetUserPlaces    func(ctx context.Context, in *gen.GetUserPlacesRequest, opts ...grpc.CallOption) (*gen.GetAllAdsResponseList, error)
-	MockDeleteAdImage    func(ctx context.Context, in *gen.DeleteAdImageRequest, opts ...grpc.CallOption) (*gen.DeleteResponse, error)
-}
-
-func (m *MockClient) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequest, opts ...grpc.CallOption) (*gen.GetAllAdsResponseList, error) {
-	return m.MockGetAllPlaces(ctx, in, opts...)
-}
-
-func (m *MockClient) GetOnePlace(ctx context.Context, in *gen.GetPlaceByIdRequest, opts ...grpc.CallOption) (*gen.GetAllAdsResponse, error) {
-	return m.GetOnePlace(ctx, in, opts...)
-}
-
-func (m *MockClient) CreatePlace(ctx context.Context, in *gen.CreateAdRequest, opts ...grpc.CallOption) (*gen.Ad, error) {
-	return m.CreatePlace(ctx, in, opts...)
-}
-
-func (m *MockClient) UpdatePlace(ctx context.Context, in *gen.UpdateAdRequest, opts ...grpc.CallOption) (*gen.AdResponse, error) {
-	return m.UpdatePlace(ctx, in, opts...)
-}
-
-func (m *MockClient) DeletePlace(ctx context.Context, in *gen.DeletePlaceRequest, opts ...grpc.CallOption) (*gen.DeleteResponse, error) {
-	return m.DeletePlace(ctx, in, opts...)
-}
-
-func (m *MockClient) GetPlacesPerCity(ctx context.Context, in *gen.GetPlacesPerCityRequest, opts ...grpc.CallOption) (*gen.GetAllAdsResponseList, error) {
-	return m.GetPlacesPerCity(ctx, in, opts...)
-}
-
-func (m *MockClient) GetUserPlaces(ctx context.Context, in *gen.GetUserPlacesRequest, opts ...grpc.CallOption) (*gen.GetAllAdsResponseList, error) {
-	return m.GetUserPlaces(ctx, in, opts...)
-}
-
-func (m *MockClient) DeleteAdImage(ctx context.Context, in *gen.DeleteAdImageRequest, opts ...grpc.CallOption) (*gen.DeleteResponse, error) {
-	return m.DeleteAdImage(ctx, in, opts...)
 }
