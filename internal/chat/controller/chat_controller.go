@@ -4,6 +4,7 @@ import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/chat/usecase"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
 	"context"
@@ -43,7 +44,17 @@ var (
 func (cc *ChatHandler) SetConnection(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
-
+	var err error
+	statusCode := http.StatusOK
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+	}()
 	logger.AccessLogger.Info("Received RegisterUser request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
@@ -127,7 +138,17 @@ func (cc *ChatHandler) GetAllChats(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
-
+	var err error
+	statusCode := http.StatusOK
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+	}()
 	logger.AccessLogger.Info("Received RegisterUser request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
@@ -137,7 +158,6 @@ func (cc *ChatHandler) GetAllChats(w http.ResponseWriter, r *http.Request) {
 	var (
 		lastTimeQuery = r.URL.Query().Get("lastTime")
 		lastTime      time.Time
-		err           error
 	)
 
 	if lastTimeQuery == "" {
@@ -207,16 +227,27 @@ func (cc *ChatHandler) GetChat(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
 
-	logger.AccessLogger.Info("Received RegisterUser request",
-		zap.String("request_id", requestID),
-		zap.String("method", r.Method),
-		zap.String("url", r.URL.String()),
-	)
-
 	var (
 		lastTimeQuery = r.URL.Query().Get("lastTime")
 		lastTime      time.Time
 		err           error
+	)
+
+	statusCode := http.StatusOK
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode)).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+	}()
+
+	logger.AccessLogger.Info("Received RegisterUser request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
 	)
 
 	if lastTimeQuery == "" {
@@ -277,7 +308,7 @@ func (cc *ChatHandler) GetChat(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-func (cc *ChatHandler) handleError(w http.ResponseWriter, err error, requestID string) {
+func (cc *ChatHandler) handleError(w http.ResponseWriter, err error, requestID string) int {
 	logger.AccessLogger.Error("Handling error",
 		zap.String("request_id", requestID),
 		zap.Error(err),
@@ -285,22 +316,23 @@ func (cc *ChatHandler) handleError(w http.ResponseWriter, err error, requestID s
 
 	w.Header().Set("Content-Type", "application/json")
 	errorResponse := map[string]string{"error": err.Error()}
-
+	var status int
 	switch err.Error() {
 	case "error fetching chats", "error fetching messages",
 		"failed to generate session id", "failed to save session", "error generating random bytes for session ID",
 		"failed to delete session", "failed to get session id from request cookie":
 		w.WriteHeader(http.StatusInternalServerError)
-
+		status = http.StatusInternalServerError
 	case "error sending message",
 		"failed to parse lastTime":
 		w.WriteHeader(http.StatusBadRequest)
-
+		status = http.StatusBadRequest
 	case "session not found", "user ID not found in session":
 		w.WriteHeader(http.StatusUnauthorized)
-
+		status = http.StatusUnauthorized
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
+		status = http.StatusInternalServerError
 	}
 
 	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
@@ -310,4 +342,5 @@ func (cc *ChatHandler) handleError(w http.ResponseWriter, err error, requestID s
 		)
 		http.Error(w, jsonErr.Error(), http.StatusInternalServerError)
 	}
+	return status
 }

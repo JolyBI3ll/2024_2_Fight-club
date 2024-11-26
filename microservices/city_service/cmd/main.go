@@ -2,15 +2,18 @@ package main
 
 import (
 	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	grpcCity "2024_2_FIGHT-CLUB/microservices/city_service/controller"
 	generatedCity "2024_2_FIGHT-CLUB/microservices/city_service/controller/gen"
 	cityRepository "2024_2_FIGHT-CLUB/microservices/city_service/repository"
 	cityUseCase "2024_2_FIGHT-CLUB/microservices/city_service/usecase"
 	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"log"
 	"net"
+	"net/http"
 	"os"
 )
 
@@ -23,6 +26,18 @@ func main() {
 	// Инициализация зависимостей
 	middleware.InitRedis()
 	db := middleware.DbConnect()
+
+	// Инициализация метрик
+	metrics.InitMetrics()
+
+	// Экспозиция метрик на порту 9093
+	go func() {
+		http.Handle("/api/metrics", promhttp.Handler())
+		log.Println("Metrics server is running on :9093")
+		if err := http.ListenAndServe(":9093", nil); err != nil {
+			log.Fatalf("Failed to start metrics server: %v", err)
+		}
+	}()
 
 	// Инициализация логгеров
 	if err := logger.InitLoggers(); err != nil {
@@ -38,7 +53,9 @@ func main() {
 	citiesUseCase := cityUseCase.NewCityUseCase(citiesRepository)
 	cityServer := grpcCity.NewGrpcCityHandler(citiesUseCase)
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(middleware.UnaryMetricsInterceptor),
+	)
 	generatedCity.RegisterCityServiceServer(grpcServer, cityServer)
 
 	// Запуск gRPC сервера

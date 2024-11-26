@@ -35,13 +35,14 @@ message Metadata {
 message MetadataOneUser{
   string uuid = 1;
   string username = 2;
-  string name = 5;
-  float score = 6;
-  string avatar = 7;
-  string sex = 8;
-  int32 guest_count = 9;
-  google.protobuf.Timestamp birthdate = 10;
-  bool is_host = 11;
+  string email = 3;
+  string name = 4;
+  float score = 5;
+  string avatar = 6;
+  string sex = 7;
+  int32 guest_count = 8;
+  google.protobuf.Timestamp birthdate = 9;
+  bool is_host = 10;
 }
 
 message logoutRequest {

@@ -4,6 +4,7 @@ import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/reviews/usecase"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
 	"encoding/json"
@@ -35,6 +36,17 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	sanitizer := bluemonday.UGCPolicy()
 	defer cancel()
+	var err error
+	statusCode := http.StatusCreated
+	defer func() {
+		if statusCode == http.StatusCreated {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusCreated)).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
@@ -52,7 +64,7 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -62,7 +74,7 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("missing X-CSRF-Token header")),
 		)
-		rh.handleError(w, errors.New("missing X-CSRF-Token header"), requestID)
+		statusCode = rh.handleError(w, errors.New("missing X-CSRF-Token header"), requestID)
 		return
 	}
 
@@ -70,14 +82,14 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 	_, err = rh.jwtToken.Validate(tokenString, sessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, errors.New("invalid JWT token"), requestID)
+		statusCode = rh.handleError(w, errors.New("invalid JWT token"), requestID)
 		return
 	}
 
 	userId, err := rh.sessionService.GetUserID(ctx, sessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to get user ID", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -85,7 +97,7 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
 		logger.AccessLogger.Warn("Failed to unmarshal review", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -97,7 +109,7 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 	err = rh.usecase.CreateReview(ctx, &review, userId)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to create review", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -107,7 +119,7 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		logger.AccessLogger.Warn("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -125,6 +137,17 @@ func (rh *ReviewHandler) GetUserReviews(w http.ResponseWriter, r *http.Request) 
 	ctx, cancel := middleware.WithTimeout(r.Context())
 
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+	}()
 	userId := mux.Vars(r)["userId"]
 	sanitizer := bluemonday.UGCPolicy()
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
@@ -140,19 +163,18 @@ func (rh *ReviewHandler) GetUserReviews(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
 	var reviews []domain.UserReviews
-	var err error
 
 	reviews, err = rh.usecase.GetUserReviews(ctx, userId)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to get user reviews", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(reviews); err != nil {
 		logger.AccessLogger.Warn("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 	duration := time.Since(start)
@@ -169,6 +191,17 @@ func (rh *ReviewHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+	}()
 
 	hostId := mux.Vars(r)["hostId"]
 	hostId = sanitizer.Sanitize(hostId)
@@ -185,7 +218,7 @@ func (rh *ReviewHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -195,7 +228,7 @@ func (rh *ReviewHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("missing X-CSRF-Token header")),
 		)
-		rh.handleError(w, errors.New("missing X-CSRF-Token header"), requestID)
+		statusCode = rh.handleError(w, errors.New("missing X-CSRF-Token header"), requestID)
 		return
 	}
 
@@ -203,21 +236,21 @@ func (rh *ReviewHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
 	_, err = rh.jwtToken.Validate(tokenString, sessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, errors.New("invalid JWT token"), requestID)
+		statusCode = rh.handleError(w, errors.New("invalid JWT token"), requestID)
 		return
 	}
 
 	userId, err := rh.sessionService.GetUserID(ctx, sessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to get user ID", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
 	err = rh.usecase.DeleteReview(ctx, userId, hostId)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to delete review", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -225,7 +258,7 @@ func (rh *ReviewHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode("response: deleted successfully"); err != nil {
 		logger.AccessLogger.Warn("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -241,6 +274,17 @@ func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+	}()
 	sanitizer := bluemonday.UGCPolicy()
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
@@ -259,7 +303,7 @@ func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -269,7 +313,7 @@ func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("missing X-CSRF-Token header")),
 		)
-		rh.handleError(w, errors.New("missing X-CSRF-Token header"), requestID)
+		statusCode = rh.handleError(w, errors.New("missing X-CSRF-Token header"), requestID)
 		return
 	}
 
@@ -277,21 +321,21 @@ func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 	_, err = rh.jwtToken.Validate(tokenString, sessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, errors.New("invalid JWT token"), requestID)
+		statusCode = rh.handleError(w, errors.New("invalid JWT token"), requestID)
 		return
 	}
 
 	userId, err := rh.sessionService.GetUserID(ctx, sessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to get user ID", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
 	var updatedReview domain.Review
 	if err := json.NewDecoder(r.Body).Decode(&updatedReview); err != nil {
 		logger.AccessLogger.Warn("Failed to unmarshal review", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -303,7 +347,7 @@ func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 	err = rh.usecase.UpdateReview(ctx, userId, hostId, &updatedReview)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to update review", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -311,7 +355,7 @@ func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode("response: updated successfully"); err != nil {
 		logger.AccessLogger.Warn("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		rh.handleError(w, err, requestID)
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -323,12 +367,12 @@ func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-func (rh *ReviewHandler) handleError(w http.ResponseWriter, err error, requestID string) {
+func (rh *ReviewHandler) handleError(w http.ResponseWriter, err error, requestID string) int {
 	logger.AccessLogger.Error("Handling error",
 		zap.String("request_id", requestID),
 		zap.Error(err),
 	)
-
+	var statusCode int
 	w.Header().Set("Content-Type", "application/json")
 	errorResponse := map[string]string{"error": err.Error()}
 
@@ -336,17 +380,21 @@ func (rh *ReviewHandler) handleError(w http.ResponseWriter, err error, requestID
 	case "input contains invalid characters",
 		"score out of range",
 		"input exceeds character limit":
+
 		w.WriteHeader(http.StatusBadRequest)
+		statusCode = http.StatusBadRequest
 
 	case "host and user are the same",
 		"review already exist":
 		w.WriteHeader(http.StatusConflict)
+		statusCode = http.StatusConflict
 
 	case "user not found",
 		"review not found",
 		"session not found",
 		"no reviews found":
 		w.WriteHeader(http.StatusNotFound)
+		statusCode = http.StatusNotFound
 
 	case "token invalid",
 		"token expired",
@@ -354,6 +402,7 @@ func (rh *ReviewHandler) handleError(w http.ResponseWriter, err error, requestID
 		"missing X-CSRF-Token header",
 		"invalid JWT token":
 		w.WriteHeader(http.StatusUnauthorized)
+		statusCode = http.StatusUnauthorized
 
 	case "failed to generate session id",
 		"failed to save session",
@@ -369,9 +418,11 @@ func (rh *ReviewHandler) handleError(w http.ResponseWriter, err error, requestID
 		"error fetching reviews",
 		"error fetching user by ID":
 		w.WriteHeader(http.StatusInternalServerError)
+		statusCode = http.StatusInternalServerError
 
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
+		statusCode = http.StatusInternalServerError
 	}
 
 	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
@@ -381,4 +432,5 @@ func (rh *ReviewHandler) handleError(w http.ResponseWriter, err error, requestID
 		)
 		http.Error(w, jsonErr.Error(), http.StatusInternalServerError)
 	}
+	return statusCode
 }

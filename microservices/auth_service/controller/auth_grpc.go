@@ -250,6 +250,7 @@ func (h *GrpcAuthHandler) GetUserById(ctx context.Context, in *gen.GetUserByIdRe
 		Uuid:       user.UUID,
 		Username:   user.Username,
 		Name:       user.Name,
+		Email:      user.Email,
 		Score:      float32(user.Score),
 		Avatar:     user.Avatar,
 		Sex:        user.Sex,
@@ -281,6 +282,7 @@ func (h *GrpcAuthHandler) GetAllUsers(ctx context.Context, in *gen.Empty) (*gen.
 		userMetadata = append(userMetadata, &gen.MetadataOneUser{
 			Uuid:       user.UUID,
 			Username:   user.Username,
+			Email:      user.Email,
 			Name:       user.Name,
 			Score:      float32(user.Score),
 			Avatar:     user.Avatar,

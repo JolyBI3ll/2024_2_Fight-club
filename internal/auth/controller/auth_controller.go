@@ -3,6 +3,7 @@ package controller
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
 	"2024_2_FIGHT-CLUB/microservices/auth_service/controller/gen"
@@ -38,6 +39,17 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusCreated
+	defer func() {
+		if statusCode == http.StatusCreated {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusCreated)).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+	}()
 
 	logger.AccessLogger.Info("Received RegisterUser request",
 		zap.String("request_id", requestID),
@@ -51,7 +63,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -68,7 +80,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		)
 		st, ok := status.FromError(err)
 		if ok {
-			h.handleError(w, errors.New(st.Message()), requestID)
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
 		}
 
 		return
@@ -107,15 +119,14 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
-
-	duration := time.Since(start)
+	duration := time.Since(start).Seconds()
 	logger.AccessLogger.Info("Completed RegisterUser request",
 		zap.String("request_id", requestID),
-		zap.Duration("duration", duration),
-		zap.Int("status", http.StatusCreated),
+		zap.Duration("duration", time.Duration(duration)),
+		zap.Int("status", http.StatusOK),
 	)
 }
 
@@ -124,6 +135,17 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+	}()
 
 	logger.AccessLogger.Info("Received LoginUser request",
 		zap.String("request_id", requestID),
@@ -137,7 +159,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -147,7 +169,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("csrf_token already exists")),
 		)
-		h.handleError(w, errors.New("csrf_token already exists"), requestID)
+		statusCode = h.handleError(w, errors.New("csrf_token already exists"), requestID)
 		return
 	}
 
@@ -162,7 +184,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		)
 		st, ok := status.FromError(err)
 		if ok {
-			h.handleError(w, errors.New(st.Message()), requestID)
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
 		}
 		return
 	}
@@ -200,7 +222,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -217,6 +239,17 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+	}()
 
 	logger.AccessLogger.Info("Received LogoutUser request",
 		zap.String("request_id", requestID),
@@ -229,7 +262,7 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 	authHeader := r.Header.Get("X-CSRF-Token")
@@ -245,7 +278,7 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 		)
 		st, ok := status.FromError(err)
 		if ok {
-			h.handleError(w, errors.New(st.Message()), requestID)
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
 		}
 		return
 	}
@@ -278,7 +311,7 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -295,6 +328,17 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+	}()
 
 	logger.AccessLogger.Info("Received PutUser request",
 		zap.String("request_id", requestID),
@@ -307,7 +351,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 	authHeader := r.Header.Get("X-CSRF-Token")
@@ -315,7 +359,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	err = r.ParseMultipartForm(10 << 20)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to parse multipart form", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 	metadata := r.FormValue("metadata")
@@ -327,7 +371,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, errors.New("invalid metadata JSON"), requestID)
+		statusCode = h.handleError(w, errors.New("invalid metadata JSON"), requestID)
 		return
 	}
 	var fileBytes []byte
@@ -339,7 +383,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 			logger.AccessLogger.Error("Failed to open avatar file",
 				zap.String("request_id", requestID),
 				zap.Error(err))
-			h.handleError(w, err, requestID)
+			statusCode = h.handleError(w, err, requestID)
 			return
 		}
 		defer file.Close()
@@ -349,7 +393,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 			logger.AccessLogger.Error("Failed to read avatar file",
 				zap.String("request_id", requestID),
 				zap.Error(err))
-			h.handleError(w, err, requestID)
+			statusCode = h.handleError(w, err, requestID)
 			return
 		}
 	}
@@ -379,7 +423,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		)
 		st, ok := status.FromError(err)
 		if ok {
-			h.handleError(w, errors.New(st.Message()), requestID)
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
 		}
 		return
 	}
@@ -391,7 +435,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -409,6 +453,17 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	userId := mux.Vars(r)["userId"]
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+	}()
 
 	logger.AccessLogger.Info("Received GetUserById request",
 		zap.String("request_id", requestID),
@@ -425,7 +480,7 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 			zap.Error(err))
 		st, ok := status.FromError(err)
 		if ok {
-			h.handleError(w, errors.New(st.Message()), requestID)
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
 		}
 		return
 	}
@@ -433,6 +488,7 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	response := &domain.UserDataResponse{
 		Uuid:       user.User.Uuid,
 		Username:   user.User.Username,
+		Email:      user.User.Email,
 		Name:       user.User.Name,
 		Score:      math.Round(float64(user.User.Score)*10) / 10,
 		Avatar:     user.User.Avatar,
@@ -449,7 +505,7 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -466,6 +522,17 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+	}()
 
 	logger.AccessLogger.Info("Received GetAllUsers request",
 		zap.String("request_id", requestID),
@@ -481,7 +548,7 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		)
 		st, ok := status.FromError(err)
 		if ok {
-			h.handleError(w, errors.New(st.Message()), requestID)
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
 		}
 		return
 	}
@@ -491,6 +558,7 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		body = append(body, &domain.UserDataResponse{
 			Uuid:       user.Uuid,
 			Username:   user.Username,
+			Email:      user.Email,
 			Name:       user.Name,
 			Score:      math.Round(float64(user.Score)*10) / 10,
 			Avatar:     user.Avatar,
@@ -510,7 +578,7 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -527,6 +595,17 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+	}()
 
 	logger.AccessLogger.Info("Received GetSessionData request",
 		zap.String("request_id", requestID),
@@ -539,7 +618,7 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -553,7 +632,7 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 		)
 		st, ok := status.FromError(err)
 		if ok {
-			h.handleError(w, errors.New(st.Message()), requestID)
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
 		}
 		return
 	}
@@ -565,7 +644,7 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -582,6 +661,17 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
@@ -596,7 +686,7 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 	newCsrfToken, err := h.client.RefreshCsrfToken(ctx, &gen.RefreshCsrfTokenRequest{
@@ -609,7 +699,7 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 		)
 		st, ok := status.FromError(err)
 		if ok {
-			h.handleError(w, errors.New(st.Message()), requestID)
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
 		}
 		return
 	}
@@ -627,7 +717,7 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to encode CSRF token",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -639,7 +729,7 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID string) {
+func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID string) int {
 	logger.AccessLogger.Error("Handling error",
 		zap.String("request_id", requestID),
 		zap.Error(err),
@@ -647,7 +737,7 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 
 	w.Header().Set("Content-Type", "application/json")
 	errorResponse := map[string]string{"error": err.Error()}
-
+	var statusCode int
 	switch err.Error() {
 	case "username, password, and email are required",
 		"username and password are required",
@@ -662,17 +752,20 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 		"invalid type for id in session data",
 		"invalid type for avatar in session data":
 		w.WriteHeader(http.StatusBadRequest)
+		statusCode = http.StatusBadRequest
 
 	case "user already exists",
 		"email already exists",
 		"session already exists",
 		"already logged in":
 		w.WriteHeader(http.StatusConflict)
+		statusCode = http.StatusConflict
 
 	case "no active session",
 		"session not found",
 		"user ID not found in session":
 		w.WriteHeader(http.StatusUnauthorized)
+		statusCode = http.StatusUnauthorized
 
 	case "user not found",
 		"error fetching user by ID",
@@ -680,6 +773,7 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 		"error fetching user by email",
 		"there is none user in db":
 		w.WriteHeader(http.StatusNotFound)
+		statusCode = http.StatusNotFound
 
 	case "error creating user",
 		"error saving user",
@@ -702,9 +796,11 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 		"token expired",
 		"bad sign method":
 		w.WriteHeader(http.StatusInternalServerError)
+		statusCode = http.StatusInternalServerError
 
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
+		statusCode = http.StatusInternalServerError
 	}
 
 	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
@@ -714,4 +810,5 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 		)
 		http.Error(w, jsonErr.Error(), http.StatusInternalServerError)
 	}
+	return statusCode
 }

@@ -31,6 +31,7 @@ type UserResponce struct {
 type UserDataResponse struct {
 	Uuid       string    `json:"uuid"`
 	Username   string    `json:"username"`
+	Email      string    `json:"email"`
 	Name       string    `json:"name"`
 	Score      float64   `json:"score"`
 	Avatar     string    `json:"avatar"`
