@@ -3,10 +3,14 @@ package usecase
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/microservices/ads_service/mocks"
+	"bytes"
 	"context"
 	"errors"
 	"github.com/stretchr/testify/assert"
-	"mime/multipart"
+	"image"
+	"image/color"
+	"image/jpeg"
+	"math/rand"
 	"testing"
 )
 
@@ -36,13 +40,16 @@ func TestAdUseCase_GetOnePlace(t *testing.T) {
 	useCase := NewAdUseCase(mockRepo, mockMinioService)
 
 	adID := "ad123"
+	isAutrhorized := true
 	expectedAd := domain.GetAllAdsResponse{UUID: adID, CityID: 2, AuthorUUID: "user567"}
 	mockRepo.MockGetPlaceById = func(ctx context.Context, id string) (domain.GetAllAdsResponse, error) {
 		return expectedAd, nil
 	}
-
+	mockRepo.MockUpdateViewsCount = func(ctx context.Context, ad domain.GetAllAdsResponse) (domain.GetAllAdsResponse, error) {
+		return expectedAd, nil
+	}
 	ctx := context.Background()
-	ad, err := useCase.GetOnePlace(ctx, adID)
+	ad, err := useCase.GetOnePlace(ctx, adID, isAutrhorized)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedAd, ad)
@@ -54,16 +61,17 @@ func TestAdUseCase_CreatePlace(t *testing.T) {
 	useCase := NewAdUseCase(mockRepo, mockMinioService)
 
 	newAd := domain.Ad{}
-	fileHeaders := []*multipart.FileHeader{nil, nil}
+	fileHeaders := [][]byte{}
+	userId := "user123"
 	createRequest := domain.CreateAdRequest{
 		CityName: "Los Angeles", Address: "123 Main St", Description: "Nice place", RoomsNumber: 2,
 	}
 
-	mockRepo.MockCreatePlace = func(ctx context.Context, ad *domain.Ad, req domain.CreateAdRequest) error {
+	mockRepo.MockCreatePlace = func(ctx context.Context, ad *domain.Ad, newAd domain.CreateAdRequest, userId string) error {
 		return nil
 	}
 
-	mockMinioService.UploadFileFunc = func(fileHeader *multipart.FileHeader, destinationPath string) (string, error) {
+	mockMinioService.UploadFileFunc = func(file []byte, contentType, id string) (string, error) {
 		return "uploadedPath", nil
 	}
 
@@ -72,7 +80,7 @@ func TestAdUseCase_CreatePlace(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	err := useCase.CreatePlace(ctx, &newAd, fileHeaders, createRequest)
+	err := useCase.CreatePlace(ctx, &newAd, fileHeaders, createRequest, userId)
 
 	assert.NoError(t, err)
 }
@@ -88,7 +96,7 @@ func TestAdUseCase_UpdatePlace(t *testing.T) {
 	updateRequest := domain.UpdateAdRequest{
 		CityName: "New City", Address: "456 New St", Description: "Updated description", RoomsNumber: 3,
 	}
-	fileHeaders := []*multipart.FileHeader{nil, nil}
+	fileHeaders := [][]byte{}
 
 	mockRepo.MockGetPlaceById = func(ctx context.Context, id string) (domain.GetAllAdsResponse, error) {
 		return domain.GetAllAdsResponse{UUID: adID}, nil
@@ -98,7 +106,7 @@ func TestAdUseCase_UpdatePlace(t *testing.T) {
 		return nil
 	}
 
-	mockMinioService.UploadFileFunc = func(fileHeader *multipart.FileHeader, destinationPath string) (string, error) {
+	mockMinioService.UploadFileFunc = func(file []byte, contentType, id string) (string, error) {
 		return "uploadedPath", nil
 	}
 
@@ -258,7 +266,8 @@ func TestAdUseCase_GetOnePlace_Error(t *testing.T) {
 
 	ctx := context.Background()
 	adID := "invalid_ad_id"
-	ad, err := useCase.GetOnePlace(ctx, adID)
+	isAuthorized := true
+	ad, err := useCase.GetOnePlace(ctx, adID, isAuthorized)
 
 	assert.Error(t, err)
 	assert.Equal(t, "ad not found", err.Error())
@@ -271,42 +280,110 @@ func TestAdUseCase_CreatePlace_ErrorOnCreate(t *testing.T) {
 	useCase := NewAdUseCase(mockRepo, mockMinioService)
 
 	newAd := domain.Ad{}
+	userId := "user123"
 	createRequest := domain.CreateAdRequest{
 		CityName: "Los Angeles", Address: "123 Main St", Description: "Nice place", RoomsNumber: 2,
 	}
 
-	mockRepo.MockCreatePlace = func(ctx context.Context, ad *domain.Ad, req domain.CreateAdRequest) error {
+	mockRepo.MockCreatePlace = func(ctx context.Context, ad *domain.Ad, newAd domain.CreateAdRequest, userId string) error {
 		return errors.New("creation failed")
 	}
 
 	ctx := context.Background()
-	err := useCase.CreatePlace(ctx, &newAd, nil, createRequest)
+	err := useCase.CreatePlace(ctx, &newAd, nil, createRequest, userId)
 
 	assert.Error(t, err)
 	assert.Equal(t, "creation failed", err.Error())
 }
 
-func TestAdUseCase_CreatePlace_ErrorOnUpload(t *testing.T) {
+func TestAdUseCase_CreatePlace_ErrorOnUploadImage(t *testing.T) {
 	mockRepo := &mocks.MockAdRepository{}
 	mockMinioService := &mocks.MockMinioService{}
 	useCase := NewAdUseCase(mockRepo, mockMinioService)
 
 	newAd := domain.Ad{}
-	fileHeaders := []*multipart.FileHeader{&multipart.FileHeader{}, &multipart.FileHeader{}}
+	userId := "user123"
+	fileHeaders, err := createValidFileHeaders(3)
+	if err != nil {
+		t.Fatalf("Failed to create valid files: %v", err)
+	}
+
 	createRequest := domain.CreateAdRequest{
 		CityName: "Los Angeles", Address: "123 Main St", Description: "Nice place", RoomsNumber: 2,
 	}
 
-	mockRepo.MockCreatePlace = func(ctx context.Context, ad *domain.Ad, req domain.CreateAdRequest) error {
+	mockRepo.MockCreatePlace = func(ctx context.Context, ad *domain.Ad, newAd domain.CreateAdRequest, userId string) error {
 		return nil
 	}
 
-	mockMinioService.UploadFileFunc = func(fileHeader *multipart.FileHeader, destinationPath string) (string, error) {
+	mockMinioService.UploadFileFunc = func(file []byte, contentType, id string) (string, error) {
 		return "", errors.New("upload failed")
+	}
+	mockRepo.MockSaveImages = func(ctx context.Context, adUUID string, imagePaths []string) error {
+		return errors.New("save image failed")
 	}
 
 	ctx := context.Background()
-	err := useCase.CreatePlace(ctx, &newAd, fileHeaders, createRequest)
+	err = useCase.CreatePlace(ctx, &newAd, fileHeaders, createRequest, userId)
+
+	assert.Error(t, err)
+	assert.Equal(t, "upload failed", err.Error())
+}
+
+func TestAdUseCase_CreatePlace_ErrorOnSaveImage(t *testing.T) {
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	newAd := domain.Ad{}
+	userId := "user123"
+	fileHeaders, err := createValidFileHeaders(3)
+	if err != nil {
+		t.Fatalf("Failed to create valid files: %v", err)
+	}
+
+	createRequest := domain.CreateAdRequest{
+		CityName: "Los Angeles", Address: "123 Main St", Description: "Nice place", RoomsNumber: 2,
+	}
+
+	mockRepo.MockCreatePlace = func(ctx context.Context, ad *domain.Ad, newAd domain.CreateAdRequest, userId string) error {
+		return nil
+	}
+
+	mockMinioService.UploadFileFunc = func(file []byte, contentType, id string) (string, error) {
+		return "", nil
+	}
+	mockRepo.MockSaveImages = func(ctx context.Context, adUUID string, imagePaths []string) error {
+		return errors.New("save image failed")
+	}
+
+	ctx := context.Background()
+	err = useCase.CreatePlace(ctx, &newAd, fileHeaders, createRequest, userId)
+
+	assert.Error(t, err)
+	assert.Equal(t, "save image failed", err.Error())
+}
+
+func TestAdUseCase_UpdatePlace_ErrorOnUploadImage(t *testing.T) {
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+	fileHeaders, err := createValidFileHeaders(3)
+	adID := "invalid_ad_id"
+	userID := "user456"
+	newAd := domain.Ad{}
+	updateRequest := domain.UpdateAdRequest{
+		CityName: "New City", Address: "456 New St", Description: "Updated description", RoomsNumber: 3,
+	}
+
+	mockRepo.MockGetPlaceById = func(ctx context.Context, id string) (domain.GetAllAdsResponse, error) {
+		return domain.GetAllAdsResponse{}, nil
+	}
+	mockMinioService.UploadFileFunc = func(file []byte, contentType, id string) (string, error) {
+		return "", errors.New("upload failed")
+	}
+	ctx := context.Background()
+	err = useCase.UpdatePlace(ctx, &newAd, adID, userID, fileHeaders, updateRequest)
 
 	assert.Error(t, err)
 	assert.Equal(t, "upload failed", err.Error())
@@ -356,7 +433,7 @@ func TestAdUseCase_DeletePlace_ErrorOnGet(t *testing.T) {
 func TestDeleteAdImage(t *testing.T) {
 	ctx := context.Background()
 	adId := "ad-uuid"
-	imageId := 123
+	imageId := "123"
 	userId := "user-uuid"
 	imageURL := "/images/image.jpg"
 
@@ -429,4 +506,46 @@ func TestDeleteAdImage(t *testing.T) {
 		// Проверяем результат: основная операция успешна, но возникает ошибка в логировании MinIO
 		assert.NoError(t, err)
 	})
+}
+
+func generateValidImageBytes() ([]byte, error) {
+	width, height := 100, 100
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			img.Set(x, y, randColor())
+		}
+	}
+
+	buf := new(bytes.Buffer)
+	err := jpeg.Encode(buf, img, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func randColor() color.Color {
+	return color.RGBA{
+		R: uint8(rand.Intn(256)),
+		G: uint8(rand.Intn(256)),
+		B: uint8(rand.Intn(256)),
+		A: 255,
+	}
+}
+
+func createValidFileHeaders(numFiles int) ([][]byte, error) {
+	var fileHeaders [][]byte
+
+	for i := 0; i < numFiles; i++ {
+		file, err := generateValidImageBytes()
+		if err != nil {
+			return nil, err
+		}
+		fileHeaders = append(fileHeaders, file)
+	}
+
+	return fileHeaders, nil
 }
