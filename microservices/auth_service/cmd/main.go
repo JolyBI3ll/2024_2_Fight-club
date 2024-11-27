@@ -32,7 +32,7 @@ func main() {
 
 	// Инициализация метрик
 	metrics.InitMetrics()
-
+	metrics.InitRepoMetric()
 	// Экспозиция метрик на порту 9092
 	go func() {
 		http.Handle("/api/metrics", promhttp.Handler())

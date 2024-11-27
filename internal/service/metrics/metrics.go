@@ -57,6 +57,30 @@ var (
 	)
 )
 
+var (
+	RepoRequestTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "repository_sql_total",
+			Help: "Total number of sql request",
+		},
+		[]string{"method", "status"},
+	)
+	RepoRequestDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "repo_request_duration_second",
+			Help:    "Histogram of request duration",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"method"})
+	RepoErrorsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "repo_request_errors_total",
+			Help: "Total number of errors in the repo",
+		},
+		[]string{"method", "status", "error"},
+	)
+)
+
 // InitMetrics регистрирует метрики
 func InitMetrics() {
 	prometheus.MustRegister(GrpcRequestsTotal)
@@ -68,4 +92,10 @@ func InitHttpMetric() {
 	prometheus.MustRegister(HttpRequestsTotal)
 	prometheus.MustRegister(HttpRequestDuration)
 	prometheus.MustRegister(HttpErrorsTotal)
+}
+
+func InitRepoMetric() {
+	prometheus.MustRegister(RepoRequestTotal)
+	prometheus.MustRegister(RepoRequestDuration)
+	prometheus.MustRegister(RepoErrorsTotal)
 }

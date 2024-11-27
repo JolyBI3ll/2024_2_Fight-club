@@ -47,6 +47,7 @@ func main() {
 	}()
 
 	metrics.InitHttpMetric()
+	metrics.InitRepoMetric()
 
 	authAdress := os.Getenv("AUTH_SERVICE_ADDRESS")
 	if authAdress == "" {

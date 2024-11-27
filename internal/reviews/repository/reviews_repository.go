@@ -3,12 +3,14 @@ package repository
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"context"
 	"errors"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"math"
+	"time"
 )
 
 type ReviewRepository struct {
@@ -22,9 +24,19 @@ func NewReviewRepository(db *gorm.DB) domain.ReviewRepository {
 }
 
 func (r *ReviewRepository) CreateReview(ctx context.Context, review *domain.Review) error {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("CreateReview called", zap.String("HostId", review.HostID), zap.String("request_id", requestID))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("CreateReview", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("CreateReview", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("CreateReview").Observe(duration)
+	}()
 	if err := r.db.Where("uuid = ?", review.HostID).First(&domain.User{}).Error; err != nil {
 		logger.DBLogger.Error("Error finding host", zap.String("userId", review.HostID), zap.String("request_id", requestID), zap.Error(err))
 		return errors.New("error finding host")
@@ -58,9 +70,19 @@ func (r *ReviewRepository) CreateReview(ctx context.Context, review *domain.Revi
 }
 
 func (r *ReviewRepository) GetUserReviews(ctx context.Context, userId string) ([]domain.UserReviews, error) {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("GetUserReviews called", zap.String("request_id", requestID), zap.String("userID", userId))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("GetUserReviews", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("GetUserReviews", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("GetUserReviews").Observe(duration)
+	}()
 	var user domain.User
 	var reviews []domain.UserReviews
 	if err := r.db.Where("uuid = ?", userId).First(&user).Error; err != nil {
@@ -91,9 +113,19 @@ func (r *ReviewRepository) GetUserReviews(ctx context.Context, userId string) ([
 }
 
 func (r *ReviewRepository) DeleteReview(ctx context.Context, userID, hostID string) error {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("DeleteReview called", zap.String("userID", userID), zap.String("hostID", hostID), zap.String("request_id", requestID))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("DeleteReview", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("DeleteReview", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("DeleteReview").Observe(duration)
+	}()
 	var review domain.Review
 	if err := r.db.Where("\"userId\" = ? AND \"hostId\" = ?", userID, hostID).First(&review).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -119,9 +151,19 @@ func (r *ReviewRepository) DeleteReview(ctx context.Context, userID, hostID stri
 }
 
 func (r *ReviewRepository) UpdateReview(ctx context.Context, userID, hostID string, updatedReview *domain.Review) error {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("UpdateReview called", zap.String("userID", userID), zap.String("hostID", hostID), zap.String("request_id", requestID))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("UpdateReview", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("UpdateReview", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("UpdateReview").Observe(duration)
+	}()
 	var existingReview domain.Review
 	if err := r.db.Where("\"userId\" = ? AND \"hostId\" = ?", userID, hostID).First(&existingReview).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -152,8 +194,19 @@ func (r *ReviewRepository) UpdateReview(ctx context.Context, userID, hostID stri
 }
 
 func (r *ReviewRepository) updateHostScore(ctx context.Context, hostID string) error {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("updateHostScore called", zap.String("HostId", hostID), zap.String("request_id", requestID))
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("updateHostScore", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("updateHostScore", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("updateHostScore").Observe(duration)
+	}()
 	var reviews []domain.Review
 	if err := r.db.Where("\"hostId\" = ?", hostID).Find(&reviews).Error; err != nil {
 		logger.DBLogger.Error("Failed to fetch reviews for host", zap.String("hostId", hostID), zap.String("request_id", requestID), zap.Error(err))

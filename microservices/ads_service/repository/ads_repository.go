@@ -3,6 +3,7 @@ package repository
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"context"
 	"errors"
@@ -23,8 +24,19 @@ func NewAdRepository(db *gorm.DB) domain.AdRepository {
 }
 
 func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error) {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("GetAllPlaces called", zap.String("request_id", requestID))
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("GetAllPlaces", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("GetAllPlaces", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("GetAllPlaces").Observe(duration)
+	}()
 	var ads []domain.GetAllAdsResponse
 
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
@@ -126,9 +138,19 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 }
 
 func (r *adRepository) GetPlaceById(ctx context.Context, adId string) (domain.GetAllAdsResponse, error) {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("GetPlaceById called", zap.String("adId", adId), zap.String("request_id", requestID))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("GetPlaceById", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("GetPlaceById", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("GetPlaceById").Observe(duration)
+	}()
 	var ad domain.GetAllAdsResponse
 
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").
@@ -144,7 +166,7 @@ func (r *adRepository) GetPlaceById(ctx context.Context, adId string) (domain.Ge
 
 	var images []domain.Image
 	var user domain.User
-	err := r.db.Model(&domain.Image{}).Where("\"adId\" = ?", ad.UUID).Find(&images).Error
+	err = r.db.Model(&domain.Image{}).Where("\"adId\" = ?", ad.UUID).Find(&images).Error
 	if err != nil {
 		logger.DBLogger.Error("Error fetching images for ad", zap.String("request_id", requestID), zap.Error(err))
 		return ad, errors.New("error fetching images for ad")
@@ -179,10 +201,21 @@ func (r *adRepository) GetPlaceById(ctx context.Context, adId string) (domain.Ge
 }
 
 func (r *adRepository) UpdateViewsCount(ctx context.Context, ad domain.GetAllAdsResponse) (domain.GetAllAdsResponse, error) {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("UpdateViewsCount called", zap.String("adId", ad.UUID), zap.String("request_id", requestID))
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("GetPlaceById", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("GetPlaceById", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("GetPlaceById").Observe(duration)
+	}()
 	ad.ViewsCount += 1
-	err := r.db.Model(&domain.Ad{}).Where("uuid = ?", ad.UUID).Updates(&ad).Error
+	err = r.db.Model(&domain.Ad{}).Where("uuid = ?", ad.UUID).Updates(&ad).Error
 	if err != nil {
 		logger.DBLogger.Error("Error updating views count", zap.String("request_id", requestID), zap.Error(err))
 		return ad, errors.New("error updating views count")
@@ -192,8 +225,19 @@ func (r *adRepository) UpdateViewsCount(ctx context.Context, ad domain.GetAllAds
 }
 
 func (r *adRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd domain.CreateAdRequest, userId string) error {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("CreatePlace called", zap.String("adId", ad.UUID), zap.String("request_id", requestID))
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("CreatePlace", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("CreatePlace", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("CreatePlace").Observe(duration)
+	}()
 	var city domain.City
 	var user domain.User
 	var date domain.AdAvailableDate
@@ -233,8 +277,19 @@ func (r *adRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd dom
 }
 
 func (r *adRepository) SavePlace(ctx context.Context, ad *domain.Ad) error {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("SavePlace called", zap.String("adId", ad.UUID), zap.String("request_id", requestID))
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("SavePlace", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("SavePlace", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("SavePlace").Observe(duration)
+	}()
 	if err := r.db.Save(ad).Error; err != nil {
 		logger.DBLogger.Error("Error saving place", zap.String("adId", ad.UUID), zap.String("request_id", requestID), zap.Error(err))
 		return errors.New("error saving place")
@@ -244,9 +299,19 @@ func (r *adRepository) SavePlace(ctx context.Context, ad *domain.Ad) error {
 }
 
 func (r *adRepository) UpdatePlace(ctx context.Context, ad *domain.Ad, adId string, userId string, updatedPlace domain.UpdateAdRequest) error {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("UpdatePlace called", zap.String("adId", adId), zap.String("userId", userId), zap.String("request_id", requestID))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("UpdatePlace", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("UpdatePlace", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("UpdatePlace").Observe(duration)
+	}()
 	var oldAd domain.Ad
 	var oldDate domain.AdAvailableDate
 	if err := r.db.Where("uuid = ?", adId).First(&oldAd).Error; err != nil {
@@ -287,9 +352,19 @@ func (r *adRepository) UpdatePlace(ctx context.Context, ad *domain.Ad, adId stri
 }
 
 func (r *adRepository) DeletePlace(ctx context.Context, adId string, userId string) error {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("DeletePlace called", zap.String("adId", adId), zap.String("userId", userId), zap.String("request_id", requestID))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("DeletePlace", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("DeletePlace", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("DeletePlace").Observe(duration)
+	}()
 	var ad domain.Ad
 	if err := r.db.Where("uuid = ?", adId).First(&ad).Error; err != nil {
 		logger.DBLogger.Error("Ad not found", zap.String("adId", adId), zap.String("request_id", requestID))
@@ -331,9 +406,19 @@ func (r *adRepository) DeletePlace(ctx context.Context, adId string, userId stri
 }
 
 func (r *adRepository) GetPlacesPerCity(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error) {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("GetPlacesPerCity called", zap.String("city", city), zap.String("request_id", requestID))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("GetPlacesPerCity", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("GetPlacesPerCity", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("GetPlacesPerCity").Observe(duration)
+	}()
 	var ads []domain.GetAllAdsResponse
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
 		Select("ads.*, cities.title as \"CityName\"").Where("cities.\"enTitle\" = ?", city)
@@ -376,7 +461,18 @@ func (r *adRepository) GetPlacesPerCity(ctx context.Context, city string) ([]dom
 }
 
 func (r *adRepository) SaveImages(ctx context.Context, adUUID string, imagePaths []string) error {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("GetPlacesPerCity", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("GetPlacesPerCity", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("GetPlacesPerCity").Observe(duration)
+	}()
 	for _, path := range imagePaths {
 		image := domain.Image{
 			AdID:     adUUID,
@@ -391,12 +487,22 @@ func (r *adRepository) SaveImages(ctx context.Context, adUUID string, imagePaths
 }
 
 func (r *adRepository) GetAdImages(ctx context.Context, adId string) ([]string, error) {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("GetAdImages called", zap.String("request_id", requestID), zap.String("adId", adId))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("GetAdImages", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("GetAdImages", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("GetAdImages").Observe(duration)
+	}()
 	var imageUrls []string
 
-	err := r.db.Model(&domain.Image{}).Where("\"adId\" = ?", adId).Pluck("imageUrl", &imageUrls).Error
+	err = r.db.Model(&domain.Image{}).Where("\"adId\" = ?", adId).Pluck("imageUrl", &imageUrls).Error
 	if err != nil {
 		logger.DBLogger.Error("Error fetching images for ad", zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("error fetching images for ad")
@@ -407,9 +513,19 @@ func (r *adRepository) GetAdImages(ctx context.Context, adId string) ([]string, 
 }
 
 func (r *adRepository) GetUserPlaces(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("GetUserPlaces called", zap.String("city", userId), zap.String("request_id", requestID))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("GetUserPlaces", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("GetUserPlaces", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("GetUserPlaces").Observe(duration)
+	}()
 	var ads []domain.GetAllAdsResponse
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
 		Select("ads.*, users.avatar, users.name, users.score as rating, cities.title as \"CityName\"").Where("users.uuid = ?", userId)
@@ -439,9 +555,19 @@ func (r *adRepository) GetUserPlaces(ctx context.Context, userId string) ([]doma
 }
 
 func (r *adRepository) DeleteAdImage(ctx context.Context, adId string, imageId int, userId string) (string, error) {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("DeleteAdImage called", zap.String("ad", adId), zap.Int("image", imageId), zap.String("request_id", requestID))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("DeleteAdImage", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("DeleteAdImage", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("DeleteAdImage").Observe(duration)
+	}()
 	var ad domain.Ad
 	if err := r.db.First(&ad, "uuid = ?", adId).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
