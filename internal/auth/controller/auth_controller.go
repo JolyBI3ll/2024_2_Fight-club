@@ -41,14 +41,20 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	var err error
 	statusCode := http.StatusCreated
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusCreated {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusCreated)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	logger.AccessLogger.Info("Received RegisterUser request",
@@ -137,14 +143,20 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	var err error
 	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	logger.AccessLogger.Info("Received LoginUser request",
@@ -241,14 +253,20 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	var err error
 	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	logger.AccessLogger.Info("Received LogoutUser request",
@@ -330,16 +348,21 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	var err error
 	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
-
 	logger.AccessLogger.Info("Received PutUser request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
@@ -455,14 +478,20 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	var err error
 	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	logger.AccessLogger.Info("Received GetUserById request",
@@ -524,14 +553,20 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	var err error
 	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	logger.AccessLogger.Info("Received GetAllUsers request",
@@ -597,14 +632,20 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	var err error
 	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	logger.AccessLogger.Info("Received GetSessionData request",
@@ -663,14 +704,20 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	var err error
 	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)

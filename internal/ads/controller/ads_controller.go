@@ -40,14 +40,21 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 
 	statusCode := http.StatusOK
 	var err error
+
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
@@ -110,14 +117,20 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 
 	statusCode := http.StatusOK
 	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
@@ -184,14 +197,20 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 
 	statusCode := http.StatusCreated
 	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusCreated {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
@@ -303,14 +322,20 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 
 	statusCode := http.StatusOK
 	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
@@ -416,14 +441,20 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 
 	statusCode := http.StatusOK
 	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
@@ -478,14 +509,20 @@ func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 
 	statusCode := http.StatusOK
 	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
@@ -534,14 +571,20 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 
 	statusCode := http.StatusOK
 	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
@@ -589,14 +632,20 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 
 	statusCode := http.StatusOK
 	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)

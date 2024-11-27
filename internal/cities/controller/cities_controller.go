@@ -39,14 +39,20 @@ func (h *CityHandler) GetCities(w http.ResponseWriter, r *http.Request) {
 
 	statusCode := http.StatusOK
 	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	cities, err := h.client.GetCities(ctx, &gen.GetCitiesRequest{})
@@ -95,14 +101,20 @@ func (h *CityHandler) GetOneCity(w http.ResponseWriter, r *http.Request) {
 
 	statusCode := http.StatusOK
 	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	cityEnName := mux.Vars(r)["city"]

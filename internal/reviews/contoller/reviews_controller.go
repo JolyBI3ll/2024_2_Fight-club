@@ -38,14 +38,20 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	var err error
 	statusCode := http.StatusCreated
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusCreated {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusCreated)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
@@ -139,14 +145,20 @@ func (rh *ReviewHandler) GetUserReviews(w http.ResponseWriter, r *http.Request) 
 	defer cancel()
 	var err error
 	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 	userId := mux.Vars(r)["userId"]
 	sanitizer := bluemonday.UGCPolicy()
@@ -193,14 +205,20 @@ func (rh *ReviewHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	var err error
 	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
 	hostId := mux.Vars(r)["hostId"]
@@ -276,14 +294,20 @@ func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	var err error
 	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
 	defer func() {
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(http.StatusOK)).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error()).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 	sanitizer := bluemonday.UGCPolicy()
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)

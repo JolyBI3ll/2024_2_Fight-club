@@ -37,7 +37,7 @@ var (
 			Name: "http_requests_total",
 			Help: "Total number of HTTP requests",
 		},
-		[]string{"method", "url", "status"},
+		[]string{"method", "url", "status", "remote_ip"},
 	)
 	HttpRequestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -45,7 +45,7 @@ var (
 			Help:    "Histogram of request durations",
 			Buckets: prometheus.DefBuckets,
 		},
-		[]string{"method", "url"},
+		[]string{"method", "url", "remote_ip"},
 	)
 
 	HttpErrorsTotal = prometheus.NewCounterVec(

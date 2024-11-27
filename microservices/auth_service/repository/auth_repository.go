@@ -3,11 +3,13 @@ package repository
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"context"
 	"errors"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"time"
 )
 
 type authRepository struct {
@@ -21,9 +23,19 @@ func NewAuthRepository(db *gorm.DB) domain.AuthRepository {
 }
 
 func (r *authRepository) CreateUser(ctx context.Context, creds *domain.User) error {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("CreateUser called", zap.String("request_id", requestID), zap.String("username", creds.Username))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("CreateUser", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("CreateUser", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("CreateUser").Observe(duration)
+	}()
 	if err := r.db.Create(creds).Error; err != nil {
 		logger.DBLogger.Error("Error creating user", zap.String("request_id", requestID), zap.String("username", creds.Username), zap.Error(err))
 		return errors.New("error creating user")
@@ -34,8 +46,19 @@ func (r *authRepository) CreateUser(ctx context.Context, creds *domain.User) err
 }
 
 func (r *authRepository) SaveUser(ctx context.Context, creds *domain.User) error {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("SaveUser called", zap.String("request_id", requestID), zap.String("username", creds.Username))
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("SaveUser", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("SaveUser", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("SaveUser").Observe(duration)
+	}()
 	if err := r.db.Save(creds).Error; err != nil {
 		logger.DBLogger.Error("Error saving user", zap.String("request_id", requestID), zap.String("username", creds.Username), zap.Error(err))
 		return errors.New("error saving user")
@@ -46,9 +69,19 @@ func (r *authRepository) SaveUser(ctx context.Context, creds *domain.User) error
 }
 
 func (r *authRepository) PutUser(ctx context.Context, creds *domain.User, userID string) error {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("PutUser called", zap.String("request_id", requestID), zap.String("userID", userID))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("PutUser", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("PutUser", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("PutUser").Observe(duration)
+	}()
 	if err := r.db.Model(&domain.User{}).Where("UUID = ?", userID).Updates(creds).Error; err != nil {
 		logger.DBLogger.Error("Error updating user", zap.String("request_id", requestID), zap.String("userID", userID), zap.Error(err))
 		return errors.New("error updating user")
@@ -64,9 +97,19 @@ func (r *authRepository) PutUser(ctx context.Context, creds *domain.User, userID
 }
 
 func (r *authRepository) GetAllUser(ctx context.Context) ([]domain.User, error) {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("GetAllUser called", zap.String("request_id", requestID))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("GetAllUser", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("GetAllUser", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("GetAllUser").Observe(duration)
+	}()
 	var users []domain.User
 	if err := r.db.Find(&users).Error; err != nil {
 		logger.DBLogger.Error("Error fetching all users", zap.String("request_id", requestID), zap.Error(err))
@@ -78,9 +121,19 @@ func (r *authRepository) GetAllUser(ctx context.Context) ([]domain.User, error) 
 }
 
 func (r *authRepository) GetUserById(ctx context.Context, userID string) (*domain.User, error) {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("GetUserById called", zap.String("request_id", requestID), zap.String("userID", userID))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("GetUserById", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("GetUserById", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("GetUserById").Observe(duration)
+	}()
 	var user domain.User
 	if err := r.db.Where("uuid = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -98,7 +151,17 @@ func (r *authRepository) GetUserById(ctx context.Context, userID string) (*domai
 func (r *authRepository) GetUserByName(ctx context.Context, username string) (*domain.User, error) {
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("GetUserByName called", zap.String("request_id", requestID), zap.String("username", username))
-
+	start := time.Now()
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("GetUserByName", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("GetUserByName", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("GetUserByName").Observe(duration)
+	}()
 	var user domain.User
 	if err := r.db.Where("username = ?", username).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -114,9 +177,19 @@ func (r *authRepository) GetUserByName(ctx context.Context, username string) (*d
 }
 
 func (r *authRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("GetUserByEmail called", zap.String("request_id", requestID), zap.String("email", email))
-
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("GetUserByEmail", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("GetUserByEmail", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("GetUserByEmail").Observe(duration)
+	}()
 	var user domain.User
 	if err := r.db.Where("email = ?", email).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
