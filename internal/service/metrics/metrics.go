@@ -53,7 +53,7 @@ var (
 			Name: "http_service_errors_total",
 			Help: "Total number of errors in the htpp service",
 		},
-		[]string{"method", "url", "status", "error"},
+		[]string{"method", "url", "status", "error", "remote_ip"},
 	)
 )
 
