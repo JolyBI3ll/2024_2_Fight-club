@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -34,16 +35,25 @@ func NewChatController(chatUseCase usecase.ChatUseCase, sessionService session.I
 const (
 	socketBufferSize  = 1024
 	messageBufferSize = 256
+	maxConnections    = 100
+	messageRateLimit  = 5
 )
 
 var (
 	upgrader    = websocket.Upgrader{ReadBufferSize: socketBufferSize, WriteBufferSize: socketBufferSize, CheckOrigin: func(r *http.Request) bool { return true }}
 	mapUserConn = make(map[string]*Client)
+	connCounter = 0
+	mu          sync.Mutex
 )
 
 func (cc *ChatHandler) SetConnection(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
+	logger.AccessLogger.Info("Received SetConnection request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
 	var err error
 	statusCode := http.StatusOK
 	clientIP := r.RemoteAddr
@@ -52,7 +62,21 @@ func (cc *ChatHandler) SetConnection(w http.ResponseWriter, r *http.Request) {
 	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
 		clientIP = forwarded
 	}
+
+	mu.Lock()
+	if connCounter >= maxConnections {
+		mu.Unlock()
+		http.Error(w, "Too many connections", http.StatusTooManyRequests)
+		return
+	}
+	connCounter++
+	mu.Unlock()
+
 	defer func() {
+		mu.Lock()
+		connCounter--
+		mu.Unlock()
+
 		if statusCode == http.StatusOK {
 			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
 		} else {
@@ -61,39 +85,47 @@ func (cc *ChatHandler) SetConnection(w http.ResponseWriter, r *http.Request) {
 		duration := time.Since(start).Seconds()
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
-	logger.AccessLogger.Info("Received RegisterUser request",
-		zap.String("request_id", requestID),
-		zap.String("method", r.Method),
-		zap.String("url", r.URL.String()),
-	)
 
 	sess, err := session.GetSessionId(r)
 	if err != nil {
 		logger.AccessLogger.Info("Failed to get sessionId",
 			zap.String("request_id", requestID),
 			zap.Error(err))
+		cc.handleError(w, err, requestID)
+		return
+	}
+
+	UserID, err := cc.sessionService.GetUserID(r.Context(), sess)
+	if err != nil || UserID == "" {
+		logger.AccessLogger.Info("Unauthorized user",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		cc.handleError(w, err, requestID)
 		return
 	}
 
 	socket, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		cc.handleError(w, errors.New("failed to upgrade connection"), requestID)
 		logger.AccessLogger.Info("Failed to get socket",
 			zap.String("request_id", requestID),
 			zap.Error(err))
 		return
 	}
+
 	client := &Client{
 		Socket:         socket,
 		Receive:        make(chan *domain.Message, messageBufferSize),
 		ChatController: cc,
+		RateLimiter:    NewRateLimiter(messageRateLimit, time.Second, 10*time.Second),
 	}
 
-	UserID, err := cc.sessionService.GetUserID(r.Context(), sess)
 	mapUserConn[UserID] = client
 	defer func() {
 		delete(mapUserConn, UserID)
 		close(client.Receive)
 	}()
+
 	go client.Write()
 	go client.Read(UserID)
 	cc.SendChatMsg(r.Context(), requestID)
@@ -143,6 +175,11 @@ func (cc *ChatHandler) GetAllChats(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
+	logger.AccessLogger.Info("Received GetAllChats request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
 	defer cancel()
 	var err error
 	statusCode := http.StatusOK
@@ -161,11 +198,6 @@ func (cc *ChatHandler) GetAllChats(w http.ResponseWriter, r *http.Request) {
 		duration := time.Since(start).Seconds()
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
-	logger.AccessLogger.Info("Received RegisterUser request",
-		zap.String("request_id", requestID),
-		zap.String("method", r.Method),
-		zap.String("url", r.URL.String()),
-	)
 
 	var (
 		lastTimeQuery = r.URL.Query().Get("lastTime")
@@ -338,7 +370,7 @@ func (cc *ChatHandler) handleError(w http.ResponseWriter, err error, requestID s
 	switch err.Error() {
 	case "error fetching chats", "error fetching messages",
 		"failed to generate session id", "failed to save session", "error generating random bytes for session ID",
-		"failed to delete session", "failed to get session id from request cookie":
+		"failed to delete session", "failed to get session id from request cookie", "failed to upgrade connection":
 		w.WriteHeader(http.StatusInternalServerError)
 		status = http.StatusInternalServerError
 	case "error sending message",
