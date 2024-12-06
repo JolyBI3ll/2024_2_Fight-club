@@ -3,6 +3,7 @@ package controller
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
 	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
@@ -10,6 +11,7 @@ import (
 	"errors"
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"net/http"
@@ -35,6 +37,25 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+
+	statusCode := http.StatusOK
+	var err error
+
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
@@ -65,13 +86,17 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 			zap.Error(err),
 			zap.String("request_id", requestID),
 			zap.String("method", r.Method))
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
+		return
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -90,6 +115,23 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
 
+	statusCode := http.StatusOK
+	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received GetOnePlace request",
@@ -97,21 +139,20 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 		zap.String("adId", adId),
 	)
 
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	var isAuthorized bool
 
 	sessionID, err := session.GetSessionId(r)
-	if err != nil {
-		logger.AccessLogger.Error("Failed to get session ID",
+	if err != nil || sessionID == "" {
+		logger.AccessLogger.Warn("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
-		return
+		isAuthorized = false
 	}
-
-	isAuthorized := true
 
 	if _, err := h.sessionService.GetUserID(ctx, sessionID); err != nil {
 		isAuthorized = false
+	} else {
+		isAuthorized = true
 	}
 
 	place, err := h.client.GetOnePlace(ctx, &gen.GetPlaceByIdRequest{
@@ -119,16 +160,24 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 		IsAuthorized: isAuthorized,
 	})
 	if err != nil {
-		h.handleError(w, err, requestID)
+		logger.AccessLogger.Error("Failed to GetOnePlace",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
 	body := map[string]interface{}{
 		"place": place,
 	}
-	if err := json.NewEncoder(w).Encode(body); err != nil {
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusOK)
+	if err = json.NewEncoder(w).Encode(body); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -143,9 +192,26 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
-
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+
+	statusCode := http.StatusCreated
+	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusCreated {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
@@ -158,7 +224,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -169,7 +235,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	err = r.ParseMultipartForm(10 << 20) // 10 MB
 	if err != nil {
 		logger.AccessLogger.Error("Failed to parse multipart form", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -177,14 +243,14 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	var newPlace domain.CreateAdRequest
 	if err := json.Unmarshal([]byte(metadata), &newPlace); err != nil {
 		logger.AccessLogger.Error("Failed to decode metadata", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, errors.New("Failed to decode metadata"), requestID)
+		statusCode = h.handleError(w, errors.New("failed to decode metadata"), requestID)
 		return
 	}
 
 	fileHeaders := r.MultipartForm.File["images"]
 	if len(fileHeaders) == 0 {
 		logger.AccessLogger.Warn("No images", zap.String("request_id", requestID))
-		h.handleError(w, errors.New("No images provided"), requestID)
+		statusCode = h.handleError(w, errors.New("no images provided"), requestID)
 		return
 	}
 
@@ -194,7 +260,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		file, err := fileHeader.Open()
 		if err != nil {
 			logger.AccessLogger.Error("Failed to open file", zap.String("request_id", requestID), zap.Error(err))
-			h.handleError(w, errors.New("failed to open file"), requestID)
+			statusCode = h.handleError(w, errors.New("failed to open file"), requestID)
 			return
 		}
 		defer file.Close()
@@ -202,7 +268,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		data, err := io.ReadAll(file)
 		if err != nil {
 			logger.AccessLogger.Error("Failed to read file", zap.String("request_id", requestID), zap.Error(err))
-			h.handleError(w, errors.New("failed to read file"), requestID)
+			statusCode = h.handleError(w, errors.New("failed to read file"), requestID)
 			return
 		}
 
@@ -222,7 +288,10 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to create place", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -232,7 +301,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, errors.New("failed to encode response"), requestID)
+		statusCode = h.handleError(w, errors.New("failed to encode response"), requestID)
 		return
 	}
 
@@ -248,9 +317,26 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	adId := mux.Vars(r)["adId"]
-
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+
+	statusCode := http.StatusOK
+	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
@@ -263,10 +349,10 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	err := r.ParseMultipartForm(10 << 20) // 10 MB
+	err = r.ParseMultipartForm(10 << 20) // 10 MB
 	if err != nil {
 		logger.AccessLogger.Error("Failed to parse multipart form", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, errors.New("invalid multipart form"), requestID)
+		statusCode = h.handleError(w, errors.New("invalid multipart form"), requestID)
 		return
 	}
 
@@ -274,7 +360,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	var updatedPlace domain.UpdateAdRequest
 	if err := json.Unmarshal([]byte(metadata), &updatedPlace); err != nil {
 		logger.AccessLogger.Error("Failed to decode metadata", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, errors.New("invalid metadata JSON"), requestID)
+		statusCode = h.handleError(w, errors.New("invalid metadata JSON"), requestID)
 		return
 	}
 
@@ -286,7 +372,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		file, err := fileHeader.Open()
 		if err != nil {
 			logger.AccessLogger.Error("Failed to open file", zap.String("request_id", requestID), zap.Error(err))
-			h.handleError(w, errors.New("failed to open file"), requestID)
+			statusCode = h.handleError(w, errors.New("failed to open file"), requestID)
 			return
 		}
 		defer file.Close()
@@ -295,7 +381,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		data, err := io.ReadAll(file)
 		if err != nil {
 			logger.AccessLogger.Error("Failed to read file", zap.String("request_id", requestID), zap.Error(err))
-			h.handleError(w, errors.New("failed to read file"), requestID)
+			statusCode = h.handleError(w, errors.New("failed to read file"), requestID)
 			return
 		}
 		files = append(files, data)
@@ -306,7 +392,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -324,7 +410,10 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to update place", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -347,9 +436,26 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	adId := mux.Vars(r)["adId"]
-
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+
+	statusCode := http.StatusOK
+	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
@@ -367,7 +473,7 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -378,7 +484,10 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to delete place", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -389,21 +498,32 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	duration := time.Since(start)
-	logger.AccessLogger.Info("Completed DeletePlace request",
-		zap.String("request_id", requestID),
-		zap.Duration("duration", duration),
-		zap.Int("status", http.StatusOK),
-	)
 }
 
 func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	city := mux.Vars(r)["city"]
-
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+
+	statusCode := http.StatusOK
+	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
@@ -418,7 +538,10 @@ func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get places per city", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 	body := map[string]interface{}{
@@ -443,9 +566,26 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	userId := mux.Vars(r)["userId"]
-
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+
+	statusCode := http.StatusOK
+	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
@@ -459,15 +599,18 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 		UserId: userId,
 	})
 	if err != nil {
-		h.handleError(w, err, requestID)
+		logger.AccessLogger.Error("Failed to get places per user",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
-	body := map[string]interface{}{
-		"places": response,
-	}
-	if err := json.NewEncoder(w).Encode(body); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -482,12 +625,28 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
-
 	imageId := mux.Vars(r)["imageId"]
 	adId := mux.Vars(r)["adId"]
-
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+
+	statusCode := http.StatusOK
+	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
@@ -503,7 +662,7 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -517,7 +676,10 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to delete ad image", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -533,32 +695,53 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 	logger.AccessLogger.Info("Completed DeleteAdImage request",
 		zap.String("request_id", requestID),
 		zap.String("adId", adId),
-		zap.String("imageId", imageId))
-	zap.String("duration", duration.String())
+		zap.String("imageId", imageId),
+		zap.Duration("duration", duration),
+	)
 }
 
-func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID string) {
+func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID string) int {
 	logger.AccessLogger.Error("Handling error",
 		zap.String("request_id", requestID),
 		zap.Error(err),
 	)
-
+	var status int
 	w.Header().Set("Content-Type", "application/json")
 	errorResponse := map[string]string{"error": err.Error()}
 
 	switch err.Error() {
-	case "ad not found":
+	case "ad not found", "ad date not found", "image not found":
 		w.WriteHeader(http.StatusNotFound)
-	case "ad already exists":
+		status = http.StatusNotFound
+	case "ad already exists", "RoomsNumber out of range", "not owner of ad":
 		w.WriteHeader(http.StatusConflict)
-	case "not owner of ad", "no active session", "Missing X-CSRF-Token header", "Invalid JWT token", "User is not host":
+		status = http.StatusConflict
+	case "no active session", "missing X-CSRF-Token header",
+		"invalid JWT token", "user is not host", "session not found", "user ID not found in session":
 		w.WriteHeader(http.StatusUnauthorized)
-	case "Invalid metadata JSON", "Invalid multipart form", "Invalid size, type or resolution of image",
-		"Input contains invalid characters", "Input exceeds character limit", "RoomsNumber out of range", "query offset not int",
-		"query limit not int", "No images", "URL contains invalid characters", "URL exceeds character limit":
+		status = http.StatusUnauthorized
+	case "invalid metadata JSON", "invalid multipart form", "input contains invalid characters",
+		"input exceeds character limit", "invalid size, type or resolution of image",
+		"query offset not int", "query limit not int", "query dateFrom not int",
+		"query dateTo not int", "URL contains invalid characters", "URL exceeds character limit",
+		"token parse error", "token invalid", "token expired", "bad sign method",
+		"failed to decode metadata", "no images provided", "failed to open file",
+		"failed to read file", "failed to encode response", "invalid rating value":
 		w.WriteHeader(http.StatusBadRequest)
+		status = http.StatusBadRequest
+	case "error fetching all places", "error fetching images for ad", "error fetching user",
+		"error finding user", "error finding city", "error creating place", "error creating date",
+		"error saving place", "error updating place", "error updating date",
+		"error updating views count", "error deleting place", "get places error",
+		"get places per city error", "get user places error", "error creating image",
+		"delete ad image error", "failed to generate session id", "failed to save session",
+		"failed to delete session", "error generating random bytes for session ID",
+		"failed to get session id from request cookie":
+		w.WriteHeader(http.StatusInternalServerError)
+		status = http.StatusInternalServerError
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
+		status = http.StatusInternalServerError
 	}
 
 	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
@@ -568,4 +751,6 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 		)
 		http.Error(w, jsonErr.Error(), http.StatusInternalServerError)
 	}
+
+	return status
 }

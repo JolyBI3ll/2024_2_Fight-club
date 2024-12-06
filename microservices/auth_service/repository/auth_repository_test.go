@@ -103,7 +103,7 @@ func TestCreateUser(t *testing.T) {
 				user.IsHost,
 				user.UUID,
 			).
-			WillReturnError(errors.New("insert error"))
+			WillReturnError(errors.New("error creating user"))
 		mock.ExpectRollback()
 
 		// Вызов тестируемого метода
@@ -111,7 +111,7 @@ func TestCreateUser(t *testing.T) {
 
 		// Проверка результатов
 		assert.Error(t, err)
-		assert.Equal(t, "insert error", err.Error())
+		assert.Equal(t, "error creating user", err.Error())
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
@@ -155,13 +155,13 @@ func TestCreateUser_Failure(t *testing.T) {
 			expectedUser.Birthdate,
 			expectedUser.IsHost,
 			expectedUser.UUID).
-		WillReturnError(errors.New("insert error"))
+		WillReturnError(errors.New("error creating user"))
 	mock.ExpectRollback()
 
 	err := repo.CreateUser(context.Background(), expectedUser)
 
 	assert.Error(t, err)
-	assert.Equal(t, "insert error", err.Error())
+	assert.Equal(t, "error creating user", err.Error())
 
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %v", err)
@@ -393,12 +393,12 @@ func TestAuthRepository_GetUserByName(t *testing.T) {
 	t.Run("Database error when fetching user by name", func(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE username = $1 ORDER BY "users"."uuid" LIMIT $2`)).
 			WithArgs(username, 1).
-			WillReturnError(errors.New("database error"))
+			WillReturnError(errors.New("error fetching user by name"))
 
 		user, err := repo.GetUserByName(ctx, username)
 		assert.Error(t, err)
 		assert.Nil(t, user)
-		assert.Equal(t, "database error", err.Error())
+		assert.Equal(t, "error fetching user by name", err.Error())
 	})
 
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -483,15 +483,93 @@ func TestAuthRepository_PutUser(t *testing.T) {
 				creds.Birthdate,
 				creds.IsHost,
 				userID,
-			).WillReturnError(errors.New("update error"))
+			).WillReturnError(errors.New("error updating user"))
 		mock.ExpectRollback()
 
 		err := repo.PutUser(ctx, creds, userID)
 
 		assert.Error(t, err)
-		assert.Equal(t, "update error", err.Error())
+		assert.Equal(t, "error updating user", err.Error())
 	})
 
 	// Проверяем, что все ожидания выполнены
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetUserByEmail(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer logger.SyncLoggers()
+
+	gormDB, mock := setupTestDB(t)
+	defer func() {
+		db, _ := gormDB.DB()
+		db.Close()
+	}()
+
+	authRepo := NewAuthRepository(gormDB)
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "test_request_id")
+
+	t.Run("Success", func(t *testing.T) {
+		email := "test@example.com"
+		expectedUser := &domain.User{
+			UUID:     "test-uuid",
+			Username: "testuser",
+			Password: "hashedpassword",
+			Email:    email,
+			Name:     "Test User",
+		}
+
+		// Настройка моков
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."uuid" LIMIT $2`)).
+			WithArgs(email, 1).
+			WillReturnRows(sqlmock.NewRows([]string{"uuid", "username", "password", "email", "name"}).
+				AddRow(expectedUser.UUID, expectedUser.Username, expectedUser.Password, expectedUser.Email, expectedUser.Name))
+
+		// Вызов тестируемого метода
+		user, err := authRepo.GetUserByEmail(ctx, email)
+
+		// Проверка результатов
+		assert.NoError(t, err)
+		assert.NotNil(t, user)
+		assert.Equal(t, expectedUser, user)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("UserNotFound", func(t *testing.T) {
+		email := "notfound@example.com"
+
+		// Настройка моков
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."uuid" LIMIT $2`)).
+			WithArgs(email, 1).
+			WillReturnError(gorm.ErrRecordNotFound)
+
+		// Вызов тестируемого метода
+		user, err := authRepo.GetUserByEmail(ctx, email)
+
+		// Проверка результатов
+		assert.Error(t, err)
+		assert.Nil(t, user)
+		assert.Equal(t, "user not found", err.Error())
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DatabaseError", func(t *testing.T) {
+		email := "dberror@example.com"
+
+		// Настройка моков
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."uuid" LIMIT $2`)).
+			WithArgs(email, 1).
+			WillReturnError(errors.New("database error"))
+
+		// Вызов тестируемого метода
+		user, err := authRepo.GetUserByEmail(ctx, email)
+
+		// Проверка результатов
+		assert.Error(t, err)
+		assert.Nil(t, user)
+		assert.Equal(t, "error fetching user by email", err.Error())
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
 }

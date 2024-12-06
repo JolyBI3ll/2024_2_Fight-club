@@ -32,45 +32,79 @@ func TestGetAllPlaces(t *testing.T) {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
 	defer logger.SyncLoggers()
+
 	db, mock, err := setupDBMock()
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	repo := NewAdRepository(db)
-	filter := domain.AdFilter{}
 
-	query := `SELECT ads.*, cities.title as cityName FROM "ads" JOIN cities ON ads."cityId" = cities.id JOIN users ON ads."authorUUID" = users.uuid`
-	rows := sqlmock.NewRows([]string{"uuid", "cityId", "authorUUID", "address", "publicationDate", "description", "roomsNumber", "avatar", "name", "rating", "cityname"}).
-		AddRow("some-uuid", 1, "author-uuid", "Some Address", time.Now(), "Some Description", 3, "avatar_url", "Username", 4.5, "City Name")
-	mock.ExpectQuery(query).WillReturnRows(rows)
+	filter := domain.AdFilter{
+		Location:    "",
+		Rating:      "",
+		NewThisWeek: "",
+		HostGender:  "",
+		GuestCount:  "",
+	}
 
-	imagesQuery := "SELECT * FROM \"images\" WHERE \"adId\" = $1"
-	imageRows := sqlmock.NewRows(ntype.StringArray{"imageUrl"}).AddRow("images/image1.jpg").AddRow("images/image2.jpg")
+	// Фиксированная дата для теста
+	fixedDate := time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
+
+	query := `
+		SELECT ads.*, cities.title as "CityName", ad_available_dates."availableDateFrom" as "AdDateFrom", ad_available_dates."availableDateTo" as "AdDateTo"
+		FROM "ads"
+		JOIN cities ON ads."cityId" = cities.id
+		JOIN users ON ads."authorUUID" = users.uuid
+		JOIN ad_available_dates ON ad_available_dates."adId" = ads.uuid
+	`
+
+	adRows := sqlmock.NewRows([]string{
+		"uuid", "cityId", "authorUUID", "address", "publicationDate", "description", "roomsNumber", "viewsCount",
+		"CityName", "availableDateFrom", "availableDateTo",
+	}).AddRow("some-uuid", 1, "author-uuid", "Some Address", fixedDate, "Some Description", 3, 0, "City Name", fixedDate, fixedDate)
+	mock.ExpectQuery(regexp.QuoteMeta(query)).WillReturnRows(adRows)
+
+	imagesQuery := `SELECT * FROM "images" WHERE "adId" = $1`
+	imageRows := sqlmock.NewRows([]string{"id", "adId", "imageUrl"}).
+		AddRow(1, "some-uuid", "images/image1.jpg").
+		AddRow(2, "some-uuid", "images/image2.jpg")
 	mock.ExpectQuery(regexp.QuoteMeta(imagesQuery)).WithArgs("some-uuid").WillReturnRows(imageRows)
 
-	query2 := "SELECT * FROM \"users\" WHERE uuid = $1"
-	rows2 := sqlmock.NewRows([]string{"uuid", "username", "password", "email", "username"}).
-		AddRow("some-uuid", "test_username", "some_password", "test@example.com", "test_username")
-	mock.ExpectQuery(regexp.QuoteMeta(query2)).WillReturnRows(rows2)
+	userQuery := `SELECT * FROM "users" WHERE uuid = $1`
+	userRows := sqlmock.NewRows([]string{
+		"uuid", "username", "password", "email", "name", "score", "avatar", "sex", "guestCount", "birthdate",
+	}).AddRow("author-uuid", "test_username", "some_password", "test@example.com", "Test User", 4.5, "avatar_url", "M", 2, fixedDate)
+	mock.ExpectQuery(regexp.QuoteMeta(userQuery)).WithArgs("author-uuid").WillReturnRows(userRows)
 
-	filter = domain.AdFilter{Location: "", Rating: "", NewThisWeek: "", HostGender: "", GuestCount: ""}
 	ads, err := repo.GetAllPlaces(context.Background(), filter)
 
 	require.NoError(t, err)
 	assert.Len(t, ads, 1)
 	assert.Equal(t, "some-uuid", ads[0].UUID)
 	assert.Equal(t, "Some Address", ads[0].Address)
+	assert.Equal(t, "City Name", ads[0].CityName)
 	assert.Equal(t, 3, ads[0].RoomsNumber)
-	assert.Equal(t, "City Name", ads[0].Cityname)
+
 	assert.ElementsMatch(t, []domain.ImageResponse{
 		{
-			ID:        0,
+			ID:        1,
 			ImagePath: "images/image1.jpg",
 		},
 		{
-			ID:        0,
+			ID:        2,
 			ImagePath: "images/image2.jpg",
 		},
 	}, ads[0].Images)
+
+	// Фиксированная дата birthdate для проверки
+	assert.Equal(t, domain.UserResponce{
+		Name:       "Test User",
+		Avatar:     "avatar_url",
+		Rating:     4.5,
+		GuestCount: 2,
+		Sex:        "M",
+		Birthdate:  fixedDate,
+	}, ads[0].AdAuthor)
+
 	err = mock.ExpectationsWereMet()
 	require.NoError(t, err)
 }
@@ -85,7 +119,13 @@ func TestGetAllPlaces_Failure(t *testing.T) {
 
 	repo := NewAdRepository(db)
 	filter := domain.AdFilter{}
-	query := `SELECT ads.*, users.avatar, users.name, users.score as rating , cities.title as cityName FROM "ads" JOIN users ON ads."authorUUID" = users.uuid JOIN cities ON ads."cityId" = cities.id`
+	query := `
+		SELECT ads.*, cities.title as "CityName", ad_available_dates."availableDateFrom" as "AdDateFrom", ad_available_dates."availableDateTo" as "AdDateTo"
+		FROM "ads"
+		JOIN cities ON ads."cityId" = cities.id
+		JOIN users ON ads."authorUUID" = users.uuid
+		JOIN ad_available_dates ON ad_available_dates."adId" = ads.uuid
+	`
 	mock.ExpectQuery(query).
 		WillReturnError(errors.New("db error"))
 
@@ -112,19 +152,27 @@ func TestGetPlaceById(t *testing.T) {
 	}
 
 	// Step 2: Define Mock Database Expectations
-	query := "SELECT ads.*, cities.title as cityName FROM \"ads\" JOIN users ON ads.\"authorUUID\" = users.uuid JOIN cities ON ads.\"cityId\" = cities.id WHERE ads.uuid = $1"
-	rows := sqlmock.NewRows([]string{"uuid", "cityId", "authorUUID", "address", "avatar", "name", "rating", "cityName"}).
-		AddRow("some-uuid", 1, "author-uuid", "Some Address", "avatar_url", "UserName", 4.5, "CityName")
-	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs("some-uuid").WillReturnRows(rows)
+	fixedDate := time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
 
-	imagesQuery := "SELECT * FROM \"images\" WHERE \"adId\" = $1"
-	imageRows := sqlmock.NewRows(ntype.StringArray{"imageUrl"}).AddRow("images/image1.jpg").AddRow("images/image2.jpg")
+	query := "SELECT ads.*, cities.title as \"CityName\", ad_available_dates.\"availableDateFrom\" as \"AdDateFrom\", ad_available_dates.\"availableDateTo\" as \"AdDateTo\" FROM \"ads\" JOIN users ON ads.\"authorUUID\" = users.uuid JOIN cities ON ads.\"cityId\" = cities.id JOIN ad_available_dates ON ad_available_dates.\"adId\" = ads.uuid WHERE \"adId\" = $1"
+
+	adRows := sqlmock.NewRows([]string{
+		"uuid", "cityId", "authorUUID", "address", "publicationDate", "description", "roomsNumber", "viewsCount",
+		"CityName", "availableDateFrom", "availableDateTo",
+	}).AddRow("some-uuid", 1, "author-uuid", "Some Address", fixedDate, "Some Description", 3, 0, "City Name", fixedDate, fixedDate)
+	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs("some-uuid").WillReturnRows(adRows)
+
+	imagesQuery := `SELECT * FROM "images" WHERE "adId" = $1`
+	imageRows := sqlmock.NewRows([]string{"id", "adId", "imageUrl"}).
+		AddRow(1, "some-uuid", "images/image1.jpg").
+		AddRow(2, "some-uuid", "images/image2.jpg")
 	mock.ExpectQuery(regexp.QuoteMeta(imagesQuery)).WithArgs("some-uuid").WillReturnRows(imageRows)
 
-	query2 := "SELECT * FROM \"users\" WHERE uuid = $1"
-	rows2 := sqlmock.NewRows([]string{"uuid", "username", "password", "email", "username"}).
-		AddRow("some-uuid", "test_username", "some_password", "test@example.com", "test_username")
-	mock.ExpectQuery(regexp.QuoteMeta(query2)).WillReturnRows(rows2)
+	userQuery := "SELECT * FROM \"users\" WHERE uuid = $1"
+	userRows := sqlmock.NewRows([]string{
+		"uuid", "username", "password", "email", "name", "score", "avatar", "sex", "guestCount", "birthdate",
+	}).AddRow("author-uuid", "test_username", "some_password", "test@example.com", "Test User", 4.5, "avatar_url", "M", 2, fixedDate)
+	mock.ExpectQuery(regexp.QuoteMeta(userQuery)).WithArgs("author-uuid").WillReturnRows(userRows)
 
 	ad, err := repo.GetPlaceById(context.Background(), "some-uuid")
 
@@ -135,14 +183,24 @@ func TestGetPlaceById(t *testing.T) {
 	assert.Equal(t, expectedAd.Address, ad.Address)
 	assert.ElementsMatch(t, []domain.ImageResponse{
 		{
-			ID:        0,
+			ID:        1,
 			ImagePath: "images/image1.jpg",
 		},
 		{
-			ID:        0,
+			ID:        2,
 			ImagePath: "images/image2.jpg",
 		},
 	}, ad.Images)
+
+	assert.Equal(t, domain.UserResponce{
+		Name:       "Test User",
+		Avatar:     "avatar_url",
+		Rating:     4.5,
+		GuestCount: 2,
+		Sex:        "M",
+		Birthdate:  fixedDate,
+	}, ad.AdAuthor)
+
 	err = mock.ExpectationsWereMet()
 	require.NoError(t, err)
 }
@@ -157,7 +215,7 @@ func TestGetPlaceById_Failure(t *testing.T) {
 
 	repo := NewAdRepository(db)
 
-	mock.ExpectQuery(`SELECT ads\.\*, users.avatar, users.name, users.score as rating , cities.title as cityName FROM "ads" JOIN users ON ads."authorUUID" = users.uuid [\s\S]* WHERE ads\.uuid = \$1`).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT ads.*, cities.title as \"CityName\", ad_available_dates.\"availableDateFrom\" as \"AdDateFrom\", ad_available_dates.\"availableDateTo\" as \"AdDateTo\" FROM \"ads\" JOIN users ON ads.\"authorUUID\" = users.uuid JOIN cities ON ads.\"cityId\" = cities.id JOIN ad_available_dates ON ad_available_dates.\"adId\" = ads.uuid WHERE \"adId\" = $1")).
 		WithArgs("ad1").
 		WillReturnError(errors.New("db error"))
 
@@ -180,22 +238,36 @@ func TestUpdatePlace(t *testing.T) {
 	adId := "existing-ad-id"
 	userId := "author-id"
 	updatedRequest := domain.UpdateAdRequest{
-		CityName:    "New City",
+		CityName:    "Новый город",
 		Address:     "New Address",
 		Description: "Updated Description",
 		RoomsNumber: 3,
+		DateFrom:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		DateTo:      time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC),
 	}
 
 	adRows := sqlmock.NewRows([]string{"uuid", "authorUUID", "cityId", "address", "roomsNumber"}).
 		AddRow("existing-ad-id", "author-id", 1, "Old Address", 2)
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "ads" WHERE uuid = $1 ORDER BY "ads"."uuid" LIMIT $2`)).WithArgs(adId, 1).WillReturnRows(adRows)
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "ads" WHERE uuid = $1 ORDER BY "ads"."uuid" LIMIT $2`)).
+		WithArgs(adId, 1).WillReturnRows(adRows)
 
-	cityRows := sqlmock.NewRows([]string{"id"}).AddRow(2)
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "cities" WHERE title = $1 ORDER BY "cities"."id" LIMIT $2`)).WithArgs("New City", 1).WillReturnRows(cityRows)
+	dateRows := sqlmock.NewRows([]string{"id", "adId", "availableDateFrom", "availableDateTo"}).
+		AddRow(1, "existing-ad-id", time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2023, 12, 31, 0, 0, 0, 0, time.UTC))
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "ad_available_dates" WHERE "adId" = $1 ORDER BY "ad_available_dates"."id" LIMIT $2`)).
+		WithArgs(adId, 1).WillReturnRows(dateRows)
+
+	cityRows := sqlmock.NewRows([]string{"id", "title", "enTitle"}).AddRow(1, "Город", "City").AddRow(2, "Новый Город", "New city")
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "cities" WHERE title = $1 ORDER BY "cities"."id" LIMIT $2`)).
+		WithArgs("Новый город", 1).WillReturnRows(cityRows)
 
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "cityId"=$1 WHERE "uuid" = $2`)).
-		WithArgs(2, adId).
+		WithArgs(1, adId).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ad_available_dates" SET "id"=$1,"adId"=$2,"availableDateFrom"=$3,"availableDateTo"=$4 WHERE "id" = $5`)).
+		WithArgs(1, adId, updatedRequest.DateFrom, updatedRequest.DateTo, 1).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
@@ -237,7 +309,7 @@ func TestUpdatePlace_AdNotFound(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestUpdatePlace_UserNotAuthorized(t *testing.T) {
+func TestUpdatePlace_AdDateNotFound(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
@@ -264,6 +336,43 @@ func TestUpdatePlace_UserNotAuthorized(t *testing.T) {
 
 	err = repo.UpdatePlace(context.Background(), &domain.Ad{}, adId, userId, updatedRequest)
 
+	assert.Error(t, err)
+	assert.Equal(t, errors.New("ad date not found"), err)
+	err = mock.ExpectationsWereMet()
+	assert.NoError(t, err)
+}
+
+func TestUpdatePlace_UserNotAuthorized(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer logger.SyncLoggers()
+
+	db, mock, err := setupDBMock()
+	assert.Nil(t, err)
+
+	repo := NewAdRepository(db)
+
+	adId := "existing-ad-id"
+	userId := "unauthorized-user-id"
+	updatedRequest := domain.UpdateAdRequest{
+		CityName:    "New City",
+		Address:     "New Address",
+		Description: "Updated Description",
+		RoomsNumber: 3,
+	}
+
+	adRows := sqlmock.NewRows([]string{"uuid", "authorUUID", "cityId", "address", "roomsNumber"}).
+		AddRow("existing-ad-id", "different-author-id", 1, "Old Address", 2)
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "ads" WHERE uuid = $1 ORDER BY "ads"."uuid" LIMIT $2`)).
+		WithArgs(adId, 1).WillReturnRows(adRows)
+
+	dateRows := sqlmock.NewRows([]string{"id", "adId", "availableDateFrom", "availableDateTo"}).
+		AddRow(1, "existing-ad-id", time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "ad_available_dates" WHERE "adId" = $1 ORDER BY "ad_available_dates"."id" LIMIT $2`)).
+		WithArgs(adId, 1).WillReturnRows(dateRows)
+
+	err = repo.UpdatePlace(context.Background(), &domain.Ad{}, adId, userId, updatedRequest)
 	assert.Error(t, err)
 	assert.Equal(t, errors.New("not owner of ad"), err)
 	err = mock.ExpectationsWereMet()
@@ -353,61 +462,94 @@ func TestDeletePlace_Failure(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestCreatePlace_Success(t *testing.T) {
+func TestCreatePlace(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
 	defer logger.SyncLoggers()
 
 	db, mock, err := setupDBMock()
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
-	adRepo := NewAdRepository(db)
-	ctx := context.Background()
+	repo := NewAdRepository(db)
 
-	newAdReq := domain.CreateAdRequest{
-		CityName:    "New York",
-		Address:     "123 Main St",
-		Description: "A lovely place",
-		RoomsNumber: 3,
+	ad := &domain.Ad{
+		UUID:        "some-ad-uuid",
+		Description: "A great place",
+		Address:     "123 Main Street",
+		RoomsNumber: 2,
+	}
+
+	newAd := domain.CreateAdRequest{
+		CityName:    "Test City",
+		Description: "A great place",
+		Address:     "123 Main Street",
+		RoomsNumber: 2,
+		DateFrom:    time.Now(),
+		DateTo:      time.Now().AddDate(0, 0, 7),
+	}
+
+	user := domain.User{
+		UUID:   "user-uuid",
+		IsHost: true,
 	}
 
 	city := domain.City{
 		ID:    1,
-		Title: "New York",
+		Title: "Test City",
 	}
 
-	ad := &domain.Ad{
-		UUID:            "ad-uuid-123",
-		CityID:          city.ID,
-		AuthorUUID:      "author-uuid-456",
-		Address:         "123 Main St",
-		Description:     "A lovely place",
-		RoomsNumber:     3,
-		PublicationDate: time.Now(),
+	date := domain.AdAvailableDate{
+		ID:                1,
+		AdID:              "some-ad-uuid",
+		AvailableDateFrom: newAd.DateFrom,
+		AvailableDateTo:   newAd.DateTo,
 	}
 
-	// Mock query to find the city
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE uuid = $1 ORDER BY "users"."uuid" LIMIT $2`)).
+		WithArgs(user.UUID, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"uuid", "isHost"}).
+			AddRow(user.UUID, user.IsHost))
+
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "cities" WHERE title = $1 ORDER BY "cities"."id" LIMIT $2`)).
-		WithArgs(newAdReq.CityName, 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "title"}).AddRow(city.ID, city.Title))
+		WithArgs(newAd.CityName, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "title"}).
+			AddRow(city.ID, city.Title))
 
-	// Mock insert ad
 	mock.ExpectBegin()
-	mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "ads" ("cityId","authorUUID","address","publicationDate","description","roomsNumber","uuid") VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING "uuid"`)).
-		WithArgs(ad.CityID, ad.AuthorUUID, ad.Address, sqlmock.AnyArg(), ad.Description, ad.RoomsNumber, ad.UUID).
+	mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "ads" ("cityId","authorUUID","address","publicationDate","description","roomsNumber","viewsCount","uuid") VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING "uuid"`)).
+		WithArgs(
+			city.ID,          // cityId
+			user.UUID,        // authorUUID
+			ad.Address,       // address
+			sqlmock.AnyArg(), // publicationDate
+			ad.Description,   // description
+			ad.RoomsNumber,   // roomsNumber
+			0,                // viewsCount
+			ad.UUID,          // uuid
+		).
 		WillReturnRows(sqlmock.NewRows([]string{"uuid"}).AddRow(ad.UUID))
 	mock.ExpectCommit()
 
-	err = adRepo.CreatePlace(ctx, ad, newAdReq)
+	// Ожидание для вставки в таблицу "ad_available_dates"
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "ad_available_dates" ("adId","availableDateFrom","availableDateTo") VALUES ($1,$2,$3) RETURNING "id"`)).
+		WithArgs(
+			date.AdID,              // adID
+			date.AvailableDateFrom, // availableDateFrom
+			date.AvailableDateTo,   // availableDateTo
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(date.ID))
+	mock.ExpectCommit()
 
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
-	}
+	err = repo.CreatePlace(context.Background(), ad, newAd, user.UUID)
+	require.NoError(t, err)
 
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Errorf("Unmet expectations: %v", err)
-	}
+	assert.Equal(t, city.ID, ad.CityID)
+	assert.Equal(t, user.UUID, ad.AuthorUUID)
+
+	err = mock.ExpectationsWereMet()
+	require.NoError(t, err)
 }
 
 func TestCreatePlace_CityNotFound(t *testing.T) {
@@ -427,26 +569,79 @@ func TestCreatePlace_CityNotFound(t *testing.T) {
 		Address:     "123 Main St",
 		Description: "A lovely place",
 		RoomsNumber: 3,
+		DateFrom:    time.Now(),
+		DateTo:      time.Now().AddDate(0, 0, 7),
 	}
 
 	ad := &domain.Ad{
 		UUID:            "ad-uuid-123",
-		AuthorUUID:      "author-uuid-456",
+		AuthorUUID:      "user-uuid-456",
 		Address:         "123 Main St",
 		Description:     "A lovely place",
 		RoomsNumber:     3,
 		PublicationDate: time.Now(),
 	}
 
-	// Mock query to find the city - no rows
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE uuid = $1 ORDER BY "users"."uuid" LIMIT $2`)).
+		WithArgs(ad.AuthorUUID, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"uuid", "isHost"}).
+			AddRow(ad.AuthorUUID, true))
+
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "cities" WHERE title = $1 ORDER BY "cities"."id" LIMIT $2`)).
 		WithArgs(newAdReq.CityName, 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "title"}))
 
-	err = adRepo.CreatePlace(ctx, ad, newAdReq)
+	err = adRepo.CreatePlace(ctx, ad, newAdReq, ad.AuthorUUID)
 
-	if err == nil || err.Error() != "Error finding city" {
-		t.Errorf("Expected 'Error finding city', got %v", err)
+	if err == nil || err.Error() != "error finding city" {
+		t.Errorf("Expected 'error finding city', got %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unmet expectations: %v", err)
+	}
+}
+
+func TestCreatePlace_UserNotHost(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer logger.SyncLoggers()
+
+	db, mock, err := setupDBMock()
+	assert.Nil(t, err)
+
+	adRepo := NewAdRepository(db)
+	ctx := context.Background()
+
+	newAdReq := domain.CreateAdRequest{
+		CityName:    "Test City",
+		Address:     "123 Main St",
+		Description: "A lovely place",
+		RoomsNumber: 3,
+		DateFrom:    time.Now(),
+		DateTo:      time.Now().AddDate(0, 0, 7),
+	}
+
+	ad := &domain.Ad{
+		UUID:            "ad-uuid-123",
+		AuthorUUID:      "user-uuid-456",
+		Address:         "123 Main St",
+		Description:     "A lovely place",
+		RoomsNumber:     3,
+		PublicationDate: time.Now(),
+	}
+
+	// Mock query to find the user - user is not a host
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE uuid = $1 ORDER BY "users"."uuid" LIMIT $2`)).
+		WithArgs(ad.AuthorUUID, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"uuid", "isHost"}).
+			AddRow(ad.AuthorUUID, false))
+
+	err = adRepo.CreatePlace(ctx, ad, newAdReq, ad.AuthorUUID)
+
+	if err == nil || err.Error() != "user is not host" {
+		t.Errorf("Expected 'user is not host', got %v", err)
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -473,13 +668,14 @@ func TestSavePlace_Success(t *testing.T) {
 		Address:         "123 Main St",
 		Description:     "Updated description",
 		RoomsNumber:     4,
+		ViewsCount:      2,
 		PublicationDate: time.Now(),
 	}
 
 	// Mock update ad
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "cityId"=$1,"authorUUID"=$2,"address"=$3,"publicationDate"=$4,"description"=$5,"roomsNumber"=$6 WHERE "uuid" = $7`)).
-		WithArgs(ad.CityID, ad.AuthorUUID, ad.Address, time.Now(), ad.Description, ad.RoomsNumber, ad.UUID).
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "cityId"=$1,"authorUUID"=$2,"address"=$3,"publicationDate"=$4,"description"=$5,"roomsNumber"=$6,"viewsCount"=$7 WHERE "uuid" = $8`)).
+		WithArgs(ad.CityID, ad.AuthorUUID, ad.Address, time.Now(), ad.Description, ad.RoomsNumber, ad.ViewsCount, ad.UUID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
@@ -513,13 +709,14 @@ func TestSavePlace_Failure(t *testing.T) {
 		Address:         "123 Main St",
 		Description:     "Updated description",
 		RoomsNumber:     4,
+		ViewsCount:      2,
 		PublicationDate: time.Now(),
 	}
 
 	// Mock update ad with error
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "cityId"=$1,"authorUUID"=$2,"address"=$3,"publicationDate"=$4,"description"=$5,"roomsNumber"=$6 WHERE "uuid" = $7`)).
-		WithArgs(ad.CityID, ad.AuthorUUID, ad.Address, time.Now(), ad.Description, ad.RoomsNumber, ad.UUID).
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "cityId"=$1,"authorUUID"=$2,"address"=$3,"publicationDate"=$4,"description"=$5,"roomsNumber"=$6,"viewsCount"=$7 WHERE "uuid" = $8`)).
+		WithArgs(ad.CityID, ad.AuthorUUID, ad.Address, time.Now(), ad.Description, ad.RoomsNumber, ad.ViewsCount, ad.UUID).
 		WillReturnError(gorm.ErrInvalidData)
 	mock.ExpectRollback()
 
@@ -557,7 +754,7 @@ func TestGetPlacesPerCity_Success(t *testing.T) {
 			time.Now(), "A lovely place", 3, "avatar.png", "John Doe", 4.5, "New York")
 
 	// Mock select ads
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT ads.*, cities.title as cityName FROM \"ads\" JOIN users ON ads.\"authorUUID\" = users.uuid JOIN cities ON ads.\"cityId\" = cities.id WHERE cities.\"enTitle\" = $1")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT ads.*, cities.title as \"CityName\" FROM \"ads\" JOIN users ON ads.\"authorUUID\" = users.uuid JOIN cities ON ads.\"cityId\" = cities.id WHERE cities.\"enTitle\" = $1")).
 		WithArgs(city).
 		WillReturnRows(rows)
 
@@ -600,7 +797,7 @@ func TestGetPlacesPerCity_Failure(t *testing.T) {
 	city := "Unknown City"
 
 	// Mock select ads with error
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT ads.*, cities.title as cityName FROM \"ads\" JOIN users ON ads.\"authorUUID\" = users.uuid JOIN cities ON ads.\"cityId\" = cities.id WHERE cities.\"enTitle\" = $1")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT ads.*, cities.title as \"CityName\" FROM \"ads\" JOIN users ON ads.\"authorUUID\" = users.uuid JOIN cities ON ads.\"cityId\" = cities.id WHERE cities.\"enTitle\" = $1")).
 		WithArgs(city).
 		WillReturnError(gorm.ErrInvalidData)
 
@@ -781,13 +978,13 @@ func TestGetUserPlaces_Success(t *testing.T) {
 	rows := sqlmock.NewRows([]string{
 		"uuid", "cityId", "authorUUID", "address",
 		"publicationDate", "description", "roomsNumber",
-		"avatar", "name", "rating", "cityName",
+		"avatar", "name", "rating", "сityName",
 	}).
 		AddRow("ad-uuid-123", 1, userId, "123 Main St",
 			time.Now(), "A lovely place", 3, "avatar.png", "John Doe", 4.5, "New York")
 
 	// Mock select ads
-	mock.ExpectQuery(`SELECT ads\.\*, users.avatar, users.name, users.score as rating , cities.title as cityName FROM "ads" JOIN users ON ads\."authorUUID" = users\.uuid JOIN cities ON  ads\."cityId" = cities\.id WHERE users\.uuid = \$1`).
+	mock.ExpectQuery(`SELECT ads\.\*, users\.avatar, users\.name, users\.score as rating, cities\.title as "CityName" FROM "ads" JOIN users ON ads\."authorUUID" = users\.uuid JOIN cities ON ads\."cityId" = cities\.id WHERE users\.uuid = \$1`).
 		WithArgs(userId).
 		WillReturnRows(rows)
 
@@ -801,7 +998,7 @@ func TestGetUserPlaces_Success(t *testing.T) {
 		WillReturnRows(imageRows)
 
 	ads, err := adRepo.GetUserPlaces(ctx, userId)
-
+	assert.NoError(t, err)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -842,7 +1039,7 @@ func TestGetUserPlaces_Failure(t *testing.T) {
 			time.Now(), "A lovely place", 3, "avatar.png", "John Doe", 4.5, "New York")
 
 	// Mock select ads
-	mock.ExpectQuery(`SELECT ads\.\*, users.avatar, users.name, users.score as rating , cities.title as cityName FROM "ads" JOIN users ON ads\."authorUUID" = users\.uuid JOIN cities ON  ads\."cityId" = cities\.id WHERE users\.uuid = \$1`).
+	mock.ExpectQuery(`SELECT ads\.\*, users\.avatar, users\.name, users\.score as rating, cities\.title as "CityName" FROM "ads" JOIN users ON ads\."authorUUID" = users\.uuid JOIN cities ON ads\."cityId" = cities\.id WHERE users\.uuid = \$1`).
 		WithArgs(userId).
 		WillReturnRows(rows)
 

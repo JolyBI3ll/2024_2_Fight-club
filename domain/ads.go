@@ -29,7 +29,7 @@ type GetAllAdsResponse struct {
 	City            City            `gorm:"foreignKey:CityID;references:ID" json:"-"`
 	Author          User            `gorm:"foreignKey:AuthorUUID;references:UUID" json:"-"`
 	ViewsCount      int             `gorm:"column:viewsCount;default:0" json:"viewsCount"`
-	Cityname        string          `json:"cityName"`
+	CityName        string          `json:"cityName"`
 	AdDateFrom      time.Time       `json:"adDateFrom"`
 	AdDateTo        time.Time       `json:"adDateTo"`
 	AdAuthor        UserResponce    `gorm:"-" json:"author"`

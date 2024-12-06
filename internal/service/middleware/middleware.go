@@ -34,14 +34,6 @@ func WithLogger(ctx context.Context, logger *zap.Logger) context.Context {
 	return context.WithValue(ctx, loggerKey, logger)
 }
 
-func GetLogger(ctx context.Context) (*zap.Logger, error) {
-	logger, ok := ctx.Value(loggerKey).(*zap.Logger)
-	if !ok {
-		return nil, fmt.Errorf("failed to get logger from context")
-	}
-	return logger, nil
-}
-
 type key int
 
 const RequestIDKey key = 0

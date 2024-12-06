@@ -32,6 +32,19 @@ message Metadata {
   bool is_host = 11;
 }
 
+message MetadataOneUser{
+  string uuid = 1;
+  string username = 2;
+  string email = 3;
+  string name = 4;
+  float score = 5;
+  string avatar = 6;
+  string sex = 7;
+  int32 guest_count = 8;
+  google.protobuf.Timestamp birthdate = 9;
+  bool is_host = 10;
+}
+
 message logoutRequest {
   string authHeader = 1;
   string session_id = 2;
@@ -87,11 +100,11 @@ message UpdateResponse {
 }
 
 message AllUsersResponse {
-  repeated Metadata users = 1;
+  repeated MetadataOneUser users = 1;
 }
 
 message GetUserByIdResponse {
-  Metadata user = 1;
+  MetadataOneUser user = 1;
 }
 
 message SessionDataResponse {

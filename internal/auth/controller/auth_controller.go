@@ -3,6 +3,7 @@ package controller
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
 	"2024_2_FIGHT-CLUB/microservices/auth_service/controller/gen"
@@ -10,6 +11,7 @@ import (
 	"errors"
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"math"
@@ -37,6 +39,23 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusCreated
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusCreated {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 
 	logger.AccessLogger.Info("Received RegisterUser request",
 		zap.String("request_id", requestID),
@@ -50,7 +69,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -65,7 +84,11 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
+
 		return
 	}
 
@@ -102,15 +125,14 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
-
-	duration := time.Since(start)
+	duration := time.Since(start).Seconds()
 	logger.AccessLogger.Info("Completed RegisterUser request",
 		zap.String("request_id", requestID),
-		zap.Duration("duration", duration),
-		zap.Int("status", http.StatusCreated),
+		zap.Duration("duration", time.Duration(duration)),
+		zap.Int("status", http.StatusOK),
 	)
 }
 
@@ -119,6 +141,23 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 
 	logger.AccessLogger.Info("Received LoginUser request",
 		zap.String("request_id", requestID),
@@ -132,7 +171,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -142,7 +181,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("csrf_token already exists")),
 		)
-		h.handleError(w, errors.New("csrf_token already exists"), requestID)
+		statusCode = h.handleError(w, errors.New("csrf_token already exists"), requestID)
 		return
 	}
 
@@ -155,7 +194,10 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -192,7 +234,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -209,6 +251,23 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 
 	logger.AccessLogger.Info("Received LogoutUser request",
 		zap.String("request_id", requestID),
@@ -221,7 +280,7 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 	authHeader := r.Header.Get("X-CSRF-Token")
@@ -235,7 +294,10 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -267,7 +329,7 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -284,7 +346,23 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
-
+	var err error
+	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 	logger.AccessLogger.Info("Received PutUser request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
@@ -296,7 +374,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 	authHeader := r.Header.Get("X-CSRF-Token")
@@ -304,7 +382,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	err = r.ParseMultipartForm(10 << 20)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to parse multipart form", zap.String("request_id", requestID), zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 	metadata := r.FormValue("metadata")
@@ -316,7 +394,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, errors.New("invalid metadata JSON"), requestID)
+		statusCode = h.handleError(w, errors.New("invalid metadata JSON"), requestID)
 		return
 	}
 	var fileBytes []byte
@@ -328,7 +406,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 			logger.AccessLogger.Error("Failed to open avatar file",
 				zap.String("request_id", requestID),
 				zap.Error(err))
-			h.handleError(w, err, requestID)
+			statusCode = h.handleError(w, err, requestID)
 			return
 		}
 		defer file.Close()
@@ -338,7 +416,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 			logger.AccessLogger.Error("Failed to read avatar file",
 				zap.String("request_id", requestID),
 				zap.Error(err))
-			h.handleError(w, err, requestID)
+			statusCode = h.handleError(w, err, requestID)
 			return
 		}
 	}
@@ -366,7 +444,10 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -377,7 +458,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -395,6 +476,23 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	userId := mux.Vars(r)["userId"]
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 
 	logger.AccessLogger.Info("Received GetUserById request",
 		zap.String("request_id", requestID),
@@ -405,11 +503,20 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 	user, err := h.client.GetUserById(ctx, &gen.GetUserByIdRequest{
 		UserId: userId,
 	})
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get user by id",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
+		return
+	}
 
-	response := &domain.User{
-		UUID:       user.User.Uuid,
+	response := &domain.UserDataResponse{
+		Uuid:       user.User.Uuid,
 		Username:   user.User.Username,
-		Password:   user.User.Password,
 		Email:      user.User.Email,
 		Name:       user.User.Name,
 		Score:      math.Round(float64(user.User.Score)*10) / 10,
@@ -420,14 +527,6 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		IsHost:     user.User.IsHost,
 	}
 
-	if err != nil {
-		logger.AccessLogger.Error("Failed to get user by id",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		h.handleError(w, err, requestID)
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -435,7 +534,7 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -452,6 +551,23 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 
 	logger.AccessLogger.Info("Received GetAllUsers request",
 		zap.String("request_id", requestID),
@@ -465,19 +581,21 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
-	var body []*domain.User
+	var body []*domain.UserDataResponse
 	for _, user := range users.Users {
-		body = append(body, &domain.User{
-			UUID:       user.Uuid,
+		body = append(body, &domain.UserDataResponse{
+			Uuid:       user.Uuid,
 			Username:   user.Username,
-			Password:   user.Password,
 			Email:      user.Email,
 			Name:       user.Name,
-			Score:      float64(user.Score),
+			Score:      math.Round(float64(user.Score)*10) / 10,
 			Avatar:     user.Avatar,
 			Sex:        user.Sex,
 			GuestCount: int(user.GuestCount),
@@ -495,7 +613,7 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -512,6 +630,23 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 
 	logger.AccessLogger.Info("Received GetSessionData request",
 		zap.String("request_id", requestID),
@@ -524,7 +659,7 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -536,7 +671,10 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -547,7 +685,7 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -564,6 +702,23 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
@@ -578,7 +733,7 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 	newCsrfToken, err := h.client.RefreshCsrfToken(ctx, &gen.RefreshCsrfTokenRequest{
@@ -589,7 +744,10 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		http.Error(w, "Failed to create CSRF token", http.StatusInternalServerError)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -606,7 +764,7 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to encode CSRF token",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -618,7 +776,7 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID string) {
+func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID string) int {
 	logger.AccessLogger.Error("Handling error",
 		zap.String("request_id", requestID),
 		zap.Error(err),
@@ -626,28 +784,70 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 
 	w.Header().Set("Content-Type", "application/json")
 	errorResponse := map[string]string{"error": err.Error()}
-
+	var statusCode int
 	switch err.Error() {
 	case "username, password, and email are required",
 		"username and password are required",
-		"invalid credentials", "csrf_token already exists", "Input contains invalid characters",
-		"Input exceeds character limit", "Invalid size, type or resolution of image":
+		"invalid credentials",
+		"csrf_token already exists",
+		"Input contains invalid characters",
+		"Input exceeds character limit",
+		"Invalid size, type or resolution of image",
+		"invalid metadata JSON",
+		"missing X-CSRF-Token header",
+		"invalid JWT token",
+		"invalid type for id in session data",
+		"invalid type for avatar in session data":
 		w.WriteHeader(http.StatusBadRequest)
+		statusCode = http.StatusBadRequest
+
 	case "user already exists",
+		"email already exists",
 		"session already exists",
-		"email already exists":
+		"already logged in":
 		w.WriteHeader(http.StatusConflict)
-	case "no active session", "already logged in":
+		statusCode = http.StatusConflict
+
+	case "no active session",
+		"session not found",
+		"user ID not found in session":
 		w.WriteHeader(http.StatusUnauthorized)
-	case "user not found":
+		statusCode = http.StatusUnauthorized
+
+	case "user not found",
+		"error fetching user by ID",
+		"error fetching user by name",
+		"error fetching user by email",
+		"there is none user in db":
 		w.WriteHeader(http.StatusNotFound)
-	case "failed to generate error response",
-		"there is none user in db",
+		statusCode = http.StatusNotFound
+
+	case "error creating user",
+		"error saving user",
+		"error updating user",
+		"error fetching all users",
+		"failed to generate error response",
+		"failed to hash password",
+		"failed to upload file",
+		"failed to delete file",
 		"failed to generate session id",
-		"failed to save sessions":
+		"failed to save session",
+		"failed to delete session",
+		"failed to get user ID",
+		"failed to get session data",
+		"failed to refresh csrf token",
+		"error generating random bytes for session ID",
+		"failed to get session id from request cookie",
+		"token parse error",
+		"token invalid",
+		"token expired",
+		"bad sign method":
 		w.WriteHeader(http.StatusInternalServerError)
+		statusCode = http.StatusInternalServerError
+
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
+		statusCode = http.StatusInternalServerError
 	}
 
 	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
@@ -657,4 +857,5 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 		)
 		http.Error(w, jsonErr.Error(), http.StatusInternalServerError)
 	}
+	return statusCode
 }

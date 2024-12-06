@@ -11,6 +11,7 @@ import (
 	reviewRepository "2024_2_FIGHT-CLUB/internal/reviews/repository"
 	reviewUsecase "2024_2_FIGHT-CLUB/internal/reviews/usecase"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/router"
 	"2024_2_FIGHT-CLUB/internal/service/session"
@@ -44,6 +45,9 @@ func main() {
 			log.Fatalf("Failed to sync loggers: %v", err)
 		}
 	}()
+
+	metrics.InitHttpMetric()
+	metrics.InitRepoMetric()
 
 	authAdress := os.Getenv("AUTH_SERVICE_ADDRESS")
 	if authAdress == "" {

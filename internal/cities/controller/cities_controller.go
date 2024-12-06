@@ -2,11 +2,14 @@ package controller
 
 import (
 	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/microservices/city_service/controller/gen"
 	"encoding/json"
+	"errors"
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/status"
 	"net/http"
 	"time"
 )
@@ -34,13 +37,34 @@ func (h *CityHandler) GetCities(w http.ResponseWriter, r *http.Request) {
 		zap.String("query", r.URL.Query().Encode()),
 	)
 
+	statusCode := http.StatusOK
+	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
+
 	cities, err := h.client.GetCities(ctx, &gen.GetCitiesRequest{})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get cities data",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 
@@ -51,7 +75,7 @@ func (h *CityHandler) GetCities(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -74,13 +98,35 @@ func (h *CityHandler) GetOneCity(w http.ResponseWriter, r *http.Request) {
 		zap.String("url", r.URL.String()),
 		zap.String("query", r.URL.Query().Encode()),
 	)
+
+	statusCode := http.StatusOK
+	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
+
 	cityEnName := mux.Vars(r)["city"]
 	city, err := h.client.GetOneCity(ctx, &gen.GetOneCityRequest{EnName: cityEnName})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get city data",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
@@ -89,7 +135,7 @@ func (h *CityHandler) GetOneCity(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Error("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 	duration := time.Since(start)
@@ -99,7 +145,7 @@ func (h *CityHandler) GetOneCity(w http.ResponseWriter, r *http.Request) {
 		zap.Int("status", http.StatusOK))
 }
 
-func (h *CityHandler) handleError(w http.ResponseWriter, err error, requestID string) {
+func (h *CityHandler) handleError(w http.ResponseWriter, err error, requestID string) int {
 	logger.AccessLogger.Error("Handling error",
 		zap.String("request_id", requestID),
 		zap.Error(err),
@@ -107,10 +153,19 @@ func (h *CityHandler) handleError(w http.ResponseWriter, err error, requestID st
 
 	w.Header().Set("Content-Type", "application/json")
 	errorResponse := map[string]string{"error": err.Error()}
-
+	var status int
 	switch err.Error() {
+	case "input contains invalid characters",
+		"input exceeds character limit":
+		w.WriteHeader(http.StatusBadRequest)
+		status = http.StatusBadRequest
+	case "error fetching all cities",
+		"error fetching city":
+		w.WriteHeader(http.StatusInternalServerError)
+		status = http.StatusInternalServerError
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
+		status = http.StatusInternalServerError
 	}
 
 	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
@@ -120,4 +175,5 @@ func (h *CityHandler) handleError(w http.ResponseWriter, err error, requestID st
 		)
 		http.Error(w, jsonErr.Error(), http.StatusInternalServerError)
 	}
+	return status
 }

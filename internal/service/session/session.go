@@ -117,7 +117,7 @@ func GenerateSessionID(ctx context.Context) (string, error) {
 	_, err := rand.Read(b)
 	if err != nil {
 		logger.AccessLogger.Error("Error generating random bytes for session ID", zap.String("request_id", requestID), zap.Error(err))
-		return "", err
+		return "", errors.New("error generating random bytes for session ID")
 	}
 
 	sessionID := base64.StdEncoding.EncodeToString(b)
@@ -128,10 +128,9 @@ func GenerateSessionID(ctx context.Context) (string, error) {
 func GetSessionId(r *http.Request) (string, error) {
 	cookie, err := r.Cookie("session_id")
 	if err != nil {
-		return "", err
+		return "", errors.New("failed to get session id from request cookie")
 	}
 
-	// Если cookie найдена, возвращаем ее значение как строку
 	sessionID := cookie.Value
 	return sessionID, nil
 }

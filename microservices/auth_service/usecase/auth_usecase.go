@@ -41,12 +41,12 @@ func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User) err
 	if !validCharPattern.MatchString(creds.Avatar) ||
 		!validCharPattern.MatchString(creds.UUID) {
 		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		return errors.New("Input contains invalid characters")
+		return errors.New("input contains invalid characters")
 	}
 
 	if len(creds.Username) > maxLen || len(creds.Email) > maxLen || len(creds.Password) > maxLen || len(creds.Name) > maxLen || len(creds.Avatar) > maxLen || len(creds.UUID) > maxLen {
 		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
-		return errors.New("Input exceeds character limit")
+		return errors.New("input exceeds character limit")
 	}
 
 	if creds.Username == "" || creds.Password == "" || creds.Email == "" {
@@ -112,12 +112,12 @@ func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*doma
 		!validCharPattern.MatchString(creds.Avatar) ||
 		!validCharPattern.MatchString(creds.UUID) {
 		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		return creds, errors.New("Input contains invalid characters")
+		return nil, errors.New("input contains invalid characters")
 	}
 
 	if len(creds.Username) > maxLen || len(creds.Email) > maxLen || len(creds.Password) > maxLen || len(creds.Name) > maxLen || len(creds.Avatar) > maxLen || len(creds.UUID) > maxLen {
 		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
-		return creds, errors.New("Input exceeds character limit")
+		return nil, errors.New("input exceeds character limit")
 	}
 
 	if creds.Username == "" || creds.Password == "" {
@@ -158,26 +158,22 @@ func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*doma
 func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID string, avatar []byte) error {
 	requestID := middleware.GetRequestID(ctx)
 	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s]*$`)
-	if !validCharPattern.MatchString(creds.Username) ||
-		!validCharPattern.MatchString(creds.Email) ||
-		!validCharPattern.MatchString(creds.Password) ||
-		!validCharPattern.MatchString(creds.Name) ||
-		!validCharPattern.MatchString(creds.Avatar) ||
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s\-_]*$`)
+	if !validCharPattern.MatchString(creds.Avatar) ||
 		!validCharPattern.MatchString(creds.UUID) {
 		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		return errors.New("Input contains invalid characters")
+		return errors.New("input contains invalid characters")
 	}
 
 	if len(creds.Username) > maxLen || len(creds.Email) > maxLen || len(creds.Password) > maxLen || len(creds.Name) > maxLen || len(creds.Avatar) > maxLen || len(creds.UUID) > maxLen {
 		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
-		return errors.New("Input exceeds character limit")
+		return errors.New("input exceeds character limit")
 	}
 
 	if avatar != nil {
 		if err := validation.ValidateImage(avatar, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
 			logger.AccessLogger.Warn("Invalid size, type or resolution of image", zap.String("request_id", requestID), zap.Error(err))
-			return errors.New("Invalid size, type or resolution of image")
+			return errors.New("invalid size, type or resolution of image")
 		}
 	}
 
@@ -212,7 +208,7 @@ func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID s
 
 		uploadedPath, err := uc.minioService.UploadFile(avatar, contentType, "user/"+userID)
 		if err != nil {
-			return err
+			return errors.New("failed to upload file")
 		}
 
 		creds.Avatar = "/images/" + uploadedPath
@@ -220,7 +216,11 @@ func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID s
 
 	err := uc.authRepository.PutUser(ctx, creds, userID)
 	if err != nil {
-		_ = uc.minioService.DeleteFile(creds.Avatar)
+		ok := uc.minioService.DeleteFile(creds.Avatar)
+		if ok != nil {
+			return errors.New("failed to delete file")
+		}
+		return err
 	}
 	return nil
 }
@@ -239,17 +239,17 @@ func (uc *authUseCase) GetUserById(ctx context.Context, userID string) (*domain.
 	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
 	if !validCharPattern.MatchString(userID) {
 		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		return nil, errors.New("Input contains invalid characters")
+		return nil, errors.New("input contains invalid characters")
 	}
 
 	if len(userID) > maxLen {
 		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
-		return nil, errors.New("Input exceeds character limit")
+		return nil, errors.New("input exceeds character limit")
 	}
 
 	user, err := uc.authRepository.GetUserById(ctx, userID)
 	if err != nil {
-		return nil, errors.New("user not found")
+		return nil, err
 	}
 	return user, nil
 }

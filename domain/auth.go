@@ -28,6 +28,19 @@ type UserResponce struct {
 	GuestCount int       `json:"guestCount"`
 }
 
+type UserDataResponse struct {
+	Uuid       string    `json:"uuid"`
+	Username   string    `json:"username"`
+	Email      string    `json:"email"`
+	Name       string    `json:"name"`
+	Score      float64   `json:"score"`
+	Avatar     string    `json:"avatar"`
+	Sex        string    `json:"sex"`
+	GuestCount int       `json:"guestCount"`
+	Birthdate  time.Time `json:"birthdate"`
+	IsHost     bool      `json:"isHost"`
+}
+
 type AuthRepository interface {
 	CreateUser(ctx context.Context, creds *User) error
 	SaveUser(ctx context.Context, creds *User) error

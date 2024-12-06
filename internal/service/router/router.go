@@ -7,6 +7,7 @@ import (
 	city "2024_2_FIGHT-CLUB/internal/cities/controller"
 	review "2024_2_FIGHT-CLUB/internal/reviews/contoller"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler, cityHandler *city.CityHandler, chatHandler *chat.ChatHandler, reviewHandler *review.ReviewHandler) *mux.Router {
@@ -43,5 +44,10 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler, cityH
 	// Reviews Management Routese
 	router.HandleFunc(api+"/reviews", reviewHandler.CreateReview).Methods("POST")
 	router.HandleFunc(api+"/reviews/{userId}", reviewHandler.GetUserReviews).Methods("GET")
+	router.HandleFunc(api+"/reviews/{hostId}", reviewHandler.DeleteReview).Methods("DELETE")
+	router.HandleFunc(api+"/reviews/{hostId}", reviewHandler.UpdateReview).Methods("PUT")
+
+	router.Handle(api+"/metrics", promhttp.Handler())
+
 	return router
 }

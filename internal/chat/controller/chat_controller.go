@@ -4,10 +4,12 @@ import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/chat/usecase"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -42,7 +44,23 @@ var (
 func (cc *ChatHandler) SetConnection(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
-
+	var err error
+	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 	logger.AccessLogger.Info("Received RegisterUser request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
@@ -126,7 +144,23 @@ func (cc *ChatHandler) GetAllChats(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
-
+	var err error
+	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
 	logger.AccessLogger.Info("Received RegisterUser request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
@@ -136,7 +170,6 @@ func (cc *ChatHandler) GetAllChats(w http.ResponseWriter, r *http.Request) {
 	var (
 		lastTimeQuery = r.URL.Query().Get("lastTime")
 		lastTime      time.Time
-		err           error
 	)
 
 	if lastTimeQuery == "" {
@@ -147,6 +180,7 @@ func (cc *ChatHandler) GetAllChats(w http.ResponseWriter, r *http.Request) {
 			logger.AccessLogger.Info("Failed to parse lastTime",
 				zap.String("request_id", requestID),
 				zap.Error(err))
+			cc.handleError(w, errors.New("failed to parse lastTime"), requestID)
 			return
 		}
 	}
@@ -156,14 +190,23 @@ func (cc *ChatHandler) GetAllChats(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Info("Failed to get sessionId",
 			zap.String("request_id", requestID),
 			zap.Error(err))
+		cc.handleError(w, err, requestID)
 		return
 	}
 	UserID, err := cc.sessionService.GetUserID(ctx, sess)
+	if err != nil {
+		logger.AccessLogger.Info("Failed to get UserID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		cc.handleError(w, err, requestID)
+		return
+	}
 	chats, err := cc.chatUseCase.GetAllChats(ctx, UserID, lastTime)
 	if err != nil {
 		logger.AccessLogger.Info("Failed to get all chats",
 			zap.String("request_id", requestID),
 			zap.Error(err))
+		cc.handleError(w, err, requestID)
 		return
 	}
 
@@ -196,16 +239,33 @@ func (cc *ChatHandler) GetChat(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := middleware.WithTimeout(r.Context())
 	defer cancel()
 
-	logger.AccessLogger.Info("Received RegisterUser request",
-		zap.String("request_id", requestID),
-		zap.String("method", r.Method),
-		zap.String("url", r.URL.String()),
-	)
-
 	var (
 		lastTimeQuery = r.URL.Query().Get("lastTime")
 		lastTime      time.Time
 		err           error
+	)
+
+	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
+
+	logger.AccessLogger.Info("Received RegisterUser request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
 	)
 
 	if lastTimeQuery == "" {
@@ -216,6 +276,7 @@ func (cc *ChatHandler) GetChat(w http.ResponseWriter, r *http.Request) {
 			logger.AccessLogger.Info("Failed to parse lastTime",
 				zap.String("request_id", requestID),
 				zap.Error(err))
+			cc.handleError(w, errors.New("failed to parse lastTime"), requestID)
 			return
 		}
 	}
@@ -225,14 +286,23 @@ func (cc *ChatHandler) GetChat(w http.ResponseWriter, r *http.Request) {
 		logger.AccessLogger.Info("Failed to get sessionId",
 			zap.String("request_id", requestID),
 			zap.Error(err))
+		cc.handleError(w, err, requestID)
 		return
 	}
 	UserID, err := cc.sessionService.GetUserID(ctx, sess)
+	if err != nil {
+		logger.AccessLogger.Info("Failed to get UserID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		cc.handleError(w, err, requestID)
+		return
+	}
 	messages, err := cc.chatUseCase.GetChat(ctx, UserID, id, lastTime)
 	if err != nil {
 		logger.AccessLogger.Info("Failed to get chat",
 			zap.String("request_id", requestID),
 			zap.Error(err))
+		cc.handleError(w, err, requestID)
 		return
 	}
 
@@ -254,4 +324,41 @@ func (cc *ChatHandler) GetChat(w http.ResponseWriter, r *http.Request) {
 		zap.Duration("duration", duration),
 		zap.Int("status", http.StatusOK),
 	)
+}
+
+func (cc *ChatHandler) handleError(w http.ResponseWriter, err error, requestID string) int {
+	logger.AccessLogger.Error("Handling error",
+		zap.String("request_id", requestID),
+		zap.Error(err),
+	)
+
+	w.Header().Set("Content-Type", "application/json")
+	errorResponse := map[string]string{"error": err.Error()}
+	var status int
+	switch err.Error() {
+	case "error fetching chats", "error fetching messages",
+		"failed to generate session id", "failed to save session", "error generating random bytes for session ID",
+		"failed to delete session", "failed to get session id from request cookie":
+		w.WriteHeader(http.StatusInternalServerError)
+		status = http.StatusInternalServerError
+	case "error sending message",
+		"failed to parse lastTime":
+		w.WriteHeader(http.StatusBadRequest)
+		status = http.StatusBadRequest
+	case "session not found", "user ID not found in session":
+		w.WriteHeader(http.StatusUnauthorized)
+		status = http.StatusUnauthorized
+	default:
+		w.WriteHeader(http.StatusInternalServerError)
+		status = http.StatusInternalServerError
+	}
+
+	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
+		logger.AccessLogger.Error("Failed to encode error response",
+			zap.String("request_id", requestID),
+			zap.Error(jsonErr),
+		)
+		http.Error(w, jsonErr.Error(), http.StatusInternalServerError)
+	}
+	return status
 }

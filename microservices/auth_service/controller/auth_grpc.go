@@ -246,12 +246,11 @@ func (h *GrpcAuthHandler) GetUserById(ctx context.Context, in *gen.GetUserByIdRe
 		return nil, err
 	}
 
-	userMetadata := &gen.Metadata{
+	userMetadata := &gen.MetadataOneUser{
 		Uuid:       user.UUID,
 		Username:   user.Username,
-		Password:   user.Password,
-		Email:      user.Email,
 		Name:       user.Name,
+		Email:      user.Email,
 		Score:      float32(user.Score),
 		Avatar:     user.Avatar,
 		Sex:        user.Sex,
@@ -278,12 +277,11 @@ func (h *GrpcAuthHandler) GetAllUsers(ctx context.Context, in *gen.Empty) (*gen.
 		return nil, err
 	}
 
-	var userMetadata []*gen.Metadata
+	var userMetadata []*gen.MetadataOneUser
 	for _, user := range users {
-		userMetadata = append(userMetadata, &gen.Metadata{
+		userMetadata = append(userMetadata, &gen.MetadataOneUser{
 			Uuid:       user.UUID,
 			Username:   user.Username,
-			Password:   user.Password,
 			Email:      user.Email,
 			Name:       user.Name,
 			Score:      float32(user.Score),
@@ -309,7 +307,7 @@ func (h *GrpcAuthHandler) GetSessionData(ctx context.Context, in *gen.GetSession
 		logger.AccessLogger.Warn("Failed to get session data",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		return nil, err
+		return nil, errors.New("failed to get session data")
 	}
 	data := *sessionData
 
@@ -342,7 +340,7 @@ func (h *GrpcAuthHandler) RefreshCsrfToken(ctx context.Context, in *gen.RefreshC
 		logger.AccessLogger.Warn("Failed to refresh csrf token",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		return nil, err
+		return nil, errors.New("failed to refresh csrf token")
 	}
 	return &gen.RefreshCsrfTokenResponse{
 		CsrfToken: newCsrfToken,

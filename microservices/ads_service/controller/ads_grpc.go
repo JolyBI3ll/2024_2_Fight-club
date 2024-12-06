@@ -77,7 +77,7 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequ
 			logger.AccessLogger.Error("Failed to parse dateFrom",
 				zap.Error(err),
 				zap.String("request_id", requestID))
-			return nil, err
+			return nil, errors.New("query dateFrom not int")
 		}
 	}
 
@@ -90,7 +90,7 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequ
 			logger.AccessLogger.Error("Failed to parse dateTo",
 				zap.Error(err),
 				zap.String("request_id", requestID))
-			return nil, err
+			return nil, errors.New("query dateTo not int")
 		}
 	}
 
@@ -123,21 +123,21 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequ
 			PublicationDate: place.PublicationDate.Format(layout),
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
-			ViewsCount:      int32(place.ViewsCount),
-			CityName:        place.Cityname,
+			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
+			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
 			AdAuthor: &gen.UserResponse{
 				Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
 				Avatar:     place.AdAuthor.Avatar,
 				Name:       place.AdAuthor.Name,
-				GuestCount: int32(place.AdAuthor.GuestCount),
+				GuestCount: int32Ptr(int32(place.AdAuthor.GuestCount)),
 				Sex:        place.AdAuthor.Sex,
 				BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 			},
 			Images: convertImagesToGRPC(place.Images),
 		}
-		responseList.Ads = append(responseList.Ads, ad)
+		responseList.Housing = append(responseList.Housing, ad)
 	}
 
 	logger.AccessLogger.Info("Successfully fetched all places", zap.String("request_id", requestID), zap.Int("count", len(places)))
@@ -171,15 +171,15 @@ func (adh *GrpcAdHandler) GetOnePlace(ctx context.Context, in *gen.GetPlaceByIdR
 		PublicationDate: place.PublicationDate.Format(layout),
 		Description:     place.Description,
 		RoomsNumber:     int32(place.RoomsNumber),
-		ViewsCount:      int32(place.ViewsCount),
-		CityName:        place.Cityname,
+		ViewsCount:      int32Ptr(int32(place.ViewsCount)),
+		CityName:        place.CityName,
 		AdDateFrom:      place.AdDateFrom.Format(layout),
 		AdDateTo:        place.AdDateTo.Format(layout),
 		AdAuthor: &gen.UserResponse{
 			Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
 			Avatar:     place.AdAuthor.Avatar,
 			Name:       place.AdAuthor.Name,
-			GuestCount: int32(place.AdAuthor.GuestCount),
+			GuestCount: int32Ptr(int32(place.AdAuthor.GuestCount)),
 			Sex:        place.AdAuthor.Sex,
 			BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 		},
@@ -200,7 +200,7 @@ func (adh *GrpcAdHandler) CreatePlace(ctx context.Context, in *gen.CreateAdReque
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("Missing X-CSRF-Token header")),
 		)
-		return nil, errors.New("Missing X-CSRF-Token header")
+		return nil, errors.New("missing X-CSRF-Token header")
 	}
 
 	in.CityName = sanitizer.Sanitize(in.CityName)
@@ -211,7 +211,7 @@ func (adh *GrpcAdHandler) CreatePlace(ctx context.Context, in *gen.CreateAdReque
 	_, err := adh.jwtToken.Validate(tokenString, in.SessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		return nil, errors.New("Invalid JWT token")
+		return nil, errors.New("invalid JWT token")
 	}
 
 	userID, err := adh.sessionService.GetUserID(ctx, in.SessionID)
@@ -264,21 +264,21 @@ func (adh *GrpcAdHandler) UpdatePlace(ctx context.Context, in *gen.UpdateAdReque
 	if in.AuthHeader == "" {
 		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
 			zap.String("request_id", requestID),
-			zap.Error(errors.New("Missing X-CSRF-Token header")),
+			zap.Error(errors.New("missing X-CSRF-Token header")),
 		)
-		return nil, errors.New("Missing X-CSRF-Token header")
+		return nil, errors.New("missing X-CSRF-Token header")
 	}
 
 	tokenString := in.AuthHeader[len("Bearer "):]
 	_, err := adh.jwtToken.Validate(tokenString, in.SessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		return nil, errors.New("Invalid JWT token")
+		return nil, errors.New("invalid JWT token")
 	}
 
 	userID, err := adh.sessionService.GetUserID(ctx, in.SessionID)
 	if err != nil {
-		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
+		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("no active session")
 	}
 	updatedPlace := domain.UpdateAdRequest{
@@ -309,16 +309,16 @@ func (adh *GrpcAdHandler) DeletePlace(ctx context.Context, in *gen.DeletePlaceRe
 	if in.AuthHeader == "" {
 		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
 			zap.String("request_id", requestID),
-			zap.Error(errors.New("Missing X-CSRF-Token header")),
+			zap.Error(errors.New("missing X-CSRF-Token header")),
 		)
-		return nil, errors.New("Missing X-CSRF-Token header")
+		return nil, errors.New("missing X-CSRF-Token header")
 	}
 
 	tokenString := in.AuthHeader[len("Bearer "):]
 	_, err := adh.jwtToken.Validate(tokenString, in.SessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		return nil, errors.New("Invalid JWT token")
+		return nil, errors.New("invalid JWT token")
 	}
 
 	userID, err := adh.sessionService.GetUserID(ctx, in.SessionID)
@@ -359,21 +359,21 @@ func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *gen.GetPlace
 			PublicationDate: place.PublicationDate.Format(layout),
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
-			ViewsCount:      int32(place.ViewsCount),
-			CityName:        place.Cityname,
+			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
+			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
 			AdAuthor: &gen.UserResponse{
 				Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
 				Avatar:     place.AdAuthor.Avatar,
 				Name:       place.AdAuthor.Name,
-				GuestCount: int32(place.AdAuthor.GuestCount),
+				GuestCount: int32Ptr(int32(place.AdAuthor.GuestCount)),
 				Sex:        place.AdAuthor.Sex,
 				BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 			},
 			Images: convertImagesToGRPC(place.Images),
 		}
-		responseList.Ads = append(responseList.Ads, ad)
+		responseList.Housing = append(responseList.Housing, ad)
 	}
 	return &responseList, nil
 }
@@ -401,21 +401,21 @@ func (adh *GrpcAdHandler) GetUserPlaces(ctx context.Context, in *gen.GetUserPlac
 			PublicationDate: place.PublicationDate.Format(layout),
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
-			ViewsCount:      int32(place.ViewsCount),
-			CityName:        place.Cityname,
+			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
+			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
 			AdAuthor: &gen.UserResponse{
 				Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
 				Avatar:     place.AdAuthor.Avatar,
 				Name:       place.AdAuthor.Name,
-				GuestCount: int32(place.AdAuthor.GuestCount),
+				GuestCount: int32Ptr(int32(place.AdAuthor.GuestCount)),
 				Sex:        place.AdAuthor.Sex,
 				BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 			},
 			Images: convertImagesToGRPC(place.Images),
 		}
-		responseList.Ads = append(responseList.Ads, ad)
+		responseList.Housing = append(responseList.Housing, ad)
 	}
 	return &responseList, nil
 }
@@ -433,16 +433,16 @@ func (adh *GrpcAdHandler) DeleteAdImage(ctx context.Context, in *gen.DeleteAdIma
 	if in.AuthHeader == "" {
 		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
 			zap.String("request_id", requestID),
-			zap.Error(errors.New("Missing X-CSRF-Token header")),
+			zap.Error(errors.New("missing X-CSRF-Token header")),
 		)
-		return nil, errors.New("Missing X-CSRF-Token header")
+		return nil, errors.New("missing X-CSRF-Token header")
 	}
 
 	tokenString := in.AuthHeader[len("Bearer "):]
 	_, err := adh.jwtToken.Validate(tokenString, in.SessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		return nil, errors.New("Invalid JWT token")
+		return nil, errors.New("invalid JWT token")
 	}
 
 	userID, err := adh.sessionService.GetUserID(ctx, in.SessionID)
@@ -461,6 +461,10 @@ func (adh *GrpcAdHandler) DeleteAdImage(ctx context.Context, in *gen.DeleteAdIma
 
 func float32Ptr(f float32) *float32 {
 	return &f
+}
+
+func int32Ptr(i int32) *int32 {
+	return &i
 }
 
 func convertImagesToGRPC(images []domain.ImageResponse) []*gen.ImageResponse {

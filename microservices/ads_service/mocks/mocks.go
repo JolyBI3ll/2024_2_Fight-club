@@ -6,22 +6,21 @@ import (
 	"context"
 	"github.com/golang-jwt/jwt"
 	"github.com/gorilla/sessions"
-	"mime/multipart"
 	"net/http"
 )
 
 type MockJwtTokenService struct {
-	MockCreate            func(s *sessions.Session, tokenExpTime int64) (string, error)
-	MockValidate          func(tokenString string) (*middleware.JwtCsrfClaims, error)
+	MockCreate            func(session_id string, tokenExpTime int64) (string, error)
+	MockValidate          func(tokenString string, expectedSessionId string) (*middleware.JwtCsrfClaims, error)
 	MockParseSecretGetter func(token *jwt.Token) (interface{}, error)
 }
 
-func (m *MockJwtTokenService) Create(s *sessions.Session, tokenExpTime int64) (string, error) {
-	return m.MockCreate(s, tokenExpTime)
+func (m *MockJwtTokenService) Create(session_id string, tokenExpTime int64) (string, error) {
+	return m.MockCreate(session_id, tokenExpTime)
 }
 
-func (m *MockJwtTokenService) Validate(tokenString string) (*middleware.JwtCsrfClaims, error) {
-	return m.MockValidate(tokenString)
+func (m *MockJwtTokenService) Validate(tokenString string, expectedSessionId string) (*middleware.JwtCsrfClaims, error) {
+	return m.MockValidate(tokenString, expectedSessionId)
 }
 
 func (m *MockJwtTokenService) ParseSecretGetter(token *jwt.Token) (interface{}, error) {
@@ -29,45 +28,45 @@ func (m *MockJwtTokenService) ParseSecretGetter(token *jwt.Token) (interface{}, 
 }
 
 type MockServiceSession struct {
-	MockGetUserID      func(ctx context.Context, r *http.Request) (string, error)
-	MockLogoutSession  func(ctx context.Context, r *http.Request, w http.ResponseWriter) error
-	MockCreateSession  func(ctx context.Context, r *http.Request, w http.ResponseWriter, user *domain.User) (*sessions.Session, error)
-	MockGetSessionData func(ctx context.Context, r *http.Request) (*map[string]interface{}, error)
-	MockGetSession     func(ctx context.Context, r *http.Request) (*sessions.Session, error)
+	MockGetUserID      func(ctx context.Context, sessionID string) (string, error)
+	MockLogoutSession  func(ctx context.Context, sessionID string) error
+	MockCreateSession  func(ctx context.Context, user *domain.User) (string, error)
+	MockGetSessionData func(ctx context.Context, sessionID string) (*map[string]interface{}, error)
+	MockGetSession     func(r *http.Request) (*sessions.Session, error)
 }
 
-func (m *MockServiceSession) GetUserID(ctx context.Context, r *http.Request) (string, error) {
-	return m.MockGetUserID(ctx, r)
+func (m *MockServiceSession) GetUserID(ctx context.Context, sessionID string) (string, error) {
+	return m.MockGetUserID(ctx, sessionID)
 }
 
-func (m *MockServiceSession) LogoutSession(ctx context.Context, r *http.Request, w http.ResponseWriter) error {
-	return m.MockLogoutSession(ctx, r, w)
+func (m *MockServiceSession) LogoutSession(ctx context.Context, sessionID string) error {
+	return m.MockLogoutSession(ctx, sessionID)
 }
 
-func (m *MockServiceSession) CreateSession(ctx context.Context, r *http.Request, w http.ResponseWriter, user *domain.User) (*sessions.Session, error) {
-	return m.MockCreateSession(ctx, r, w, user)
+func (m *MockServiceSession) CreateSession(ctx context.Context, user *domain.User) (string, error) {
+	return m.MockCreateSession(ctx, user)
 }
 
-func (m *MockServiceSession) GetSessionData(ctx context.Context, r *http.Request) (*map[string]interface{}, error) {
-	return m.MockGetSessionData(ctx, r)
+func (m *MockServiceSession) GetSessionData(ctx context.Context, sessionID string) (*map[string]interface{}, error) {
+	return m.MockGetSessionData(ctx, sessionID)
 }
 
-func (m *MockServiceSession) GetSession(ctx context.Context, r *http.Request) (*sessions.Session, error) {
-	return m.MockGetSession(ctx, r)
+func (m *MockServiceSession) GetSession(r *http.Request) (*sessions.Session, error) {
+	return m.MockGetSession(r)
 }
 
 type MockAdUseCase struct {
 	MockGetAllPlaces     func(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error)
-	MockGetOnePlace      func(ctx context.Context, adId string) (domain.GetAllAdsResponse, error)
-	MockCreatePlace      func(ctx context.Context, place *domain.Ad, fileHeader []*multipart.FileHeader, newPlace domain.CreateAdRequest) error
-	MockUpdatePlace      func(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeader []*multipart.FileHeader, updatedPlace domain.UpdateAdRequest) error
+	MockGetOnePlace      func(ctx context.Context, adId string, isAuthorized bool) (domain.GetAllAdsResponse, error)
+	MockCreatePlace      func(ctx context.Context, place *domain.Ad, fileHeader [][]byte, newPlace domain.CreateAdRequest, userId string) error
+	MockUpdatePlace      func(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeader [][]byte, updatedPlace domain.UpdateAdRequest) error
 	MockDeletePlace      func(ctx context.Context, adId string, userId string) error
 	MockGetPlacesPerCity func(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error)
 	MockGetUserPlaces    func(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
-	MockDeleteAdImage    func(ctx context.Context, adId string, imageId int, userId string) error
+	MockDeleteAdImage    func(ctx context.Context, adId string, imageId string, userId string) error
 }
 
-func (m *MockAdUseCase) DeleteAdImage(ctx context.Context, adId string, imageId int, userId string) error {
+func (m *MockAdUseCase) DeleteAdImage(ctx context.Context, adId string, imageId string, userId string) error {
 	return m.MockDeleteAdImage(ctx, adId, imageId, userId)
 }
 
@@ -75,15 +74,15 @@ func (m *MockAdUseCase) GetAllPlaces(ctx context.Context, filter domain.AdFilter
 	return m.MockGetAllPlaces(ctx, filter)
 }
 
-func (m *MockAdUseCase) GetOnePlace(ctx context.Context, adId string) (domain.GetAllAdsResponse, error) {
-	return m.MockGetOnePlace(ctx, adId)
+func (m *MockAdUseCase) GetOnePlace(ctx context.Context, adId string, isAuthorized bool) (domain.GetAllAdsResponse, error) {
+	return m.MockGetOnePlace(ctx, adId, isAuthorized)
 }
 
-func (m *MockAdUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHeader []*multipart.FileHeader, newPlace domain.CreateAdRequest) error {
-	return m.MockCreatePlace(ctx, place, fileHeader, newPlace)
+func (m *MockAdUseCase) CreatePlace(ctx context.Context, place *domain.Ad, fileHeader [][]byte, newPlace domain.CreateAdRequest, userId string) error {
+	return m.MockCreatePlace(ctx, place, fileHeader, newPlace, userId)
 }
 
-func (m *MockAdUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeader []*multipart.FileHeader, updatedPlace domain.UpdateAdRequest) error {
+func (m *MockAdUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeader [][]byte, updatedPlace domain.UpdateAdRequest) error {
 	return m.MockUpdatePlace(ctx, place, adId, userId, fileHeader, updatedPlace)
 }
 
@@ -102,7 +101,8 @@ func (m *MockAdUseCase) GetUserPlaces(ctx context.Context, userId string) ([]dom
 type MockAdRepository struct {
 	MockGetAllPlaces     func(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error)
 	MockGetPlaceById     func(ctx context.Context, adId string) (domain.GetAllAdsResponse, error)
-	MockCreatePlace      func(ctx context.Context, ad *domain.Ad, newAd domain.CreateAdRequest) error
+	MockUpdateViewsCount func(ctx context.Context, ad domain.GetAllAdsResponse) (domain.GetAllAdsResponse, error)
+	MockCreatePlace      func(ctx context.Context, ad *domain.Ad, newAd domain.CreateAdRequest, userId string) error
 	MockSavePlace        func(ctx context.Context, ad *domain.Ad) error
 	MockUpdatePlace      func(ctx context.Context, ad *domain.Ad, adId string, userId string, updatedAd domain.UpdateAdRequest) error
 	MockDeletePlace      func(ctx context.Context, adId string, userId string) error
@@ -125,8 +125,12 @@ func (m *MockAdRepository) GetPlaceById(ctx context.Context, adId string) (domai
 	return m.MockGetPlaceById(ctx, adId)
 }
 
-func (m *MockAdRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd domain.CreateAdRequest) error {
-	return m.MockCreatePlace(ctx, ad, newAd)
+func (m *MockAdRepository) UpdateViewsCount(ctx context.Context, ad domain.GetAllAdsResponse) (domain.GetAllAdsResponse, error) {
+	return m.MockUpdateViewsCount(ctx, ad)
+}
+
+func (m *MockAdRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd domain.CreateAdRequest, userId string) error {
+	return m.MockCreatePlace(ctx, ad, newAd, userId)
 }
 
 func (m *MockAdRepository) SavePlace(ctx context.Context, ad *domain.Ad) error {
@@ -158,14 +162,14 @@ func (m *MockAdRepository) GetUserPlaces(ctx context.Context, userId string) ([]
 }
 
 type MockMinioService struct {
-	UploadFileFunc func(file *multipart.FileHeader, path string) (string, error)
-	DeleteFileFunc func(path string) error
+	UploadFileFunc func(file []byte, contentType, id string) (string, error)
+	DeleteFileFunc func(filePath string) error
 }
 
-func (m *MockMinioService) UploadFile(file *multipart.FileHeader, path string) (string, error) {
-	return m.UploadFileFunc(file, path)
+func (m *MockMinioService) UploadFile(file []byte, contentType, id string) (string, error) {
+	return m.UploadFileFunc(file, contentType, id)
 }
 
-func (m *MockMinioService) DeleteFile(path string) error {
-	return m.DeleteFileFunc(path)
+func (m *MockMinioService) DeleteFile(filePath string) error {
+	return m.DeleteFileFunc(filePath)
 }

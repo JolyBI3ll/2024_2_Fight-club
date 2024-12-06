@@ -3,10 +3,8 @@ package middleware_test
 import (
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"context"
-	"errors"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
-	"github.com/gorilla/sessions"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
@@ -51,12 +49,7 @@ func TestJwtToken_Create(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Создаем сессию с необходимыми значениями
-	session := &sessions.Session{
-		Values: map[interface{}]interface{}{
-			"session_id": "session123",
-			"id":         "user456", // Добавлено значение для "id"
-		},
-	}
+	session := "session123"
 
 	// Задаем время истечения токена (через 1 час)
 	expirationTime := time.Now().Add(1 * time.Hour).Unix()
@@ -65,13 +58,12 @@ func TestJwtToken_Create(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, tokenString)
 
-	// Парсим токен для проверки claims
+	//Парсим токен для проверки claims
 	claims := &middleware.JwtCsrfClaims{}
 	parsedToken, err := jwt.ParseWithClaims(tokenString, claims, jwtService.ParseSecretGetter)
 	assert.NoError(t, err)
 	assert.True(t, parsedToken.Valid)
 	assert.Equal(t, "session123", claims.SessionID)
-	assert.Equal(t, "user456", claims.UserID)
 	assert.Equal(t, expirationTime, claims.ExpiresAt)
 }
 
@@ -81,49 +73,34 @@ func TestJwtToken_Validate(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Создаем сессию с необходимыми значениями
-	session := &sessions.Session{
-		Values: map[interface{}]interface{}{
-			"session_id": "session123",
-			"id":         "user456",
-		},
-	}
+	session := "session123"
 	expirationTime := time.Now().Add(1 * time.Hour).Unix()
 	tokenString, err := jwtService.Create(session, expirationTime)
 	assert.NoError(t, err)
 
 	// Успешная валидация
-	claims, err := jwtService.Validate(tokenString)
+	claims, err := jwtService.Validate(tokenString, session)
 	assert.NoError(t, err)
 	assert.NotNil(t, claims)
 	assert.Equal(t, "session123", claims.SessionID)
-	assert.Equal(t, "user456", claims.UserID)
 
 	// Валидация с неправильной подписью
 	invalidService, _ := middleware.NewJwtToken("wrongsecret")
-	_, err = invalidService.Validate(tokenString)
+	_, err = invalidService.Validate(tokenString, session)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid token")
+	assert.Contains(t, err.Error(), "token parse error")
 
 	// Валидация истёкшего токена
 	expiredTime := time.Now().Add(-1 * time.Hour).Unix()
 	expiredToken, err := jwtService.Create(session, expiredTime)
-	assert.NoError(t, err)
 
-	_, err = jwtService.Validate(expiredToken)
+	_, err = jwtService.Validate(expiredToken, session)
 	assert.Error(t, err)
-
-	var validationError *jwt.ValidationError
-	if errors.As(err, &validationError) {
-		assert.True(t, validationError.Errors&jwt.ValidationErrorExpired != 0, "Expected token to be expired")
-	} else {
-		t.Fatalf("Expected a jwt.ValidationError, got %T", err)
-	}
-
+	assert.Contains(t, err.Error(), "token parse error")
 	// Валидация токена с неправильными claims
 	// Создаем токен с неверными claims
 	wrongClaims := middleware.JwtCsrfClaims{
 		SessionID: "wrong_session",
-		UserID:    "wrong_user",
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expirationTime,
 			IssuedAt:  time.Now().Unix(),
@@ -133,10 +110,17 @@ func TestJwtToken_Validate(t *testing.T) {
 	wrongTokenString, err := wrongToken.SignedString([]byte(secret))
 	assert.NoError(t, err)
 
-	validatedClaims, err := jwtService.Validate(wrongTokenString)
-	assert.NoError(t, err)
-	assert.Equal(t, "wrong_session", validatedClaims.SessionID)
-	assert.Equal(t, "wrong_user", validatedClaims.UserID)
+	validatedClaims, err := jwtService.Validate(wrongTokenString, session)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "token invalid")
+	assert.Nil(t, validatedClaims)
+
+	//Валидация токена с неправильным session_id
+	wrongSession := "wrong_session123"
+
+	_, err = invalidService.Validate(tokenString, wrongSession)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "token parse error")
 }
 
 func TestJwtToken_ParseSecretGetter(t *testing.T) {
@@ -147,7 +131,6 @@ func TestJwtToken_ParseSecretGetter(t *testing.T) {
 	// Создаем токен с правильным методом подписи
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &middleware.JwtCsrfClaims{
 		SessionID: "s123",
-		UserID:    "u456",
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(1 * time.Hour).Unix(),
 			IssuedAt:  time.Now().Unix(),

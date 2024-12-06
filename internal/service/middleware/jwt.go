@@ -1,10 +1,10 @@
 package middleware
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
-	jwt "github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt"
 )
 
 type JwtTokenService interface {
@@ -43,21 +43,21 @@ func (tk *JwtToken) Create(session_id string, tokenExpTime int64) (string, error
 func (tk *JwtToken) Validate(tokenString string, expectedSessionId string) (*JwtCsrfClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JwtCsrfClaims{}, tk.ParseSecretGetter)
 	if err != nil {
-		return nil, fmt.Errorf("invalid token: %w", err)
+		return nil, errors.New("token parse error")
 	}
 
 	claims, ok := token.Claims.(*JwtCsrfClaims)
 	if !ok || !token.Valid {
-		return nil, fmt.Errorf("invalid token")
+		return nil, errors.New("token invalid")
 	}
 
 	// Проверка срока действия (дополнительно)
 	if claims.ExpiresAt < time.Now().Unix() {
-		return nil, fmt.Errorf("token has expired")
+		return nil, errors.New("token expired")
 	}
 
 	if claims.SessionID != expectedSessionId {
-		return nil, fmt.Errorf("invalid token")
+		return nil, errors.New("token invalid")
 	}
 
 	return claims, nil
@@ -66,7 +66,7 @@ func (tk *JwtToken) Validate(tokenString string, expectedSessionId string) (*Jwt
 func (tk *JwtToken) ParseSecretGetter(token *jwt.Token) (interface{}, error) {
 	method, ok := token.Method.(*jwt.SigningMethodHMAC)
 	if !ok || method.Alg() != "HS256" {
-		return nil, fmt.Errorf("bad sign method")
+		return nil, errors.New("bad sign method")
 	}
 	return tk.Secret, nil
 }

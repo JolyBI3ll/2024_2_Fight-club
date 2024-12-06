@@ -34,4 +34,6 @@ type UserReviews struct {
 type ReviewRepository interface {
 	CreateReview(ctx context.Context, review *Review) error
 	GetUserReviews(ctx context.Context, userID string) ([]UserReviews, error)
+	DeleteReview(ctx context.Context, userID, hostID string) error
+	UpdateReview(ctx context.Context, userID, hostID string, updatedReview *Review) error
 }
