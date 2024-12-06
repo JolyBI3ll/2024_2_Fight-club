@@ -46,7 +46,9 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler, cityH
 	router.HandleFunc(api+"/reviews/{userId}", reviewHandler.GetUserReviews).Methods("GET")
 	router.HandleFunc(api+"/reviews/{hostId}", reviewHandler.DeleteReview).Methods("DELETE")
 	router.HandleFunc(api+"/reviews/{hostId}", reviewHandler.UpdateReview).Methods("PUT")
-
+	// Payment Management Routes
+	router.HandleFunc(api+"/payment/callback", paymentHandler.PaymentCallback).Methods("POST")
+	router.HandleFunc(api+"/payment", paymentHandler.CreatePayment).Methods("POST")
 	router.Handle(api+"/metrics", promhttp.Handler())
 
 	return router
