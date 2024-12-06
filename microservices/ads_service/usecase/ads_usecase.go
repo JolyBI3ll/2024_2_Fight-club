@@ -81,7 +81,7 @@ func (uc *adUseCase) GetOnePlace(ctx context.Context, adId string, isAuthorized 
 }
 
 func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, files [][]byte, newPlace domain.CreateAdRequest, userId string) error {
-	const maxLen = 255
+	const maxLen = 1000
 	requestID := middleware.GetRequestID(ctx)
 
 	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s\-!?&;#()/$*^%+=|]*$`)
@@ -108,9 +108,6 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, files []
 		return errors.New("invalid size, type or resolution of image")
 	}
 
-	place.Description = newPlace.Description
-	place.Address = newPlace.Address
-	place.RoomsNumber = newPlace.RoomsNumber
 	err := uc.adRepository.CreatePlace(ctx, place, newPlace, userId)
 	if err != nil {
 		return err
@@ -142,7 +139,7 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, files []
 
 func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, files [][]byte, updatedPlace domain.UpdateAdRequest) error {
 	requestID := middleware.GetRequestID(ctx)
-	const maxLen = 255
+	const maxLen = 1000
 
 	if len(files) > 0 {
 		if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
@@ -185,9 +182,7 @@ func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId str
 	if err != nil {
 		return err
 	}
-	place.Description = updatedPlace.Description
-	place.Address = updatedPlace.Address
-	place.RoomsNumber = updatedPlace.RoomsNumber
+
 	var newUploadedPaths ntype.StringArray
 
 	for _, file := range files {
@@ -342,7 +337,10 @@ func (uc *adUseCase) AddToFavorites(ctx context.Context, adId string, userId str
 	if err != nil {
 		return err
 	}
-
+	err = uc.adRepository.UpdateFavoritesCount(ctx, adId)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -364,7 +362,10 @@ func (uc *adUseCase) DeleteFromFavorites(ctx context.Context, adId string, userI
 	if err != nil {
 		return err
 	}
-
+	err = uc.adRepository.UpdateFavoritesCount(ctx, adId)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

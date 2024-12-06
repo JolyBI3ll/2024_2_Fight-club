@@ -276,15 +276,22 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := h.client.CreatePlace(ctx, &gen.CreateAdRequest{
-		CityName:    newPlace.CityName,
-		Description: newPlace.Description,
-		Address:     newPlace.Address,
-		RoomsNumber: int32(newPlace.RoomsNumber),
-		DateFrom:    timestamppb.New(newPlace.DateFrom),
-		DateTo:      timestamppb.New(newPlace.DateTo),
-		Images:      files,
-		AuthHeader:  authHeader,
-		SessionID:   sessionID,
+		CityName:     newPlace.CityName,
+		Description:  newPlace.Description,
+		Address:      newPlace.Address,
+		RoomsNumber:  int32(newPlace.RoomsNumber),
+		DateFrom:     timestamppb.New(newPlace.DateFrom),
+		DateTo:       timestamppb.New(newPlace.DateTo),
+		Images:       files,
+		AuthHeader:   authHeader,
+		SessionID:    sessionID,
+		SquareMeters: int32(newPlace.SquareMeters),
+		Floor:        int32(newPlace.Floor),
+		BuildingType: newPlace.BuildingType,
+		HasBalcony:   newPlace.HasBalcony,
+		HasElevator:  newPlace.HasElevator,
+		HasGas:       newPlace.HasGas,
+		Rooms:        middleware.ConvertRoomsToGRPC(newPlace.Rooms),
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to create place", zap.String("request_id", requestID), zap.Error(err))
@@ -397,16 +404,23 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := h.client.UpdatePlace(ctx, &gen.UpdateAdRequest{
-		AdId:        adId,
-		CityName:    updatedPlace.CityName,
-		Address:     updatedPlace.Address,
-		Description: updatedPlace.Description,
-		RoomsNumber: int32(updatedPlace.RoomsNumber),
-		SessionID:   sessionID,
-		AuthHeader:  authHeader,
-		Images:      files,
-		DateFrom:    timestamppb.New(updatedPlace.DateFrom),
-		DateTo:      timestamppb.New(updatedPlace.DateTo),
+		AdId:         adId,
+		CityName:     updatedPlace.CityName,
+		Address:      updatedPlace.Address,
+		Description:  updatedPlace.Description,
+		RoomsNumber:  int32(updatedPlace.RoomsNumber),
+		SessionID:    sessionID,
+		AuthHeader:   authHeader,
+		Images:       files,
+		DateFrom:     timestamppb.New(updatedPlace.DateFrom),
+		DateTo:       timestamppb.New(updatedPlace.DateTo),
+		SquareMeters: int32(updatedPlace.SquareMeters),
+		Floor:        int32(updatedPlace.Floor),
+		BuildingType: updatedPlace.BuildingType,
+		HasBalcony:   updatedPlace.HasBalcony,
+		HasElevator:  updatedPlace.HasElevator,
+		HasGas:       updatedPlace.HasGas,
+		Rooms:        middleware.ConvertRoomsToGRPC(updatedPlace.Rooms),
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to update place", zap.String("request_id", requestID), zap.Error(err))
@@ -608,6 +622,7 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = h.handleError(w, err, requestID)
@@ -961,7 +976,8 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 		"get places per city error", "get user places error", "error creating image",
 		"delete ad image error", "failed to generate session id", "failed to save session",
 		"failed to delete session", "error generating random bytes for session ID",
-		"failed to get session id from request cookie":
+		"failed to get session id from request cookie", "error fetching rooms for ad",
+		"error counting favorites", "error updating favorites count", "error creating room":
 		w.WriteHeader(http.StatusInternalServerError)
 		status = http.StatusInternalServerError
 	default:

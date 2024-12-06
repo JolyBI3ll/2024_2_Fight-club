@@ -124,6 +124,13 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequ
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
 			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
+			SquareMeters:    int32(place.SquareMeters),
+			Floor:           int32(place.Floor),
+			BuildingType:    place.BuildingType,
+			HasBalcony:      boolPtr(place.HasBalcony),
+			HasElevator:     boolPtr(place.HasElevator),
+			HasGas:          boolPtr(place.HasGas),
+			LikesCount:      int32Ptr(int32(place.LikesCount)),
 			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
@@ -136,6 +143,7 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequ
 				BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 			},
 			Images: convertImagesToGRPC(place.Images),
+			Rooms:  middleware.ConvertRoomsToGRPC(place.Rooms),
 		}
 		responseList.Housing = append(responseList.Housing, ad)
 	}
@@ -172,6 +180,13 @@ func (adh *GrpcAdHandler) GetOnePlace(ctx context.Context, in *gen.GetPlaceByIdR
 		Description:     place.Description,
 		RoomsNumber:     int32(place.RoomsNumber),
 		ViewsCount:      int32Ptr(int32(place.ViewsCount)),
+		SquareMeters:    int32(place.SquareMeters),
+		Floor:           int32(place.Floor),
+		BuildingType:    place.BuildingType,
+		HasBalcony:      boolPtr(place.HasBalcony),
+		HasElevator:     boolPtr(place.HasElevator),
+		HasGas:          boolPtr(place.HasGas),
+		LikesCount:      int32Ptr(int32(place.LikesCount)),
 		CityName:        place.CityName,
 		AdDateFrom:      place.AdDateFrom.Format(layout),
 		AdDateTo:        place.AdDateTo.Format(layout),
@@ -184,6 +199,7 @@ func (adh *GrpcAdHandler) GetOnePlace(ctx context.Context, in *gen.GetPlaceByIdR
 			BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 		},
 		Images: convertImagesToGRPC(place.Images),
+		Rooms:  middleware.ConvertRoomsToGRPC(place.Rooms),
 	}, nil
 }
 
@@ -206,6 +222,7 @@ func (adh *GrpcAdHandler) CreatePlace(ctx context.Context, in *gen.CreateAdReque
 	in.CityName = sanitizer.Sanitize(in.CityName)
 	in.Description = sanitizer.Sanitize(in.Description)
 	in.Address = sanitizer.Sanitize(in.Address)
+	in.BuildingType = sanitizer.Sanitize(in.BuildingType)
 
 	tokenString := in.AuthHeader[len("Bearer "):]
 	_, err := adh.jwtToken.Validate(tokenString, in.SessionID)
@@ -222,12 +239,19 @@ func (adh *GrpcAdHandler) CreatePlace(ctx context.Context, in *gen.CreateAdReque
 
 	var place domain.Ad
 	newPlace := domain.CreateAdRequest{
-		CityName:    in.CityName,
-		Description: in.Description,
-		Address:     in.Address,
-		RoomsNumber: int(in.RoomsNumber),
-		DateFrom:    (in.DateFrom).AsTime(),
-		DateTo:      (in.DateTo).AsTime(),
+		CityName:     in.CityName,
+		Description:  in.Description,
+		Address:      in.Address,
+		RoomsNumber:  int(in.RoomsNumber),
+		DateFrom:     (in.DateFrom).AsTime(),
+		DateTo:       (in.DateTo).AsTime(),
+		Rooms:        middleware.ConvertGRPCToRooms(in.Rooms),
+		SquareMeters: int(in.SquareMeters),
+		Floor:        int(in.Floor),
+		BuildingType: in.BuildingType,
+		HasBalcony:   in.HasBalcony,
+		HasElevator:  in.HasElevator,
+		HasGas:       in.HasGas,
 	}
 	place.AuthorUUID = userID
 
@@ -260,6 +284,7 @@ func (adh *GrpcAdHandler) UpdatePlace(ctx context.Context, in *gen.UpdateAdReque
 	in.Description = sanitizer.Sanitize(in.Description)
 	in.Address = sanitizer.Sanitize(in.Address)
 	in.CityName = sanitizer.Sanitize(in.CityName)
+	in.BuildingType = sanitizer.Sanitize(in.BuildingType)
 
 	if in.AuthHeader == "" {
 		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
@@ -282,12 +307,19 @@ func (adh *GrpcAdHandler) UpdatePlace(ctx context.Context, in *gen.UpdateAdReque
 		return nil, errors.New("no active session")
 	}
 	updatedPlace := domain.UpdateAdRequest{
-		CityName:    in.CityName,
-		Description: in.Description,
-		Address:     in.Address,
-		RoomsNumber: int(in.RoomsNumber),
-		DateFrom:    (in.DateFrom).AsTime(),
-		DateTo:      (in.DateTo).AsTime(),
+		CityName:     in.CityName,
+		Description:  in.Description,
+		Address:      in.Address,
+		RoomsNumber:  int(in.RoomsNumber),
+		DateFrom:     (in.DateFrom).AsTime(),
+		DateTo:       (in.DateTo).AsTime(),
+		Rooms:        middleware.ConvertGRPCToRooms(in.Rooms),
+		SquareMeters: int(in.SquareMeters),
+		Floor:        int(in.Floor),
+		BuildingType: in.BuildingType,
+		HasBalcony:   in.HasBalcony,
+		HasElevator:  in.HasElevator,
+		HasGas:       in.HasGas,
 	}
 	var place domain.Ad
 	err = adh.usecase.UpdatePlace(ctx, &place, in.AdId, userID, in.Images, updatedPlace)
@@ -360,6 +392,13 @@ func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *gen.GetPlace
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
 			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
+			SquareMeters:    int32(place.SquareMeters),
+			Floor:           int32(place.Floor),
+			BuildingType:    place.BuildingType,
+			HasBalcony:      boolPtr(place.HasBalcony),
+			HasElevator:     boolPtr(place.HasElevator),
+			HasGas:          boolPtr(place.HasGas),
+			LikesCount:      int32Ptr(int32(place.LikesCount)),
 			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
@@ -372,6 +411,7 @@ func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *gen.GetPlace
 				BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 			},
 			Images: convertImagesToGRPC(place.Images),
+			Rooms:  middleware.ConvertRoomsToGRPC(place.Rooms),
 		}
 		responseList.Housing = append(responseList.Housing, ad)
 	}
@@ -402,6 +442,13 @@ func (adh *GrpcAdHandler) GetUserPlaces(ctx context.Context, in *gen.GetUserPlac
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
 			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
+			SquareMeters:    int32(place.SquareMeters),
+			Floor:           int32(place.Floor),
+			BuildingType:    place.BuildingType,
+			HasBalcony:      boolPtr(place.HasBalcony),
+			HasElevator:     boolPtr(place.HasElevator),
+			HasGas:          boolPtr(place.HasGas),
+			LikesCount:      int32Ptr(int32(place.LikesCount)),
 			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
@@ -414,6 +461,7 @@ func (adh *GrpcAdHandler) GetUserPlaces(ctx context.Context, in *gen.GetUserPlac
 				BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 			},
 			Images: convertImagesToGRPC(place.Images),
+			Rooms:  middleware.ConvertRoomsToGRPC(place.Rooms),
 		}
 		responseList.Housing = append(responseList.Housing, ad)
 	}
@@ -584,6 +632,13 @@ func (adh *GrpcAdHandler) GetUserFavorites(ctx context.Context, in *gen.GetUserF
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
 			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
+			SquareMeters:    int32(place.SquareMeters),
+			Floor:           int32(place.Floor),
+			BuildingType:    place.BuildingType,
+			HasBalcony:      boolPtr(place.HasBalcony),
+			HasElevator:     boolPtr(place.HasElevator),
+			HasGas:          boolPtr(place.HasGas),
+			LikesCount:      int32Ptr(int32(place.LikesCount)),
 			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
@@ -596,6 +651,7 @@ func (adh *GrpcAdHandler) GetUserFavorites(ctx context.Context, in *gen.GetUserF
 				BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 			},
 			Images: convertImagesToGRPC(place.Images),
+			Rooms:  middleware.ConvertRoomsToGRPC(place.Rooms),
 		}
 		responseList.Housing = append(responseList.Housing, ad)
 	}
@@ -610,6 +666,10 @@ func float32Ptr(f float32) *float32 {
 
 func int32Ptr(i int32) *int32 {
 	return &i
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }
 
 func convertImagesToGRPC(images []domain.ImageResponse) []*gen.ImageResponse {
