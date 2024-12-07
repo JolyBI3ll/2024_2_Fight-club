@@ -426,7 +426,18 @@ func (r *adRepository) UpdatePlace(ctx context.Context, ad *domain.Ad, adId stri
 		logger.DBLogger.Error("Error updating place", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
 		return errors.New("error updating place")
 	}
-
+	if err := r.db.Model(&oldAd).Update("\"hasBalcony\"", ad.HasBalcony).Error; err != nil {
+		logger.DBLogger.Error("Error updating place", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error updating place")
+	}
+	if err := r.db.Model(&oldAd).Update("\"hasElevator\"", ad.HasElevator).Error; err != nil {
+		logger.DBLogger.Error("Error updating place", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error updating place")
+	}
+	if err := r.db.Model(&oldAd).Update("\"hasGas\"", ad.HasGas).Error; err != nil {
+		logger.DBLogger.Error("Error updating place", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error updating place")
+	}
 	oldDate.AvailableDateFrom = updatedPlace.DateFrom
 	oldDate.AvailableDateTo = updatedPlace.DateTo
 
