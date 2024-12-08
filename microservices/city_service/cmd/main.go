@@ -64,7 +64,7 @@ func main() {
 		log.Fatalf("Failed to listen on address: %s %v", os.Getenv("CITY_SERVICE_ADDRESS"), err)
 	}
 
-	log.Printf("AuthService is running on address: %s", os.Getenv("CITY_SERVICE_ADDRESS"))
+	log.Printf("CityService is running on address: %s", os.Getenv("CITY_SERVICE_ADDRESS"))
 	if err := grpcServer.Serve(listener); err != nil {
 		log.Fatalf("Failed to serve gRPC server: %v", err)
 	}
