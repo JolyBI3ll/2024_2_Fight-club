@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"time"
 
 	"context"
 	"errors"
@@ -29,6 +30,8 @@ type AdUseCase interface {
 	AddToFavorites(ctx context.Context, adId string, userId string) error
 	DeleteFromFavorites(ctx context.Context, adId string, userId string) error
 	GetUserFavorites(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
+	UpdatePriority(ctx context.Context, adId string, userId string, amount int) error
+	StartPriorityResetWorker(ctx context.Context)
 }
 
 type adUseCase struct {
@@ -389,4 +392,45 @@ func (uc *adUseCase) GetUserFavorites(ctx context.Context, userId string) ([]dom
 	}
 
 	return places, nil
+}
+
+func (uc *adUseCase) UpdatePriority(ctx context.Context, adId string, userId string, amount int) error {
+	requestID := middleware.GetRequestID(ctx)
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(adId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("input contains invalid characters")
+	}
+
+	if len(adId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return errors.New("input exceeds character limit")
+	}
+
+	err := uc.adRepository.UpdatePriority(ctx, adId, userId, amount)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (uc *adUseCase) StartPriorityResetWorker(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour) // Интервал в 24 часа
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				logger.AccessLogger.Info("Priority reset worker stopped")
+				return
+			case <-ticker.C:
+				logger.AccessLogger.Info("Priority reset worker started")
+				if err := uc.adRepository.ResetExpiredPriorities(ctx); err != nil {
+					logger.AccessLogger.Error("Failed to reset expired priorities", zap.Error(err))
+				}
+			}
+		}
+	}()
 }

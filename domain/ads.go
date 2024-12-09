@@ -21,6 +21,8 @@ type Ad struct {
 	HasElevator     bool      `gorm:"type:bool;default:false;column:hasElevator" json:"hasElevator"`
 	HasGas          bool      `gorm:"type:bool;default:false;column:hasGas" json:"hasGas"`
 	LikesCount      int       `gorm:"column:likesCount;default:0" json:"likesCount"`
+	Priority        int       `gorm:"column:priority;default:0" json:"priority"`
+	EndBoostDate    time.Time `gorm:"type:date;column:endBoostDate" json:"endBoostDate"`
 	City            City      `gorm:"foreignKey:CityID;references:ID" json:"-"`
 	Author          User      `gorm:"foreignKey:AuthorUUID;references:UUID" json:"-"`
 }
@@ -51,6 +53,8 @@ type GetAllAdsResponse struct {
 	HasElevator     bool              `gorm:"type:bool;default:false;column:hasElevator" json:"hasElevator"`
 	HasGas          bool              `gorm:"type:bool;default:false;column:hasGas" json:"hasGas"`
 	LikesCount      int               `gorm:"column:likesCount;default:0" json:"likesCount"`
+	Priority        int               `gorm:"column:priority;default:0" json:"priority"`
+	EndBoostDate    time.Time         `gorm:"type:date;column:endBoostDate" json:"endBoostDate"`
 	CityName        string            `json:"cityName"`
 	AdDateFrom      time.Time         `json:"adDateFrom"`
 	AdDateTo        time.Time         `json:"adDateTo"`
@@ -104,6 +108,13 @@ type AdFilter struct {
 	Favorites   string
 }
 
+type PaymentInfo struct {
+	CardNumber     string `form:"cardNumber" json:"cardNumber"`
+	CardExpiry     string `form:"cardExpiry" json:"cardExpiry"`
+	CardCvc        string `form:"cardCVC" json:"cardCVC"`
+	DonationAmount string `form:"donationAmount" json:"donationAmount"`
+}
+
 type AdRepository interface {
 	GetAllPlaces(ctx context.Context, filter AdFilter) ([]GetAllAdsResponse, error)
 	GetPlaceById(ctx context.Context, adId string) (GetAllAdsResponse, error)
@@ -121,4 +132,6 @@ type AdRepository interface {
 	DeleteFromFavorites(ctx context.Context, adId string, userId string) error
 	GetUserFavorites(ctx context.Context, userId string) ([]GetAllAdsResponse, error)
 	UpdateFavoritesCount(ctx context.Context, adId string) error
+	UpdatePriority(ctx context.Context, adId string, userId string, amount int) error
+	ResetExpiredPriorities(ctx context.Context) error
 }

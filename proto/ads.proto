@@ -17,6 +17,7 @@ service Ads {
   rpc AddToFavorites (AddToFavoritesRequest) returns (AdResponse);
   rpc DeleteFromFavorites (DeleteFromFavoritesRequest) returns (AdResponse);
   rpc GetUserFavorites (GetUserFavoritesRequest) returns (GetAllAdsResponseList);
+  rpc UpdatePriority (UpdatePriorityRequest) returns (AdResponse);
 }
 
 message Ad {
@@ -28,7 +29,6 @@ message Ad {
   string description = 6;
   int32 roomsNumber = 7;
   int32 viewsCount = 8;
-
 }
 
 message CreateAdRequest {
@@ -143,12 +143,14 @@ message GetAllAdsResponse {
   optional bool hasElevator = 13;
   optional bool hasGas = 14;
   optional int32 LikesCount = 15;
-  string cityName = 16;
-  string adDateFrom = 17;
-  string adDateTo = 18;
-  UserResponse adAuthor = 19;
-  repeated ImageResponse images = 20;
-  repeated AdRooms rooms = 21;
+  optional int32 priority = 16;
+  string endBoostDate = 17;
+  string cityName = 18;
+  string adDateFrom = 19;
+  string adDateTo = 20;
+  UserResponse adAuthor = 21;
+  repeated ImageResponse images = 22;
+  repeated AdRooms rooms = 23;
 }
 
 message GetAllAdsResponseList {
@@ -180,4 +182,11 @@ message UserResponse {
   string sex = 4;
   string birthDate = 5;
   optional int32 guestCount = 6;
+}
+
+message UpdatePriorityRequest {
+  string adId = 1;
+  string authHeader = 2;
+  string sessionID = 3;
+  string Amount = 4;
 }

@@ -187,6 +187,8 @@ func (adh *GrpcAdHandler) GetOnePlace(ctx context.Context, in *gen.GetPlaceByIdR
 		HasElevator:     boolPtr(place.HasElevator),
 		HasGas:          boolPtr(place.HasGas),
 		LikesCount:      int32Ptr(int32(place.LikesCount)),
+		Priority:        int32Ptr(int32(place.Priority)),
+		EndBoostDate:    place.EndBoostDate.Format(layout),
 		CityName:        place.CityName,
 		AdDateFrom:      place.AdDateFrom.Format(layout),
 		AdDateTo:        place.AdDateTo.Format(layout),
@@ -399,6 +401,8 @@ func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *gen.GetPlace
 			HasElevator:     boolPtr(place.HasElevator),
 			HasGas:          boolPtr(place.HasGas),
 			LikesCount:      int32Ptr(int32(place.LikesCount)),
+			Priority:        int32Ptr(int32(place.Priority)),
+			EndBoostDate:    place.EndBoostDate.Format(layout),
 			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
@@ -449,6 +453,8 @@ func (adh *GrpcAdHandler) GetUserPlaces(ctx context.Context, in *gen.GetUserPlac
 			HasElevator:     boolPtr(place.HasElevator),
 			HasGas:          boolPtr(place.HasGas),
 			LikesCount:      int32Ptr(int32(place.LikesCount)),
+			Priority:        int32Ptr(int32(place.Priority)),
+			EndBoostDate:    place.EndBoostDate.Format(layout),
 			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
@@ -639,6 +645,8 @@ func (adh *GrpcAdHandler) GetUserFavorites(ctx context.Context, in *gen.GetUserF
 			HasElevator:     boolPtr(place.HasElevator),
 			HasGas:          boolPtr(place.HasGas),
 			LikesCount:      int32Ptr(int32(place.LikesCount)),
+			Priority:        int32Ptr(int32(place.Priority)),
+			EndBoostDate:    place.EndBoostDate.Format(layout),
 			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
@@ -658,6 +666,53 @@ func (adh *GrpcAdHandler) GetUserFavorites(ctx context.Context, in *gen.GetUserF
 
 	logger.AccessLogger.Info("Successfully fetched all favorites", zap.String("request_id", requestID), zap.Int("count", len(places)))
 	return &responseList, nil
+}
+
+func (adh *GrpcAdHandler) UpdatePriority(ctx context.Context, in *gen.UpdatePriorityRequest) (*gen.AdResponse, error) {
+	requestID := middleware.GetRequestID(ctx)
+	sanitizer := bluemonday.UGCPolicy()
+	logger.AccessLogger.Info("Received UpdatePriority request in microservice",
+		zap.String("request_id", requestID),
+	)
+	in.AdId = sanitizer.Sanitize(in.AdId)
+	in.Amount = sanitizer.Sanitize(in.Amount)
+
+	var amountInt int
+	if in.Amount != "" {
+		var err error
+		amountInt, err = strconv.Atoi(in.Amount)
+		if err != nil {
+			logger.AccessLogger.Error("Failed to parse amount as int", zap.String("request_id", requestID), zap.Error(err))
+			return nil, errors.New("amount is not int")
+		}
+	}
+
+	if in.AuthHeader == "" {
+		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
+			zap.String("request_id", requestID),
+			zap.Error(errors.New("missing X-CSRF-Token header")),
+		)
+		return nil, errors.New("missing X-CSRF-Token header")
+	}
+
+	tokenString := in.AuthHeader[len("Bearer "):]
+	_, err := adh.jwtToken.Validate(tokenString, in.SessionID)
+	if err != nil {
+		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+		return nil, errors.New("invalid JWT token")
+	}
+
+	userId, err := adh.sessionService.GetUserID(ctx, in.SessionID)
+	if err != nil {
+		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
+		return nil, errors.New("no active session")
+	}
+	err = adh.usecase.UpdatePriority(ctx, in.AdId, userId, amountInt)
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to update ad priority", zap.String("request_id", requestID), zap.Error(err))
+		return nil, err
+	}
+	return &gen.AdResponse{Response: "Successfully update ad priority"}, nil
 }
 
 func float32Ptr(f float32) *float32 {

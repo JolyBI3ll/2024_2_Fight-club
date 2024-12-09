@@ -939,6 +939,90 @@ func (h *AdHandler) GetUserFavorites(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func (h *AdHandler) UpdatePriorityWithPayment(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	adId := mux.Vars(r)["adId"]
+	ctx, cancel := middleware.WithTimeout(r.Context())
+	defer cancel()
+
+	statusCode := http.StatusOK
+	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
+
+	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
+
+	logger.AccessLogger.Info("Received UpdatePriorityWithPayment request",
+		zap.String("request_id", requestID),
+		zap.String("userId", adId))
+
+	var card domain.PaymentInfo
+	if err := json.NewDecoder(r.Body).Decode(&card); err != nil {
+		logger.AccessLogger.Error("Failed to decode request body",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	authHeader := r.Header.Get("X-CSRF-Token")
+
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	response, err := h.client.UpdatePriority(ctx, &gen.UpdatePriorityRequest{
+		AdId:       adId,
+		AuthHeader: authHeader,
+		SessionID:  sessionID,
+		Amount:     card.DonationAmount,
+	})
+	if err != nil {
+		logger.AccessLogger.Error("Failed to delete ad from favorites", zap.String("request_id", requestID), zap.Error(err))
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response.Response); err != nil {
+		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed UpdatePriorityWithPayment request",
+		zap.String("request_id", requestID),
+		zap.String("userId", adId),
+		zap.Duration("duration", duration),
+	)
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+}
+
 func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID string) int {
 	logger.AccessLogger.Error("Handling error",
 		zap.String("request_id", requestID),

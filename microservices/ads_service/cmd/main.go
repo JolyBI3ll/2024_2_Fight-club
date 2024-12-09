@@ -9,6 +9,7 @@ import (
 	generatedAds "2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
 	adRepository "2024_2_FIGHT-CLUB/microservices/ads_service/repository"
 	adUseCase "2024_2_FIGHT-CLUB/microservices/ads_service/usecase"
+	"context"
 	"github.com/joho/godotenv"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
@@ -27,6 +28,8 @@ func main() {
 	db := middleware.DbConnect()
 	minioService := middleware.MinioConnect()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	// Инициализация метрик
 	metrics.InitMetrics()
 	metrics.InitRepoMetric()
@@ -58,7 +61,7 @@ func main() {
 	sessionService := session.NewSessionService(redisStore)
 	adsUseCase := adUseCase.NewAdUseCase(adsRepository, minioService)
 	adsServer := grpcAd.NewGrpcAdHandler(sessionService, adsUseCase, jwtToken)
-
+	adsUseCase.StartPriorityResetWorker(ctx)
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(middleware.UnaryMetricsInterceptor),
 	)

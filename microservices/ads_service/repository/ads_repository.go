@@ -100,7 +100,7 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 		query = query.Limit(filter.Limit)
 	}
 
-	if err := query.Find(&ads).Error; err != nil {
+	if err := query.Find(&ads).Order("priority DESC").Error; err != nil {
 		logger.DBLogger.Error("Error fetching all places", zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("error fetching all places")
 	}
@@ -542,7 +542,7 @@ func (r *adRepository) GetPlacesPerCity(ctx context.Context, city string) ([]dom
 	var ads []domain.GetAllAdsResponse
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
 		Select("ads.*, cities.title as \"CityName\"").Where("cities.\"enTitle\" = ?", city)
-	if err := query.Find(&ads).Error; err != nil {
+	if err := query.Find(&ads).Order("priority DESC").Error; err != nil {
 		logger.DBLogger.Error("Error fetching places per city", zap.String("city", city), zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("error fetching places per city")
 	}
@@ -882,4 +882,57 @@ func (r *adRepository) GetUserFavorites(ctx context.Context, userId string) ([]d
 	logger.DBLogger.Info("Successfully fetched user favorites", zap.String("request_id", requestID), zap.Int("count", len(ads)))
 
 	return ads, nil
+}
+
+func (r *adRepository) UpdatePriority(ctx context.Context, adId string, userId string, amount int) error {
+	start := time.Now()
+	requestID := middleware.GetRequestID(ctx)
+	logger.DBLogger.Info("UpdatePriority called", zap.String("ad", adId), zap.String("request_id", requestID))
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("UpdatePriority", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("UpdatePriority", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("UpdatePriority").Observe(duration)
+	}()
+	var ad domain.Ad
+	if err := r.db.Where("uuid = ?", adId).First(&ad).Error; err != nil {
+		logger.DBLogger.Error("Error fetching ad", zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error fetching ad")
+	}
+	if userId != ad.AuthorUUID {
+		return errors.New("not owner of ad")
+	}
+	ad.Priority = amount
+	ad.EndBoostDate = time.Now().Add(24 * 7 * time.Hour)
+	if err := r.db.Model(&ad).Update("priority", ad.Priority).Error; err != nil {
+		logger.DBLogger.Error("Error updating priority", zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error updating priority")
+	}
+	if err := r.db.Model(&ad).Update("endBoostDate", ad.EndBoostDate).Error; err != nil {
+		logger.DBLogger.Error("Error updating priority", zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error updating priority")
+	}
+	return nil
+}
+
+func (r *adRepository) ResetExpiredPriorities(ctx context.Context) error {
+	requestID := middleware.GetRequestID(ctx)
+	logger.DBLogger.Info("ResetExpiredPriorities called", zap.String("request_id", requestID))
+
+	// Обновляем все объявления, у которых EndBoostDate в прошлом
+	result := r.db.Model(&domain.Ad{}).
+		Where("\"endBoostDate\" <= ?", time.Now()).
+		Updates(map[string]interface{}{"priority": 0, "\"endBoostDate\"": nil})
+
+	if result.Error != nil {
+		logger.DBLogger.Error("Error resetting expired priorities", zap.String("request_id", requestID), zap.Error(result.Error))
+		return errors.New("error resetting expired priorities")
+	}
+
+	logger.DBLogger.Info("Expired priorities reset successfully", zap.String("request_id", requestID), zap.Int64("rows_affected", result.RowsAffected))
+	return nil
 }
