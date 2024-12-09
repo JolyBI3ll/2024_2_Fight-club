@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
+	"strings"
 	"sync"
 	"time"
 )
@@ -76,6 +77,28 @@ type Client struct {
 func (c *Client) Read(userID string) {
 	defer c.Socket.Close()
 
+	// Создаем таймер для отслеживания времени бездействия
+	idleTimeout := 20 * time.Minute
+	lastActive := time.Now()
+	closeOnIdle := make(chan struct{})
+
+	go func() {
+		// Закрываем соединение при исчерпании таймера
+		for {
+			select {
+			case <-closeOnIdle:
+				return
+			case <-time.After(10 * time.Second): // Проверяем тайм-аут каждые 10 секунд
+				if time.Since(lastActive) > idleTimeout {
+					logger.AccessLogger.Info("Connection closed due to inactivity",
+						zap.String("user_id", userID))
+					c.Socket.Close()
+					return
+				}
+			}
+		}
+	}()
+
 	for {
 		msg := &domain.Message{}
 
@@ -89,6 +112,25 @@ func (c *Client) Read(userID string) {
 			}
 			break
 		}
+
+		// Проверяем, является ли сообщение пустым или состоит только из пробелов/переводов строк/табуляций
+		if strings.TrimSpace(msg.Content) == "" {
+			// Логируем и отправляем клиенту сообщение об ошибке
+			logger.AccessLogger.Warn("Invalid message content received (only whitespace characters)",
+				zap.String("user_id", userID))
+			errMsg := map[string]string{
+				"error": "Invalid message content: only whitespace characters, tabs, or line breaks are not allowed.",
+			}
+			if writeErr := c.Socket.WriteJSON(errMsg); writeErr != nil {
+				logger.AccessLogger.Error("Failed to send invalid message content error to client",
+					zap.String("user_id", userID),
+					zap.Error(writeErr))
+			}
+			continue
+		}
+
+		// Обновляем последнее время активности
+		lastActive = time.Now()
 
 		// Проверяем лимит сообщений
 		allowed, rateErr := c.RateLimiter.Allow()
@@ -115,6 +157,15 @@ func (c *Client) Read(userID string) {
 		// Отправляем сообщение в канал для обработки
 		select {
 		case c.ChatController.Messages <- msg:
+			// Возвращаем успешный ответ клиенту
+			successMsg := map[string]string{
+				"status": "Message delivered successfully",
+			}
+			if writeErr := c.Socket.WriteJSON(successMsg); writeErr != nil {
+				logger.AccessLogger.Error("Failed to send success message to client",
+					zap.String("user_id", userID),
+					zap.Error(writeErr))
+			}
 		default:
 			logger.AccessLogger.Warn("Message channel is full, dropping message",
 				zap.String("user_id", userID))
@@ -128,6 +179,9 @@ func (c *Client) Read(userID string) {
 			}
 		}
 	}
+
+	// Завершаем горутину таймера при выходе из цикла
+	close(closeOnIdle)
 }
 
 func (c *Client) Write() {
