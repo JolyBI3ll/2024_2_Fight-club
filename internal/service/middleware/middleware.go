@@ -1,8 +1,10 @@
 package middleware
 
 import (
+	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/dsn"
 	"2024_2_FIGHT-CLUB/internal/service/images"
+	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
 	"context"
 	"fmt"
 	"github.com/google/uuid"
@@ -136,4 +138,26 @@ func HashPassword(password string) (string, error) {
 func CheckPassword(hashedPassword, password string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 	return err == nil
+}
+
+func ConvertRoomsToGRPC(rooms []domain.AdRoomsResponse) []*gen.AdRooms {
+	var grpcRooms []*gen.AdRooms
+	for _, room := range rooms {
+		grpcRooms = append(grpcRooms, &gen.AdRooms{
+			Type:         room.Type,
+			SquareMeters: int32(room.SquareMeters),
+		})
+	}
+	return grpcRooms
+}
+
+func ConvertGRPCToRooms(grpc []*gen.AdRooms) []domain.AdRoomsResponse {
+	var Rooms []domain.AdRoomsResponse
+	for _, room := range grpc {
+		Rooms = append(Rooms, domain.AdRoomsResponse{
+			Type:         room.Type,
+			SquareMeters: int(room.SquareMeters),
+		})
+	}
+	return Rooms
 }

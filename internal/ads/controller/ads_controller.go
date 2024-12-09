@@ -276,15 +276,22 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := h.client.CreatePlace(ctx, &gen.CreateAdRequest{
-		CityName:    newPlace.CityName,
-		Description: newPlace.Description,
-		Address:     newPlace.Address,
-		RoomsNumber: int32(newPlace.RoomsNumber),
-		DateFrom:    timestamppb.New(newPlace.DateFrom),
-		DateTo:      timestamppb.New(newPlace.DateTo),
-		Images:      files,
-		AuthHeader:  authHeader,
-		SessionID:   sessionID,
+		CityName:     newPlace.CityName,
+		Description:  newPlace.Description,
+		Address:      newPlace.Address,
+		RoomsNumber:  int32(newPlace.RoomsNumber),
+		DateFrom:     timestamppb.New(newPlace.DateFrom),
+		DateTo:       timestamppb.New(newPlace.DateTo),
+		Images:       files,
+		AuthHeader:   authHeader,
+		SessionID:    sessionID,
+		SquareMeters: int32(newPlace.SquareMeters),
+		Floor:        int32(newPlace.Floor),
+		BuildingType: newPlace.BuildingType,
+		HasBalcony:   newPlace.HasBalcony,
+		HasElevator:  newPlace.HasElevator,
+		HasGas:       newPlace.HasGas,
+		Rooms:        middleware.ConvertRoomsToGRPC(newPlace.Rooms),
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to create place", zap.String("request_id", requestID), zap.Error(err))
@@ -397,16 +404,23 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := h.client.UpdatePlace(ctx, &gen.UpdateAdRequest{
-		AdId:        adId,
-		CityName:    updatedPlace.CityName,
-		Address:     updatedPlace.Address,
-		Description: updatedPlace.Description,
-		RoomsNumber: int32(updatedPlace.RoomsNumber),
-		SessionID:   sessionID,
-		AuthHeader:  authHeader,
-		Images:      files,
-		DateFrom:    timestamppb.New(updatedPlace.DateFrom),
-		DateTo:      timestamppb.New(updatedPlace.DateTo),
+		AdId:         adId,
+		CityName:     updatedPlace.CityName,
+		Address:      updatedPlace.Address,
+		Description:  updatedPlace.Description,
+		RoomsNumber:  int32(updatedPlace.RoomsNumber),
+		SessionID:    sessionID,
+		AuthHeader:   authHeader,
+		Images:       files,
+		DateFrom:     timestamppb.New(updatedPlace.DateFrom),
+		DateTo:       timestamppb.New(updatedPlace.DateTo),
+		SquareMeters: int32(updatedPlace.SquareMeters),
+		Floor:        int32(updatedPlace.Floor),
+		BuildingType: updatedPlace.BuildingType,
+		HasBalcony:   updatedPlace.HasBalcony,
+		HasElevator:  updatedPlace.HasElevator,
+		HasGas:       updatedPlace.HasGas,
+		Rooms:        middleware.ConvertRoomsToGRPC(updatedPlace.Rooms),
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to update place", zap.String("request_id", requestID), zap.Error(err))
@@ -608,6 +622,7 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = h.handleError(w, err, requestID)
@@ -700,6 +715,230 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
+func (h *AdHandler) AddToFavorites(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	adId := mux.Vars(r)["adId"]
+	ctx, cancel := middleware.WithTimeout(r.Context())
+	defer cancel()
+
+	statusCode := http.StatusOK
+	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
+
+	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
+
+	logger.AccessLogger.Info("Received AddToFavorites request",
+		zap.String("request_id", requestID),
+		zap.String("adId", adId))
+
+	authHeader := r.Header.Get("X-CSRF-Token")
+
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+
+	response, err := h.client.AddToFavorites(ctx, &gen.AddToFavoritesRequest{
+		AdId:       adId,
+		AuthHeader: authHeader,
+		SessionID:  sessionID,
+	})
+	if err != nil {
+		logger.AccessLogger.Error("Failed to add ad to favorites", zap.String("request_id", requestID), zap.Error(err))
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	updateResponse := map[string]string{"response": response.Response}
+	if err := json.NewEncoder(w).Encode(updateResponse); err != nil {
+		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed AddToFavorites request",
+		zap.String("request_id", requestID),
+		zap.String("adId", adId),
+		zap.Duration("duration", duration),
+	)
+
+}
+
+func (h *AdHandler) DeleteFromFavorites(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	adId := mux.Vars(r)["adId"]
+	ctx, cancel := middleware.WithTimeout(r.Context())
+	defer cancel()
+
+	statusCode := http.StatusOK
+	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
+
+	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
+
+	logger.AccessLogger.Info("Received DeleteFromFavorites request",
+		zap.String("request_id", requestID),
+		zap.String("adId", adId))
+
+	authHeader := r.Header.Get("X-CSRF-Token")
+
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+
+	response, err := h.client.DeleteFromFavorites(ctx, &gen.DeleteFromFavoritesRequest{
+		AdId:       adId,
+		AuthHeader: authHeader,
+		SessionID:  sessionID,
+	})
+	if err != nil {
+		logger.AccessLogger.Error("Failed to delete ad from favorites", zap.String("request_id", requestID), zap.Error(err))
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	updateResponse := map[string]string{"response": response.Response}
+	if err := json.NewEncoder(w).Encode(updateResponse); err != nil {
+		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed DeleteFromFavorites request",
+		zap.String("request_id", requestID),
+		zap.String("adId", adId),
+		zap.Duration("duration", duration),
+	)
+
+}
+
+func (h *AdHandler) GetUserFavorites(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	userId := mux.Vars(r)["userId"]
+	ctx, cancel := middleware.WithTimeout(r.Context())
+	defer cancel()
+
+	statusCode := http.StatusOK
+	var err error
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
+
+	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
+
+	logger.AccessLogger.Info("Received GetUserFavorites request",
+		zap.String("request_id", requestID),
+		zap.String("userId", userId))
+
+	authHeader := r.Header.Get("X-CSRF-Token")
+
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+
+	response, err := h.client.GetUserFavorites(ctx, &gen.GetUserFavoritesRequest{
+		UserId:     userId,
+		AuthHeader: authHeader,
+		SessionID:  sessionID,
+	})
+	if err != nil {
+		logger.AccessLogger.Error("Failed to delete ad from favorites", zap.String("request_id", requestID), zap.Error(err))
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed GetUserFavorites request",
+		zap.String("request_id", requestID),
+		zap.String("userId", userId),
+		zap.Duration("duration", duration),
+	)
+
+}
+
 func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID string) int {
 	logger.AccessLogger.Error("Handling error",
 		zap.String("request_id", requestID),
@@ -726,7 +965,8 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 		"query dateTo not int", "URL contains invalid characters", "URL exceeds character limit",
 		"token parse error", "token invalid", "token expired", "bad sign method",
 		"failed to decode metadata", "no images provided", "failed to open file",
-		"failed to read file", "failed to encode response", "invalid rating value":
+		"failed to read file", "failed to encode response", "invalid rating value",
+		"cant access other user favorites":
 		w.WriteHeader(http.StatusBadRequest)
 		status = http.StatusBadRequest
 	case "error fetching all places", "error fetching images for ad", "error fetching user",
@@ -736,7 +976,8 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 		"get places per city error", "get user places error", "error creating image",
 		"delete ad image error", "failed to generate session id", "failed to save session",
 		"failed to delete session", "error generating random bytes for session ID",
-		"failed to get session id from request cookie":
+		"failed to get session id from request cookie", "error fetching rooms for ad",
+		"error counting favorites", "error updating favorites count", "error creating room":
 		w.WriteHeader(http.StatusInternalServerError)
 		status = http.StatusInternalServerError
 	default:

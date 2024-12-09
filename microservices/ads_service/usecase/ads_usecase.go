@@ -26,6 +26,9 @@ type AdUseCase interface {
 	GetPlacesPerCity(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error)
 	GetUserPlaces(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
 	DeleteAdImage(ctx context.Context, adId string, imageId string, userId string) error
+	AddToFavorites(ctx context.Context, adId string, userId string) error
+	DeleteFromFavorites(ctx context.Context, adId string, userId string) error
+	GetUserFavorites(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
 }
 
 type adUseCase struct {
@@ -78,10 +81,10 @@ func (uc *adUseCase) GetOnePlace(ctx context.Context, adId string, isAuthorized 
 }
 
 func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, files [][]byte, newPlace domain.CreateAdRequest, userId string) error {
-	const maxLen = 255
+	const maxLen = 1000
 	requestID := middleware.GetRequestID(ctx)
 
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s\-]*$`)
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s\-!?&;#()/$*^%+=|]*$`)
 	if !validCharPattern.MatchString(newPlace.CityName) ||
 		!validCharPattern.MatchString(newPlace.Description) ||
 		!validCharPattern.MatchString(newPlace.Address) {
@@ -105,9 +108,6 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, files []
 		return errors.New("invalid size, type or resolution of image")
 	}
 
-	place.Description = newPlace.Description
-	place.Address = newPlace.Address
-	place.RoomsNumber = newPlace.RoomsNumber
 	err := uc.adRepository.CreatePlace(ctx, place, newPlace, userId)
 	if err != nil {
 		return err
@@ -139,7 +139,7 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, files []
 
 func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, files [][]byte, updatedPlace domain.UpdateAdRequest) error {
 	requestID := middleware.GetRequestID(ctx)
-	const maxLen = 255
+	const maxLen = 1000
 
 	if len(files) > 0 {
 		if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
@@ -159,7 +159,7 @@ func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId str
 		return errors.New("URL exceeds character limit")
 	}
 
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s\-]*$`)
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s\-!?&;#()/$*^%+=|]*$`)
 	if !validCharPattern.MatchString(updatedPlace.CityName) ||
 		!validCharPattern.MatchString(updatedPlace.Description) ||
 		!validCharPattern.MatchString(updatedPlace.Address) {
@@ -182,9 +182,7 @@ func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId str
 	if err != nil {
 		return err
 	}
-	place.Description = updatedPlace.Description
-	place.Address = updatedPlace.Address
-	place.RoomsNumber = updatedPlace.RoomsNumber
+
 	var newUploadedPaths ntype.StringArray
 
 	for _, file := range files {
@@ -319,4 +317,76 @@ func (uc *adUseCase) DeleteAdImage(ctx context.Context, adId string, imageId str
 	}
 
 	return nil
+}
+
+func (uc *adUseCase) AddToFavorites(ctx context.Context, adId string, userId string) error {
+	requestID := middleware.GetRequestID(ctx)
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(adId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("input contains invalid characters")
+	}
+
+	if len(adId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return errors.New("input exceeds character limit")
+	}
+
+	err := uc.adRepository.AddToFavorites(ctx, adId, userId)
+	if err != nil {
+		return err
+	}
+	err = uc.adRepository.UpdateFavoritesCount(ctx, adId)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (uc *adUseCase) DeleteFromFavorites(ctx context.Context, adId string, userId string) error {
+	requestID := middleware.GetRequestID(ctx)
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(adId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("input contains invalid characters")
+	}
+
+	if len(adId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return errors.New("input exceeds character limit")
+	}
+
+	err := uc.adRepository.DeleteFromFavorites(ctx, adId, userId)
+	if err != nil {
+		return err
+	}
+	err = uc.adRepository.UpdateFavoritesCount(ctx, adId)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (uc *adUseCase) GetUserFavorites(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
+	requestID := middleware.GetRequestID(ctx)
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(userId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return nil, errors.New("input contains invalid characters")
+	}
+
+	if len(userId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return nil, errors.New("input exceeds character limit")
+	}
+
+	places, err := uc.adRepository.GetUserFavorites(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	return places, nil
 }

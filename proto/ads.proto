@@ -14,6 +14,9 @@ service Ads {
   rpc GetPlacesPerCity (GetPlacesPerCityRequest) returns (GetAllAdsResponseList);
   rpc GetUserPlaces (GetUserPlacesRequest) returns (GetAllAdsResponseList);
   rpc DeleteAdImage (DeleteAdImageRequest) returns (DeleteResponse);
+  rpc AddToFavorites (AddToFavoritesRequest) returns (AdResponse);
+  rpc DeleteFromFavorites (DeleteFromFavoritesRequest) returns (AdResponse);
+  rpc GetUserFavorites (GetUserFavoritesRequest) returns (GetAllAdsResponseList);
 }
 
 message Ad {
@@ -25,6 +28,7 @@ message Ad {
   string description = 6;
   int32 roomsNumber = 7;
   int32 viewsCount = 8;
+
 }
 
 message CreateAdRequest {
@@ -35,9 +39,21 @@ message CreateAdRequest {
   google.protobuf.Timestamp dateFrom = 5;
   google.protobuf.Timestamp dateTo = 6;
   repeated bytes images = 7;
-  string authHeader = 8;
-  string sessionID = 9;
-  string authorID = 10;
+  int32 squareMeters = 8;
+  int32 floor = 9;
+  string buildingType = 10;
+  bool hasBalcony = 11;
+  bool hasElevator = 12;
+  bool hasGas = 13;
+  string authHeader = 14;
+  string sessionID = 15;
+  string authorID = 16;
+  repeated AdRooms rooms = 17;
+}
+
+message AdRooms {
+  string type = 1;
+  int32 squareMeters = 2;
 }
 
 message UpdateAdRequest {
@@ -48,13 +64,38 @@ message UpdateAdRequest {
   int32 roomsNumber = 5;
   google.protobuf.Timestamp dateFrom = 6;
   google.protobuf.Timestamp dateTo = 7;
-  repeated bytes images = 8;
-  string authHeader = 9;
-  string sessionID = 10;
+  int32 squareMeters = 8;
+  int32 floor = 9;
+  string buildingType = 10;
+  bool hasBalcony = 11;
+  bool hasElevator = 12;
+  bool hasGas = 13;
+  repeated bytes images = 14;
+  string authHeader = 15;
+  string sessionID = 16;
+  repeated AdRooms rooms = 17;
 }
 
 message DeletePlaceRequest {
   string adId = 1;
+  string authHeader = 2;
+  string sessionID = 3;
+}
+
+message AddToFavoritesRequest {
+  string adId = 1;
+  string authHeader = 2;
+  string sessionID = 3;
+}
+
+message DeleteFromFavoritesRequest {
+  string adId = 1;
+  string authHeader = 2;
+  string sessionID = 3;
+}
+
+message GetUserFavoritesRequest {
+  string userId = 1;
   string authHeader = 2;
   string sessionID = 3;
 }
@@ -95,11 +136,19 @@ message GetAllAdsResponse {
   string description = 6;
   int32 roomsNumber = 7;
   optional int32 viewsCount = 8;
-  string cityName = 9;
-  string adDateFrom = 10;
-  string adDateTo = 11;
-  UserResponse adAuthor = 12;
-  repeated ImageResponse images = 13;
+  int32 squareMeters = 9;
+  int32 floor = 10;
+  string buildingType = 11;
+  optional bool hasBalcony = 12;
+  optional bool hasElevator = 13;
+  optional bool hasGas = 14;
+  optional int32 LikesCount = 15;
+  string cityName = 16;
+  string adDateFrom = 17;
+  string adDateTo = 18;
+  UserResponse adAuthor = 19;
+  repeated ImageResponse images = 20;
+  repeated AdRooms rooms = 21;
 }
 
 message GetAllAdsResponseList {

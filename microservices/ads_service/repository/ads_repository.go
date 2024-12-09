@@ -108,6 +108,7 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 	for i, ad := range ads {
 		var images []domain.Image
 		var user domain.User
+		var rooms []domain.AdRooms
 		err := r.db.Model(&domain.Image{}).Where("\"adId\" = ?", ad.UUID).Find(&images).Error
 		if err != nil {
 			logger.DBLogger.Error("Error fetching images for ad", zap.String("request_id", requestID), zap.Error(err))
@@ -119,6 +120,13 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 			logger.DBLogger.Error("Error fetching user", zap.String("request_id", requestID), zap.Error(err))
 			return nil, errors.New("error fetching user")
 		}
+
+		err = r.db.Model(&domain.AdRooms{}).Where("\"adId\" = ?", ad.UUID).Find(&rooms).Error
+		if err != nil {
+			logger.DBLogger.Error("Error fetching rooms for ad", zap.String("request_id", requestID), zap.Error(err))
+			return nil, errors.New("error fetching rooms for ad")
+		}
+
 		ads[i].AdAuthor.Name = user.Name
 		ads[i].AdAuthor.Avatar = user.Avatar
 		ads[i].AdAuthor.Rating = user.Score
@@ -129,6 +137,13 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 			ads[i].Images = append(ads[i].Images, domain.ImageResponse{
 				ID:        img.ID,
 				ImagePath: img.ImageUrl,
+			})
+		}
+
+		for _, room := range rooms {
+			ads[i].Rooms = append(ads[i].Rooms, domain.AdRoomsResponse{
+				Type:         room.Type,
+				SquareMeters: room.SquareMeters,
 			})
 		}
 	}
@@ -164,6 +179,7 @@ func (r *adRepository) GetPlaceById(ctx context.Context, adId string) (domain.Ge
 		return ad, errors.New("error fetching place")
 	}
 
+	var rooms []domain.AdRooms
 	var images []domain.Image
 	var user domain.User
 	err = r.db.Model(&domain.Image{}).Where("\"adId\" = ?", ad.UUID).Find(&images).Error
@@ -178,6 +194,11 @@ func (r *adRepository) GetPlaceById(ctx context.Context, adId string) (domain.Ge
 		return ad, errors.New("error fetching user")
 	}
 
+	err = r.db.Model(&domain.AdRooms{}).Where("\"adId\" = ?", ad.UUID).Find(&rooms).Error
+	if err != nil {
+		logger.DBLogger.Error("Error fetching rooms for ad", zap.String("request_id", requestID), zap.Error(err))
+		return ad, errors.New("error fetching rooms for ad")
+	}
 	ad.AdAuthor.Name = user.Name
 	ad.AdAuthor.Avatar = user.Avatar
 	ad.AdAuthor.Rating = user.Score
@@ -189,6 +210,13 @@ func (r *adRepository) GetPlaceById(ctx context.Context, adId string) (domain.Ge
 		ad.Images = append(ad.Images, domain.ImageResponse{
 			ID:        img.ID,
 			ImagePath: img.ImageUrl,
+		})
+	}
+
+	for _, room := range rooms {
+		ad.Rooms = append(ad.Rooms, domain.AdRoomsResponse{
+			Type:         room.Type,
+			SquareMeters: room.SquareMeters,
 		})
 	}
 
@@ -224,6 +252,38 @@ func (r *adRepository) UpdateViewsCount(ctx context.Context, ad domain.GetAllAds
 	return ad, nil
 }
 
+func (r *adRepository) UpdateFavoritesCount(ctx context.Context, adId string) error {
+	start := time.Now()
+	requestID := middleware.GetRequestID(ctx)
+	logger.DBLogger.Info("UpdateLikesCount called", zap.String("adId", adId), zap.String("request_id", requestID))
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("GetPlaceById", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("GetPlaceById", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("GetPlaceById").Observe(duration)
+	}()
+
+	var count int64
+	err = r.db.Model(&domain.Favorites{}).Where("\"adId\" = ?", adId).Count(&count).Error
+	if err != nil {
+		logger.DBLogger.Error("Error counting favorites", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error counting favorites")
+	}
+
+	err = r.db.Model(&domain.Ad{}).Where("uuid = ?", adId).Update("\"likesCount\"", count).Error
+	if err != nil {
+		logger.DBLogger.Error("Error updating favorites count", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error updating favorites count")
+	}
+
+	logger.DBLogger.Info("Successfully updated likes count", zap.String("request_id", requestID))
+	return nil
+}
+
 func (r *adRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd domain.CreateAdRequest, userId string) error {
 	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
@@ -241,7 +301,6 @@ func (r *adRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd dom
 	var city domain.City
 	var user domain.User
 	var date domain.AdAvailableDate
-
 	if err := r.db.Where("uuid = ?", userId).First(&user).Error; err != nil {
 		logger.DBLogger.Error("Error finding user", zap.String("userId", userId), zap.String("request_id", requestID), zap.Error(err))
 		return errors.New("error finding user")
@@ -259,6 +318,15 @@ func (r *adRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd dom
 	ad.CityID = city.ID
 	ad.AuthorUUID = userId
 	ad.PublicationDate = time.Now()
+	ad.Description = newAd.Description
+	ad.Address = newAd.Address
+	ad.RoomsNumber = newAd.RoomsNumber
+	ad.SquareMeters = newAd.SquareMeters
+	ad.Floor = newAd.Floor
+	ad.BuildingType = newAd.BuildingType
+	ad.HasBalcony = newAd.HasBalcony
+	ad.HasElevator = newAd.HasElevator
+	ad.HasGas = newAd.HasGas
 	if err := r.db.Create(ad).Error; err != nil {
 		logger.DBLogger.Error("Error creating place", zap.String("adId", ad.UUID), zap.String("request_id", requestID), zap.Error(err))
 		return errors.New("error creating place")
@@ -272,7 +340,18 @@ func (r *adRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd dom
 		logger.DBLogger.Error("Error creating date", zap.String("adId", ad.UUID), zap.String("request_id", requestID), zap.Error(err))
 		return errors.New("error creating date")
 	}
-	logger.DBLogger.Info("Successfully place", zap.String("adId", ad.UUID), zap.String("request_id", requestID))
+
+	for _, room := range newAd.Rooms {
+		var oneRoom domain.AdRooms
+		oneRoom.AdID = ad.UUID
+		oneRoom.Type = room.Type
+		oneRoom.SquareMeters = room.SquareMeters
+		if err := r.db.Create(&oneRoom).Error; err != nil {
+			logger.DBLogger.Error("Error creating room", zap.String("adId", ad.UUID), zap.String("request_id", requestID), zap.Error(err))
+			return errors.New("error creating room")
+		}
+	}
+	logger.DBLogger.Info("Successfully create place", zap.String("adId", ad.UUID), zap.String("request_id", requestID))
 	return nil
 }
 
@@ -334,17 +413,53 @@ func (r *adRepository) UpdatePlace(ctx context.Context, ad *domain.Ad, adId stri
 		return errors.New("error finding city")
 	}
 	ad.CityID = city.ID
+	ad.Description = updatedPlace.Description
+	ad.Address = updatedPlace.Address
+	ad.RoomsNumber = updatedPlace.RoomsNumber
+	ad.SquareMeters = updatedPlace.SquareMeters
+	ad.Floor = updatedPlace.Floor
+	ad.BuildingType = updatedPlace.BuildingType
+	ad.HasBalcony = updatedPlace.HasBalcony
+	ad.HasElevator = updatedPlace.HasElevator
+	ad.HasGas = updatedPlace.HasGas
 	if err := r.db.Model(&oldAd).Updates(ad).Error; err != nil {
 		logger.DBLogger.Error("Error updating place", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
 		return errors.New("error updating place")
 	}
-
+	if err := r.db.Model(&oldAd).Update("\"hasBalcony\"", ad.HasBalcony).Error; err != nil {
+		logger.DBLogger.Error("Error updating place", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error updating place")
+	}
+	if err := r.db.Model(&oldAd).Update("\"hasElevator\"", ad.HasElevator).Error; err != nil {
+		logger.DBLogger.Error("Error updating place", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error updating place")
+	}
+	if err := r.db.Model(&oldAd).Update("\"hasGas\"", ad.HasGas).Error; err != nil {
+		logger.DBLogger.Error("Error updating place", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error updating place")
+	}
 	oldDate.AvailableDateFrom = updatedPlace.DateFrom
 	oldDate.AvailableDateTo = updatedPlace.DateTo
 
 	if err := r.db.Model(&oldDate).Updates(oldDate).Error; err != nil {
 		logger.DBLogger.Error("Error updating date", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
 		return errors.New("error updating date")
+	}
+
+	if err := r.db.Model(&domain.AdRooms{}).Where("\"adId\" = ?", adId).Delete(&domain.AdRooms{}).Error; err != nil {
+		logger.DBLogger.Error("Error deleting rooms", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error deleting rooms")
+	}
+
+	for _, room := range updatedPlace.Rooms {
+		var oneRoom domain.AdRooms
+		oneRoom.AdID = adId
+		oneRoom.Type = room.Type
+		oneRoom.SquareMeters = room.SquareMeters
+		if err := r.db.Create(&oneRoom).Error; err != nil {
+			logger.DBLogger.Error("Error creating room", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
+			return errors.New("error creating room")
+		}
 	}
 
 	logger.DBLogger.Info("Successfully updated place", zap.String("adId", adId), zap.String("request_id", requestID))
@@ -377,17 +492,22 @@ func (r *adRepository) DeletePlace(ctx context.Context, adId string, userId stri
 	}
 
 	if err := r.db.Where("\"adId\" = ?", adId).Delete(&domain.Image{}).Error; err != nil {
-		logger.DBLogger.Error("Error deleting place", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
+		logger.DBLogger.Error("Error deleting image", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
 		return errors.New("error deleting place")
 	}
 
 	if err := r.db.Where("\"adId\" = ?", adId).Delete(&domain.AdPosition{}).Error; err != nil {
-		logger.DBLogger.Error("Error deleting place", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
+		logger.DBLogger.Error("Error deleting position", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
 		return errors.New("error deleting place")
 	}
 
 	if err := r.db.Where("\"adId\" = ?", adId).Delete(&domain.AdAvailableDate{}).Error; err != nil {
-		logger.DBLogger.Error("Error deleting place", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
+		logger.DBLogger.Error("Error deleting dates", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("error deleting place")
+	}
+
+	if err := r.db.Where("\"adId\" = ?", adId).Delete(&domain.AdRooms{}).Error; err != nil {
+		logger.DBLogger.Error("Error deleting rooms", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
 		return errors.New("error deleting place")
 	}
 
@@ -430,6 +550,7 @@ func (r *adRepository) GetPlacesPerCity(ctx context.Context, city string) ([]dom
 	for i, ad := range ads {
 		var images []domain.Image
 		var user domain.User
+		var rooms []domain.AdRooms
 		err := r.db.Model(&domain.Image{}).Where("\"adId\" = ?", ad.UUID).Find(&images).Error
 		if err != nil {
 			logger.DBLogger.Error("Error fetching images for ad", zap.String("request_id", requestID), zap.Error(err))
@@ -441,17 +562,30 @@ func (r *adRepository) GetPlacesPerCity(ctx context.Context, city string) ([]dom
 			logger.DBLogger.Error("Error fetching user", zap.String("request_id", requestID), zap.Error(err))
 			return nil, errors.New("error fetching user")
 		}
+
+		err = r.db.Model(&domain.AdRooms{}).Where("\"adId\" = ?", ad.UUID).Find(&rooms).Error
+		if err != nil {
+			logger.DBLogger.Error("Error fetching rooms for ad", zap.String("request_id", requestID), zap.Error(err))
+			return nil, errors.New("error fetching rooms for ad")
+		}
+
 		ads[i].AdAuthor.Name = user.Name
 		ads[i].AdAuthor.Avatar = user.Avatar
 		ads[i].AdAuthor.Rating = user.Score
 		ads[i].AdAuthor.GuestCount = user.GuestCount
 		ads[i].AdAuthor.Sex = user.Sex
 		ads[i].AdAuthor.Birthdate = user.Birthdate
-
 		for _, img := range images {
 			ads[i].Images = append(ads[i].Images, domain.ImageResponse{
 				ID:        img.ID,
 				ImagePath: img.ImageUrl,
+			})
+		}
+
+		for _, room := range rooms {
+			ads[i].Rooms = append(ads[i].Rooms, domain.AdRoomsResponse{
+				Type:         room.Type,
+				SquareMeters: room.SquareMeters,
 			})
 		}
 	}
@@ -536,16 +670,30 @@ func (r *adRepository) GetUserPlaces(ctx context.Context, userId string) ([]doma
 
 	for i, ad := range ads {
 		var images []domain.Image
+		var rooms []domain.AdRooms
 		err := r.db.Model(&domain.Image{}).Where("\"adId\" = ?", ad.UUID).Find(&images).Error
 		if err != nil {
 			logger.DBLogger.Error("Error fetching images for ad", zap.String("request_id", requestID), zap.Error(err))
 			return nil, errors.New("error fetching images for ad")
 		}
 
+		err = r.db.Model(&domain.AdRooms{}).Where("\"adId\" = ?", ad.UUID).Find(&rooms).Error
+		if err != nil {
+			logger.DBLogger.Error("Error fetching rooms for ad", zap.String("request_id", requestID), zap.Error(err))
+			return nil, errors.New("error fetching rooms for ad")
+		}
+
 		for _, img := range images {
 			ads[i].Images = append(ads[i].Images, domain.ImageResponse{
 				ID:        img.ID,
 				ImagePath: img.ImageUrl,
+			})
+		}
+
+		for _, room := range rooms {
+			ads[i].Rooms = append(ads[i].Rooms, domain.AdRoomsResponse{
+				Type:         room.Type,
+				SquareMeters: room.SquareMeters,
 			})
 		}
 	}
@@ -594,4 +742,144 @@ func (r *adRepository) DeleteAdImage(ctx context.Context, adId string, imageId i
 
 	logger.DBLogger.Info("Image deleted successfully", zap.Int("image_id", imageId), zap.String("ad_id", adId), zap.String("request_id", requestID))
 	return image.ImageUrl, nil
+}
+
+func (r *adRepository) AddToFavorites(ctx context.Context, adId string, userId string) error {
+	start := time.Now()
+	requestID := middleware.GetRequestID(ctx)
+	logger.DBLogger.Info("AddToFavorites called", zap.String("ad", adId), zap.String("request_id", requestID))
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("AddToFavorites", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("AddToFavorites", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("AddToFavorites").Observe(duration)
+	}()
+	var ad domain.Ad
+	if err := r.db.First(&ad, "uuid = ?", adId).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("ad not found")
+		}
+		return errors.New("error fetching ad")
+	}
+
+	var favorite domain.Favorites
+	favorite.AdId = adId
+	favorite.UserId = userId
+	if err := r.db.Create(&favorite).Error; err != nil {
+		return errors.New("error create favorite")
+	}
+
+	logger.DBLogger.Info("Favorite create successfully", zap.String("ad_id", adId), zap.String("request_id", requestID))
+	return nil
+}
+
+func (r *adRepository) DeleteFromFavorites(ctx context.Context, adId string, userId string) error {
+	start := time.Now()
+	requestID := middleware.GetRequestID(ctx)
+	logger.DBLogger.Info("AddToFavorites called", zap.String("ad", adId), zap.String("request_id", requestID))
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("AddToFavorites", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("AddToFavorites", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("AddToFavorites").Observe(duration)
+	}()
+	var ad domain.Ad
+	if err := r.db.First(&ad, "uuid = ?", adId).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("ad not found")
+		}
+		return errors.New("error fetching ad")
+	}
+
+	var favorite domain.Favorites
+	favorite.AdId = adId
+	favorite.UserId = userId
+	if err := r.db.Delete(&favorite).Error; err != nil {
+		return errors.New("error create favorite")
+	}
+
+	logger.DBLogger.Info("Favorite create successfully", zap.String("ad_id", adId), zap.String("request_id", requestID))
+	return nil
+}
+
+func (r *adRepository) GetUserFavorites(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(ctx)
+	logger.DBLogger.Info("GetUserFavorites called", zap.String("user", userId), zap.String("request_id", requestID))
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("GetUserFavorites", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("GetUserFavorites", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("GetUserFavorites").Observe(duration)
+	}()
+	var ads []domain.GetAllAdsResponse
+
+	query := r.db.Model(&domain.Ad{}).
+		Joins("JOIN favorites ON favorites.\"adId\" = ads.uuid").
+		Where("favorites.\"userId\" = ?", userId).
+		Select("ads.*, favorites.\"userId\" AS \"FavoriteUserId\"")
+
+	if err := query.Find(&ads).Error; err != nil {
+		logger.DBLogger.Error("Error fetching user favorites", zap.String("request_id", requestID), zap.Error(err))
+		return nil, errors.New("error fetching user favorites")
+	}
+
+	for i, ad := range ads {
+		var images []domain.Image
+		var user domain.User
+		var rooms []domain.AdRooms
+		err := r.db.Model(&domain.Image{}).Where("\"adId\" = ?", ad.UUID).Find(&images).Error
+		if err != nil {
+			logger.DBLogger.Error("Error fetching images for ad", zap.String("request_id", requestID), zap.Error(err))
+			return nil, errors.New("error fetching images for ad")
+		}
+
+		err = r.db.Model(&domain.User{}).Where("uuid = ?", ad.AuthorUUID).Find(&user).Error
+		if err != nil {
+			logger.DBLogger.Error("Error fetching user", zap.String("request_id", requestID), zap.Error(err))
+			return nil, errors.New("error fetching user")
+		}
+
+		err = r.db.Model(&domain.AdRooms{}).Where("\"adId\" = ?", ad.UUID).Find(&rooms).Error
+		if err != nil {
+			logger.DBLogger.Error("Error fetching rooms for ad", zap.String("request_id", requestID), zap.Error(err))
+			return nil, errors.New("error fetching rooms for ad")
+		}
+
+		ads[i].AdAuthor.Name = user.Name
+		ads[i].AdAuthor.Avatar = user.Avatar
+		ads[i].AdAuthor.Rating = user.Score
+		ads[i].AdAuthor.GuestCount = user.GuestCount
+		ads[i].AdAuthor.Sex = user.Sex
+		ads[i].AdAuthor.Birthdate = user.Birthdate
+		for _, img := range images {
+			ads[i].Images = append(ads[i].Images, domain.ImageResponse{
+				ID:        img.ID,
+				ImagePath: img.ImageUrl,
+			})
+		}
+
+		for _, room := range rooms {
+			ads[i].Rooms = append(ads[i].Rooms, domain.AdRoomsResponse{
+				Type:         room.Type,
+				SquareMeters: room.SquareMeters,
+			})
+		}
+	}
+
+	logger.DBLogger.Info("Successfully fetched user favorites", zap.String("request_id", requestID), zap.Int("count", len(ads)))
+
+	return ads, nil
 }
