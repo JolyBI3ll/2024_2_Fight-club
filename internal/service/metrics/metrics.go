@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+	"regexp"
 )
 
 var (
@@ -98,4 +99,14 @@ func InitRepoMetric() {
 	prometheus.MustRegister(RepoRequestTotal)
 	prometheus.MustRegister(RepoRequestDuration)
 	prometheus.MustRegister(RepoErrorsTotal)
+}
+
+func SanitizeUserIdPath(path string) string {
+	re := regexp.MustCompile(`[0-9a-fA-F-]{36}`)
+	return re.ReplaceAllString(path, "{userId}")
+}
+
+func SanitizeAdIdPath(path string) string {
+	re := regexp.MustCompile(`[0-9a-fA-F-]{36}`)
+	return re.ReplaceAllString(path, "{adId}")
 }
