@@ -12,7 +12,7 @@ build-auth:
 	go build -o bin/auth_service ./microservices/auth_service/cmd/main.go
 
 build-city:
-	go build -o bin/city_service ./microservices/citiy_service/cmd/main.go
+	go build -o bin/city_service ./microservices/city_service/cmd/main.go
 
 build-webapp:
 	go build -o bin/webapp ./cmd/webapp/
