@@ -8,7 +8,6 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
 	"context"
-	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -365,8 +364,10 @@ func (cc *ChatHandler) handleError(w http.ResponseWriter, err error, requestID s
 		zap.Error(err),
 	)
 
-	w.Header().Set("Content-Type", "application/json")
-	errorResponse := map[string]string{"error": err.Error()}
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	errorResponse := domain.ErrorResponse{
+		Error: err.Error(),
+	}
 	var status int
 	switch err.Error() {
 	case "error fetching chats", "error fetching messages",
@@ -386,7 +387,8 @@ func (cc *ChatHandler) handleError(w http.ResponseWriter, err error, requestID s
 		status = http.StatusInternalServerError
 	}
 
-	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
+	w.WriteHeader(status)
+	if _, jsonErr := easyjson.MarshalToWriter(&errorResponse, w); jsonErr != nil {
 		logger.AccessLogger.Error("Failed to encode error response",
 			zap.String("request_id", requestID),
 			zap.Error(jsonErr),

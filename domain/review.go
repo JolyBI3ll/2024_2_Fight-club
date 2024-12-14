@@ -13,16 +13,6 @@ type ReviewBody struct {
 }
 
 //easyjson:json
-type ErrorResponse struct {
-	Error string `json:"error"`
-}
-
-//easyjson:json
-type ResponseMessage struct {
-	Message string `json:"message"`
-}
-
-//easyjson:json
 type UserReviewsList []UserReviews
 
 //easyjson:json

@@ -7,9 +7,9 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
 	"2024_2_FIGHT-CLUB/microservices/auth_service/controller/gen"
-	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
+	"github.com/mailru/easyjson"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -64,7 +64,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	)
 
 	var creds domain.User
-	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+	if err := easyjson.UnmarshalFromReader(r.Body, &creds); err != nil {
 		logger.AccessLogger.Error("Failed to decode request body",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -109,9 +109,9 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	body := map[string]interface{}{
-		"session_id": userSession,
-		"user": gen.User{
+	body := domain.AuthResponse{
+		SessionId: userSession,
+		User: domain.AuthData{
 			Id:       response.User.Id,
 			Username: response.User.Username,
 			Email:    response.User.Email,
@@ -120,7 +120,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
+	if _, err := easyjson.MarshalToWriter(body, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -128,6 +128,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		statusCode = h.handleError(w, err, requestID)
 		return
 	}
+
 	duration := time.Since(start).Seconds()
 	logger.AccessLogger.Info("Completed RegisterUser request",
 		zap.String("request_id", requestID),
@@ -166,7 +167,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	)
 
 	var creds domain.User
-	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+	if err := easyjson.UnmarshalFromReader(r.Body, &creds); err != nil {
 		logger.AccessLogger.Error("Failed to decode request body",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -218,18 +219,18 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	body := map[string]interface{}{
-		"session_id": userSession,
-		"user": map[string]interface{}{
-			"id":       response.User.Id,
-			"username": response.User.Username,
-			"email":    response.User.Email,
+	body := domain.AuthResponse{
+		SessionId: userSession,
+		User: domain.AuthData{
+			Id:       response.User.Id,
+			Username: response.User.Username,
+			Email:    response.User.Email,
 		},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
+	if _, err := easyjson.MarshalToWriter(body, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -285,7 +286,7 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 	}
 	authHeader := r.Header.Get("X-CSRF-Token")
 
-	response, err := h.client.LogoutUser(ctx, &gen.LogoutRequest{
+	_, err = h.client.LogoutUser(ctx, &gen.LogoutRequest{
 		AuthHeader: authHeader,
 		SessionId:  sessionID,
 	})
@@ -321,11 +322,13 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	logoutResponse := map[string]string{"response": response.Response}
-	if err := json.NewEncoder(w).Encode(logoutResponse); err != nil {
-		logger.AccessLogger.Error("Failed to encode logout response",
+	logoutResponse := domain.ResponseMessage{
+		Message: "Successfully logged out",
+	}
+	if _, err := easyjson.MarshalToWriter(logoutResponse, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
@@ -388,7 +391,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	metadata := r.FormValue("metadata")
 
 	var creds domain.User
-	if err := json.Unmarshal([]byte(metadata), &creds); err != nil {
+	if err := creds.UnmarshalJSON([]byte(metadata)); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		logger.AccessLogger.Warn("Failed to parse metadata",
 			zap.String("request_id", requestID),
@@ -421,7 +424,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	response, err := h.client.PutUser(ctx, &gen.PutUserRequest{
+	_, err = h.client.PutUser(ctx, &gen.PutUserRequest{
 		Creds: &gen.Metadata{
 			Uuid:       creds.UUID,
 			Username:   creds.Username,
@@ -451,9 +454,12 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response.Response); err != nil {
+	PutUserResponse := domain.ResponseMessage{
+		Message: "Successfully update user data",
+	}
+	if _, err := easyjson.MarshalToWriter(PutUserResponse, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode update response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -527,10 +533,10 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		IsHost:     user.User.IsHost,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		logger.AccessLogger.Error("Failed to encode user data",
+	if _, err := easyjson.MarshalToWriter(response, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode getUserById response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
@@ -603,13 +609,14 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 			IsHost:     user.IsHost,
 		})
 	}
-	response := map[string]interface{}{
-		"users": body,
+	response := domain.GetAllUsersResponse{
+		Users: body,
 	}
-	w.Header().Set("Content-Type", "application/json")
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		logger.AccessLogger.Error("Failed to encode users response",
+	if _, err := easyjson.MarshalToWriter(response, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode getAllUsers response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
@@ -678,10 +685,14 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(sessionData); err != nil {
-		logger.AccessLogger.Error("Failed to encode session data",
+	response := domain.SessionData{
+		Id:     sessionData.Id,
+		Avatar: sessionData.Avatar,
+	}
+	if _, err := easyjson.MarshalToWriter(response, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode GetSessionData response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
@@ -758,12 +769,16 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteStrictMode,
 	})
 
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(w).Encode(map[string]string{"csrf_token": newCsrfToken.CsrfToken})
-	if err != nil {
-		logger.AccessLogger.Error("Failed to encode CSRF token",
+	response := domain.CSRFTokenResponse{
+		Token: newCsrfToken.CsrfToken,
+	}
+	if _, err := easyjson.MarshalToWriter(response, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode getUserById response",
 			zap.String("request_id", requestID),
-			zap.Error(err))
+			zap.Error(err),
+		)
 		statusCode = h.handleError(w, err, requestID)
 		return
 	}
@@ -783,7 +798,9 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 	)
 
 	w.Header().Set("Content-Type", "application/json")
-	errorResponse := map[string]string{"error": err.Error()}
+	errorResponse := domain.ErrorResponse{
+		Error: err.Error(),
+	}
 	var statusCode int
 	switch err.Error() {
 	case "username, password, and email are required",
@@ -850,7 +867,8 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 		statusCode = http.StatusInternalServerError
 	}
 
-	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
+	w.WriteHeader(statusCode)
+	if _, jsonErr := easyjson.MarshalToWriter(&errorResponse, w); jsonErr != nil {
 		logger.AccessLogger.Error("Failed to encode error response",
 			zap.String("request_id", requestID),
 			zap.Error(jsonErr),

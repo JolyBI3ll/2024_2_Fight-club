@@ -1,10 +1,41 @@
 package domain
 
+//go:generate easyjson -all auth.go
+
 import (
 	"context"
 	"time"
 )
 
+//easyjson:json
+type CSRFTokenResponse struct {
+	Token string `json:"csrf_token"`
+}
+
+//easyjson:json
+type SessionData struct {
+	Id     string `json:"id"`
+	Avatar string `json:"avatar"`
+}
+
+//easyjson:json
+type GetAllUsersResponse struct {
+	Users []*UserDataResponse `json:"users"`
+}
+
+//easyjson:json
+type AuthResponse struct {
+	SessionId string   `json:"session_id"`
+	User      AuthData `json:"user"`
+}
+
+type AuthData struct {
+	Id       string `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+}
+
+//easyjson:json
 type User struct {
 	UUID       string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid();column:uuid" json:"id"`
 	Username   string    `gorm:"type:varchar(20);unique;not null;column:username" json:"username"`
@@ -28,6 +59,7 @@ type UserResponce struct {
 	GuestCount int       `json:"guestCount"`
 }
 
+//easyjson:json
 type UserDataResponse struct {
 	Uuid       string    `json:"uuid"`
 	Username   string    `json:"username"`
