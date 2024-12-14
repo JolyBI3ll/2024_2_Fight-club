@@ -99,6 +99,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "session_id",
 		Value:    userSession,
 		Path:     "/",
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
@@ -106,6 +107,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "csrf_token",
 		Value:    jwtToken,
 		Path:     "/",
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
@@ -208,6 +210,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "session_id",
 		Value:    userSession,
 		Path:     "/",
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
@@ -215,6 +218,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "csrf_token",
 		Value:    jwtToken,
 		Path:     "/",
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
@@ -756,6 +760,7 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 		Name:     "csrf_token",
 		Value:    newCsrfToken.CsrfToken,
 		Path:     "/",
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
