@@ -845,8 +845,10 @@ func (r *adRepository) GetUserFavorites(ctx context.Context, userId string) ([]d
 
 	query := r.db.Model(&domain.Ad{}).
 		Joins("JOIN favorites ON favorites.\"adId\" = ads.uuid").
+		Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
+		Joins("JOIN ad_available_dates ON ad_available_dates.\"adId\" = ads.uuid").
 		Where("favorites.\"userId\" = ?", userId).
-		Select("ads.*, favorites.\"userId\" AS \"FavoriteUserId\"")
+		Select("ads.*, favorites.\"userId\" AS \"FavoriteUserId\", cities.title as \"CityName\", ad_available_dates.\"availableDateFrom\" as \"AdDateFrom\", ad_available_dates.\"availableDateTo\" as \"AdDateTo\"")
 
 	if err := query.Find(&ads).Error; err != nil {
 		logger.DBLogger.Error("Error fetching user favorites", zap.String("request_id", requestID), zap.Error(err))
