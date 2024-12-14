@@ -19,7 +19,7 @@ import (
 )
 
 type AdUseCase interface {
-	GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error)
+	GetAllPlaces(ctx context.Context, filter domain.AdFilter, userId string) ([]domain.GetAllAdsResponse, error)
 	GetOnePlace(ctx context.Context, adId string, isAuthorized bool) (domain.GetAllAdsResponse, error)
 	CreatePlace(ctx context.Context, place *domain.Ad, fileHeader [][]byte, newPlace domain.CreateAdRequest, userId string) error
 	UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeader [][]byte, updatedPlace domain.UpdateAdRequest) error
@@ -46,8 +46,8 @@ func NewAdUseCase(adRepository domain.AdRepository, minioService images.MinioSer
 	}
 }
 
-func (uc *adUseCase) GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error) {
-	ads, err := uc.adRepository.GetAllPlaces(ctx, filter)
+func (uc *adUseCase) GetAllPlaces(ctx context.Context, filter domain.AdFilter, userId string) ([]domain.GetAllAdsResponse, error) {
+	ads, err := uc.adRepository.GetAllPlaces(ctx, filter, userId)
 	if err != nil {
 		return nil, err
 	}

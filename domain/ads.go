@@ -58,6 +58,7 @@ type GetAllAdsResponse struct {
 	CityName        string            `json:"cityName"`
 	AdDateFrom      time.Time         `json:"adDateFrom"`
 	AdDateTo        time.Time         `json:"adDateTo"`
+	IsFavorite      bool              `json:"isFavorite"`
 	AdAuthor        UserResponce      `gorm:"-" json:"author"`
 	Images          []ImageResponse   `gorm:"-" json:"images"`
 	Rooms           []AdRoomsResponse `gorm:"-" json:"rooms"`
@@ -116,7 +117,7 @@ type PaymentInfo struct {
 }
 
 type AdRepository interface {
-	GetAllPlaces(ctx context.Context, filter AdFilter) ([]GetAllAdsResponse, error)
+	GetAllPlaces(ctx context.Context, filter AdFilter, userId string) ([]GetAllAdsResponse, error)
 	GetPlaceById(ctx context.Context, adId string) (GetAllAdsResponse, error)
 	CreatePlace(ctx context.Context, ad *Ad, newAd CreateAdRequest, userId string) error
 	SavePlace(ctx context.Context, ad *Ad) error

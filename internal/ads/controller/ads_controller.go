@@ -66,6 +66,13 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 		zap.String("query", r.URL.Query().Encode()),
 	)
 
+	sessionID, err := session.GetSessionId(r)
+	if err != nil || sessionID == "" {
+		logger.AccessLogger.Warn("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+	}
+
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
 	queryParams := r.URL.Query()
@@ -80,6 +87,7 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 		Offset:      queryParams.Get("offset"),
 		DateFrom:    queryParams.Get("dateFrom"),
 		DateTo:      queryParams.Get("dateTo"),
+		SessionId:   sessionID,
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to GetAllPlaces",

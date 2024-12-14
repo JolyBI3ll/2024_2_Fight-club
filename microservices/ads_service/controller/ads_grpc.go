@@ -106,7 +106,12 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequ
 		DateTo:      dateTo,
 	}
 
-	places, err := adh.usecase.GetAllPlaces(ctx, filter)
+	userID, err := adh.sessionService.GetUserID(ctx, in.SessionId)
+	if err != nil {
+		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
+	}
+
+	places, err := adh.usecase.GetAllPlaces(ctx, filter, userID)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get places",
 			zap.Error(err),
@@ -134,6 +139,7 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequ
 			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
+			IsFavorite:      boolPtr(place.IsFavorite),
 			AdAuthor: &gen.UserResponse{
 				Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
 				Avatar:     place.AdAuthor.Avatar,
@@ -192,6 +198,7 @@ func (adh *GrpcAdHandler) GetOnePlace(ctx context.Context, in *gen.GetPlaceByIdR
 		CityName:        place.CityName,
 		AdDateFrom:      place.AdDateFrom.Format(layout),
 		AdDateTo:        place.AdDateTo.Format(layout),
+		IsFavorite:      boolPtr(place.IsFavorite),
 		AdAuthor: &gen.UserResponse{
 			Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
 			Avatar:     place.AdAuthor.Avatar,
@@ -406,6 +413,7 @@ func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *gen.GetPlace
 			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
+			IsFavorite:      boolPtr(place.IsFavorite),
 			AdAuthor: &gen.UserResponse{
 				Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
 				Avatar:     place.AdAuthor.Avatar,

@@ -23,7 +23,7 @@ func NewAdRepository(db *gorm.DB) domain.AdRepository {
 	}
 }
 
-func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error) {
+func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter, userId string) ([]domain.GetAllAdsResponse, error) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)
 	logger.DBLogger.Info("GetAllPlaces called", zap.String("request_id", requestID))
@@ -105,7 +105,24 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 		return nil, errors.New("error fetching all places")
 	}
 
+	var favoriteAdIds []string
+	if userId != "" {
+		if err := r.db.Model(&domain.Favorites{}).Where("\"userId\" = ?", userId).Pluck("\"adId\"", &favoriteAdIds).Error; err != nil {
+			logger.DBLogger.Error("Error fetching favorites", zap.String("request_id", requestID), zap.Error(err))
+			return nil, errors.New("error fetching favorites")
+		}
+	}
+
+	favoritesMap := make(map[string]bool)
+	for _, adId := range favoriteAdIds {
+		favoritesMap[adId] = true
+	}
+
 	for i, ad := range ads {
+		if _, ok := favoritesMap[ad.UUID]; ok {
+			ads[i].IsFavorite = true
+		}
+
 		var images []domain.Image
 		var user domain.User
 		var rooms []domain.AdRooms
