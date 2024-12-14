@@ -12,6 +12,7 @@ import (
 	"errors"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"github.com/mailru/easyjson"
 	"go.uber.org/zap"
 	"net/http"
 	"sync"
@@ -242,19 +243,18 @@ func (cc *ChatHandler) GetAllChats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body := map[string]interface{}{
-		"chats": chats,
+	body := domain.AllChats{
+		Chats: chats,
 	}
-
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
-		logger.AccessLogger.Error("Failed to encode response",
+	if _, err := easyjson.MarshalToWriter(&body, w); err != nil {
+		logger.AccessLogger.Warn("Failed to encode response",
 			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
+			zap.Error(err))
 		return
 	}
+
 	duration := time.Since(start)
 	logger.AccessLogger.Info("Completed GetAllChats request",
 		zap.String("request_id", requestID),
@@ -338,18 +338,19 @@ func (cc *ChatHandler) GetChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body := map[string]interface{}{
-		"chat": messages,
+	body := domain.AllMessages{
+		Chat: messages,
 	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
-		logger.AccessLogger.Error("Failed to encode response",
+	if _, err := easyjson.MarshalToWriter(&body, w); err != nil {
+		logger.AccessLogger.Warn("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
 		return
 	}
+
 	duration := time.Since(start)
 	logger.AccessLogger.Info("Completed GetAllChats request",
 		zap.String("request_id", requestID),

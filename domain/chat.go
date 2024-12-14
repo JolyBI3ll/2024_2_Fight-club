@@ -1,10 +1,23 @@
 package domain
 
+//go:generate easyjson -all chat.go
+
 import (
 	"context"
 	"time"
 )
 
+//easyjson:json
+type AllMessages struct {
+	Chat []*Message `json:"chat"`
+}
+
+//easyjson:json
+type AllChats struct {
+	Chats []*Chat `json:"chats"`
+}
+
+//easyjson:json
 type Chat struct {
 	LastMessage  string    `gorm:"type:text;size:1000;column:lastMessage" json:"lastMessage"`
 	LastDate     time.Time `gorm:"type:timestamp;column:lastDate" json:"lastDate"`
@@ -13,6 +26,7 @@ type Chat struct {
 	AuthorUUID   string    `gorm:"column:authorUuid;not null" json:"authorUuid"`
 }
 
+//easyjson:json
 type Message struct {
 	ID         int       `gorm:"primary_key;auto_increment;column:id" json:"id"`
 	SenderID   string    `gorm:"column:senderId;not null" json:"senderId"`
