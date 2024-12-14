@@ -2,9 +2,9 @@ package controller
 
 import (
 	"2024_2_FIGHT-CLUB/domain"
-	"2024_2_FIGHT-CLUB/internal/ads/mocks"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
+	"2024_2_FIGHT-CLUB/microservices/ads_service/mocks"
 	"bytes"
 	"context"
 	"encoding/json"
