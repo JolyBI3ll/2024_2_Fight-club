@@ -138,16 +138,18 @@ services:
 
     # Ads service
     ads_service:
-        image: golang:1.23.1
-        working_dir: /app
+        build:
+            context: .
+            dockerfile: microservices/ads_service/Dockerfile
+        volumes:
+            - ./.env:/app/.env
+
         ports:
             - "50052:50052"
-        volumes:
-            - .:/app
-        command: go run ./microservices/ads_service/cmd/main.go
         depends_on:
             - redis
             - postgres
+            - minio
         environment:
             - DB_HOST=${DB_HOST}
             - DB_PORT=${DB_PORT}
