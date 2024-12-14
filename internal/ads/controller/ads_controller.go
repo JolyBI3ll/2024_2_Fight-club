@@ -896,8 +896,6 @@ func (h *AdHandler) GetUserFavorites(w http.ResponseWriter, r *http.Request) {
 		zap.String("request_id", requestID),
 		zap.String("userId", userId))
 
-	authHeader := r.Header.Get("X-CSRF-Token")
-
 	sessionID, err := session.GetSessionId(r)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get session ID",
@@ -910,9 +908,8 @@ func (h *AdHandler) GetUserFavorites(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
 	response, err := h.client.GetUserFavorites(ctx, &gen.GetUserFavoritesRequest{
-		UserId:     userId,
-		AuthHeader: authHeader,
-		SessionID:  sessionID,
+		UserId:    userId,
+		SessionID: sessionID,
 	})
 	if err != nil {
 		logger.AccessLogger.Error("Failed to delete ad from favorites", zap.String("request_id", requestID), zap.Error(err))

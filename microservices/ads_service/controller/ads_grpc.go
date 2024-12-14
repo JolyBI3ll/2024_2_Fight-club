@@ -598,21 +598,6 @@ func (adh *GrpcAdHandler) GetUserFavorites(ctx context.Context, in *gen.GetUserF
 	layout := "2006-01-02"
 	in.UserId = sanitizer.Sanitize(in.UserId)
 
-	if in.AuthHeader == "" {
-		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
-			zap.String("request_id", requestID),
-			zap.Error(errors.New("missing X-CSRF-Token header")),
-		)
-		return nil, errors.New("missing X-CSRF-Token header")
-	}
-
-	tokenString := in.AuthHeader[len("Bearer "):]
-	_, err := adh.jwtToken.Validate(tokenString, in.SessionID)
-	if err != nil {
-		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		return nil, errors.New("invalid JWT token")
-	}
-
 	userID, err := adh.sessionService.GetUserID(ctx, in.SessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))

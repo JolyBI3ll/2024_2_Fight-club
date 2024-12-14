@@ -96,7 +96,6 @@ message DeleteFromFavoritesRequest {
 
 message GetUserFavoritesRequest {
   string userId = 1;
-  string authHeader = 2;
   string sessionID = 3;
 }
 
