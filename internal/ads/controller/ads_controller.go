@@ -124,13 +124,14 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 		clientIP = forwarded
 	}
 	defer func() {
+		sanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
@@ -336,13 +337,14 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		clientIP = forwarded
 	}
 	defer func() {
+		sanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
@@ -462,13 +464,14 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 		clientIP = forwarded
 	}
 	defer func() {
+		sanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
@@ -592,13 +595,14 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 		clientIP = forwarded
 	}
 	defer func() {
+		sanitizedPath := metrics.SanitizeUserIdPath(r.URL.Path)
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
@@ -654,13 +658,14 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 		clientIP = forwarded
 	}
 	defer func() {
+		sanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
@@ -731,13 +736,14 @@ func (h *AdHandler) AddToFavorites(w http.ResponseWriter, r *http.Request) {
 		clientIP = forwarded
 	}
 	defer func() {
+		sanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
@@ -806,13 +812,14 @@ func (h *AdHandler) DeleteFromFavorites(w http.ResponseWriter, r *http.Request) 
 		clientIP = forwarded
 	}
 	defer func() {
+		sanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
@@ -881,13 +888,14 @@ func (h *AdHandler) GetUserFavorites(w http.ResponseWriter, r *http.Request) {
 		clientIP = forwarded
 	}
 	defer func() {
+		sanitizedPath := metrics.SanitizeUserIdPath(r.URL.Path)
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
@@ -952,13 +960,14 @@ func (h *AdHandler) UpdatePriorityWithPayment(w http.ResponseWriter, r *http.Req
 		clientIP = forwarded
 	}
 	defer func() {
+		sanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
 	ctx = middleware.WithLogger(ctx, logger.AccessLogger)

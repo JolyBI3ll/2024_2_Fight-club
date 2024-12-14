@@ -99,6 +99,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "session_id",
 		Value:    userSession,
 		Path:     "/",
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
@@ -106,6 +107,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "csrf_token",
 		Value:    jwtToken,
 		Path:     "/",
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
@@ -208,6 +210,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "session_id",
 		Value:    userSession,
 		Path:     "/",
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
@@ -215,6 +218,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "csrf_token",
 		Value:    jwtToken,
 		Path:     "/",
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
@@ -485,13 +489,14 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		clientIP = forwarded
 	}
 	defer func() {
+		sanitizedPath := metrics.SanitizeUserIdPath(r.URL.Path)
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
 	logger.AccessLogger.Info("Received GetUserById request",
@@ -755,6 +760,7 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 		Name:     "csrf_token",
 		Value:    newCsrfToken.CsrfToken,
 		Path:     "/",
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
