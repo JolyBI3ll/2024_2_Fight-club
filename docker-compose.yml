@@ -196,8 +196,6 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
         restart: unless-stopped
         command: --interval 30 ads_service auth_service city_service migrator backend
-        depends_on:
-            - facade_app
 
 volumes:
     postgres_data:
