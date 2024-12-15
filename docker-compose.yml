@@ -14,6 +14,8 @@ services:
             - DB_USER=${DB_USER}
             - DB_PASSWORD=${DB_PASS}
             - DB_NAME=${DB_NAME}
+        volumes:
+            - .env:/app/.env
         depends_on:
             - postgres
         networks:
@@ -36,6 +38,8 @@ services:
             - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
             - REDIS_HOST=redis
             - REDIS_PORT=6379
+        volumes:
+            - .env:/app/.env
         depends_on:
             - postgres
             - minio
@@ -133,6 +137,8 @@ services:
         image: rasulovarsen/ads_service:latest
         ports:
             - "50052:50052"
+        volumes:
+            - .env:/app/.env
         depends_on:
             - redis
             - postgres
@@ -153,6 +159,8 @@ services:
         image: rasulovarsen/auth_service:latest
         ports:
             - "50051:50051"
+        volumes:
+            - .env:/app/.env
         depends_on:
             - redis
             - postgres
@@ -172,6 +180,8 @@ services:
         image: rasulovarsen/city_service:latest
         ports:
             - "50053:50053"
+        volumes:
+            - .env:/app/.env
         depends_on:
             - redis
             - postgres
