@@ -26,7 +26,7 @@ jobs:
 
             # 4. Передача образа на виртуалку
             - name: Transfer Docker Image to Virtual Machine
-              uses: appleboy/scp-action@v0.2.3
+              uses: appleboy/scp-action@v0.1.7
               with:
                   host: 37.139.41.110
                   username: ubuntu
