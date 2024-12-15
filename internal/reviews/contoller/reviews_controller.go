@@ -54,8 +54,6 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
-
 	logger.AccessLogger.Info("Received CreateReview request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
@@ -161,7 +159,6 @@ func (rh *ReviewHandler) GetUserReviews(w http.ResponseWriter, r *http.Request) 
 	}()
 	userId := mux.Vars(r)["userId"]
 	sanitizer := bluemonday.UGCPolicy()
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 	userId = sanitizer.Sanitize(userId)
 
 	logger.AccessLogger.Info("Received GetUserReviews request",
@@ -200,7 +197,6 @@ func (rh *ReviewHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 	defer cancel()
 	var err error
 	statusCode := http.StatusOK
@@ -310,7 +306,6 @@ func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 	sanitizer := bluemonday.UGCPolicy()
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	hostId := mux.Vars(r)["hostId"]
 	hostId = sanitizer.Sanitize(hostId)

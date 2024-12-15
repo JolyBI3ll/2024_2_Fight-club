@@ -134,15 +134,15 @@ message GetAllAdsResponse {
   string publicationDate = 5;
   string description = 6;
   int32 roomsNumber = 7;
-  optional int32 viewsCount = 8;
+  int32 viewsCount = 8;
   int32 squareMeters = 9;
   int32 floor = 10;
   string buildingType = 11;
-  optional bool hasBalcony = 12;
-  optional bool hasElevator = 13;
-  optional bool hasGas = 14;
-  optional int32 LikesCount = 15;
-  optional int32 priority = 16;
+  bool hasBalcony = 12;
+  bool hasElevator = 13;
+  bool hasGas = 14;
+  int32 LikesCount = 15;
+  int32 priority = 16;
   string endBoostDate = 17;
   string cityName = 18;
   string adDateFrom = 19;
@@ -175,12 +175,12 @@ message ImageResponse {
 }
 
 message UserResponse {
-  optional float rating = 1;
+  float rating = 1;
   string avatar = 2;
   string name = 3;
   string sex = 4;
   string birthDate = 5;
-  optional int32 guestCount = 6;
+  int32 guestCount = 6;
 }
 
 message UpdatePriorityRequest {

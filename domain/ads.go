@@ -1,10 +1,28 @@
 package domain
 
+//go:generate easyjson -all ads.go
+
 import (
 	"context"
 	"time"
 )
 
+//easyjson:json
+type PlacesResponse struct {
+	Places GetAllAdsListResponse `json:"places"`
+}
+
+//easyjson:json
+type GetAllAdsListResponse struct {
+	Housing []GetAllAdsResponse `json:"housing"`
+}
+
+//easyjson:json
+type GetOneAdResponse struct {
+	Place GetAllAdsResponse `json:"place"`
+}
+
+//easyjson:json
 type Ad struct {
 	UUID            string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid();column:uuid" json:"id"`
 	CityID          int       `gorm:"column:cityId;not null" json:"cityId"`
@@ -30,9 +48,8 @@ type Ad struct {
 type Favorites struct {
 	AdId   string `gorm:"primaryKey;column:adId" json:"adId"`
 	UserId string `gorm:"primaryKey;column:userId" json:"userId"`
-
-	User User `gorm:"foreignKey:UserId;references:UUID" json:"-"`
-	Ad   Ad   `gorm:"foreignKey:AdId;references:UUID" json:"-"`
+	User   User   `gorm:"foreignKey:UserId;references:UUID" json:"-"`
+	Ad     Ad     `gorm:"foreignKey:AdId;references:UUID" json:"-"`
 }
 
 type GetAllAdsResponse struct {

@@ -17,7 +17,112 @@ var (
 	_ easyjson.Marshaler
 )
 
-func easyjson6ff3ac1dDecode20242FIGHTCLUBDomain(in *jlexer.Lexer, out *ResponseMessage) {
+func easyjson6ff3ac1dDecode20242FIGHTCLUBDomain(in *jlexer.Lexer, out *WrongFieldErrorResponse) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "error":
+			out.Error = string(in.String())
+		case "wrongFields":
+			if in.IsNull() {
+				in.Skip()
+				out.WrongFields = nil
+			} else {
+				in.Delim('[')
+				if out.WrongFields == nil {
+					if !in.IsDelim(']') {
+						out.WrongFields = make([]string, 0, 4)
+					} else {
+						out.WrongFields = []string{}
+					}
+				} else {
+					out.WrongFields = (out.WrongFields)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v1 string
+					v1 = string(in.String())
+					out.WrongFields = append(out.WrongFields, v1)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson6ff3ac1dEncode20242FIGHTCLUBDomain(out *jwriter.Writer, in WrongFieldErrorResponse) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"error\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.Error))
+	}
+	{
+		const prefix string = ",\"wrongFields\":"
+		out.RawString(prefix)
+		if in.WrongFields == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
+			out.RawString("null")
+		} else {
+			out.RawByte('[')
+			for v2, v3 := range in.WrongFields {
+				if v2 > 0 {
+					out.RawByte(',')
+				}
+				out.String(string(v3))
+			}
+			out.RawByte(']')
+		}
+	}
+	out.RawByte('}')
+}
+
+// MarshalJSON supports json.Marshaler interface
+func (v WrongFieldErrorResponse) MarshalJSON() ([]byte, error) {
+	w := jwriter.Writer{}
+	easyjson6ff3ac1dEncode20242FIGHTCLUBDomain(&w, v)
+	return w.Buffer.BuildBytes(), w.Error
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v WrongFieldErrorResponse) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjson6ff3ac1dEncode20242FIGHTCLUBDomain(w, v)
+}
+
+// UnmarshalJSON supports json.Unmarshaler interface
+func (v *WrongFieldErrorResponse) UnmarshalJSON(data []byte) error {
+	r := jlexer.Lexer{Data: data}
+	easyjson6ff3ac1dDecode20242FIGHTCLUBDomain(&r, v)
+	return r.Error()
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *WrongFieldErrorResponse) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjson6ff3ac1dDecode20242FIGHTCLUBDomain(l, v)
+}
+func easyjson6ff3ac1dDecode20242FIGHTCLUBDomain1(in *jlexer.Lexer, out *ResponseMessage) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -48,7 +153,7 @@ func easyjson6ff3ac1dDecode20242FIGHTCLUBDomain(in *jlexer.Lexer, out *ResponseM
 		in.Consumed()
 	}
 }
-func easyjson6ff3ac1dEncode20242FIGHTCLUBDomain(out *jwriter.Writer, in ResponseMessage) {
+func easyjson6ff3ac1dEncode20242FIGHTCLUBDomain1(out *jwriter.Writer, in ResponseMessage) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -63,27 +168,27 @@ func easyjson6ff3ac1dEncode20242FIGHTCLUBDomain(out *jwriter.Writer, in Response
 // MarshalJSON supports json.Marshaler interface
 func (v ResponseMessage) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson6ff3ac1dEncode20242FIGHTCLUBDomain(&w, v)
+	easyjson6ff3ac1dEncode20242FIGHTCLUBDomain1(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v ResponseMessage) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson6ff3ac1dEncode20242FIGHTCLUBDomain(w, v)
+	easyjson6ff3ac1dEncode20242FIGHTCLUBDomain1(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *ResponseMessage) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson6ff3ac1dDecode20242FIGHTCLUBDomain(&r, v)
+	easyjson6ff3ac1dDecode20242FIGHTCLUBDomain1(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *ResponseMessage) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson6ff3ac1dDecode20242FIGHTCLUBDomain(l, v)
+	easyjson6ff3ac1dDecode20242FIGHTCLUBDomain1(l, v)
 }
-func easyjson6ff3ac1dDecode20242FIGHTCLUBDomain1(in *jlexer.Lexer, out *ErrorResponse) {
+func easyjson6ff3ac1dDecode20242FIGHTCLUBDomain2(in *jlexer.Lexer, out *ErrorResponse) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -114,7 +219,7 @@ func easyjson6ff3ac1dDecode20242FIGHTCLUBDomain1(in *jlexer.Lexer, out *ErrorRes
 		in.Consumed()
 	}
 }
-func easyjson6ff3ac1dEncode20242FIGHTCLUBDomain1(out *jwriter.Writer, in ErrorResponse) {
+func easyjson6ff3ac1dEncode20242FIGHTCLUBDomain2(out *jwriter.Writer, in ErrorResponse) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -129,23 +234,23 @@ func easyjson6ff3ac1dEncode20242FIGHTCLUBDomain1(out *jwriter.Writer, in ErrorRe
 // MarshalJSON supports json.Marshaler interface
 func (v ErrorResponse) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson6ff3ac1dEncode20242FIGHTCLUBDomain1(&w, v)
+	easyjson6ff3ac1dEncode20242FIGHTCLUBDomain2(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v ErrorResponse) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson6ff3ac1dEncode20242FIGHTCLUBDomain1(w, v)
+	easyjson6ff3ac1dEncode20242FIGHTCLUBDomain2(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *ErrorResponse) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson6ff3ac1dDecode20242FIGHTCLUBDomain1(&r, v)
+	easyjson6ff3ac1dDecode20242FIGHTCLUBDomain2(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *ErrorResponse) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson6ff3ac1dDecode20242FIGHTCLUBDomain1(l, v)
+	easyjson6ff3ac1dDecode20242FIGHTCLUBDomain2(l, v)
 }

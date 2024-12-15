@@ -6,6 +6,7 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	"2024_2_FIGHT-CLUB/internal/service/utils"
 	"2024_2_FIGHT-CLUB/microservices/auth_service/controller/gen"
 	"errors"
 	"github.com/gorilla/mux"
@@ -14,7 +15,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
-	"math"
 	"mime/multipart"
 	"net/http"
 	"time"
@@ -109,15 +109,14 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	body := domain.AuthResponse{
-		SessionId: userSession,
-		User: domain.AuthData{
-			Id:       response.User.Id,
-			Username: response.User.Username,
-			Email:    response.User.Email,
-		},
+	body, err := utils.ConvertAuthResponseProtoToGo(response, userSession)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to convert auth response",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
 	}
-
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusCreated)
 	if _, err := easyjson.MarshalToWriter(body, w); err != nil {
@@ -167,7 +166,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	)
 
 	var creds domain.User
-	if err := easyjson.UnmarshalFromReader(r.Body, &creds); err != nil {
+	if err = easyjson.UnmarshalFromReader(r.Body, &creds); err != nil {
 		logger.AccessLogger.Error("Failed to decode request body",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -182,7 +181,8 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("csrf_token already exists")),
 		)
-		statusCode = h.handleError(w, errors.New("csrf_token already exists"), requestID)
+		err = errors.New("csrf_token already exists")
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -219,15 +219,14 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	body := domain.AuthResponse{
-		SessionId: userSession,
-		User: domain.AuthData{
-			Id:       response.User.Id,
-			Username: response.User.Username,
-			Email:    response.User.Email,
-		},
+	body, err := utils.ConvertAuthResponseProtoToGo(response, userSession)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to convert auth response",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
 	}
-
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
 	if _, err := easyjson.MarshalToWriter(body, w); err != nil {
@@ -520,19 +519,14 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := &domain.UserDataResponse{
-		Uuid:       user.User.Uuid,
-		Username:   user.User.Username,
-		Email:      user.User.Email,
-		Name:       user.User.Name,
-		Score:      math.Round(float64(user.User.Score)*10) / 10,
-		Avatar:     user.User.Avatar,
-		Sex:        user.User.Sex,
-		GuestCount: int(user.User.GuestCount),
-		Birthdate:  (user.User.Birthdate).AsTime(),
-		IsHost:     user.User.IsHost,
+	response, err := utils.ConvertUserResponseProtoToGo(user.User)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to convert user response",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
 	}
-
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
 	if _, err := easyjson.MarshalToWriter(response, w); err != nil {
@@ -594,25 +588,17 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var body []*domain.UserDataResponse
-	for _, user := range users.Users {
-		body = append(body, &domain.UserDataResponse{
-			Uuid:       user.Uuid,
-			Username:   user.Username,
-			Email:      user.Email,
-			Name:       user.Name,
-			Score:      math.Round(float64(user.Score)*10) / 10,
-			Avatar:     user.Avatar,
-			Sex:        user.Sex,
-			GuestCount: int(user.GuestCount),
-			Birthdate:  (user.Birthdate).AsTime(),
-			IsHost:     user.IsHost,
-		})
+	body, err := utils.ConvertUsersProtoToGo(users)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to convert users proto",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
 	}
 	response := domain.GetAllUsersResponse{
 		Users: body,
 	}
-
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
 	if _, err := easyjson.MarshalToWriter(response, w); err != nil {
@@ -687,9 +673,13 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	response := domain.SessionData{
-		Id:     sessionData.Id,
-		Avatar: sessionData.Avatar,
+	response, err := utils.ConvertSessionDataProtoToGo(sessionData)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to convert session data",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
 	}
 	if _, err := easyjson.MarshalToWriter(response, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode GetSessionData response",
@@ -730,8 +720,6 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 		duration := time.Since(start).Seconds()
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
-
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received RefreshCsrfToken request",
 		zap.String("request_id", requestID),
@@ -815,20 +803,17 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 		"invalid JWT token",
 		"invalid type for id in session data",
 		"invalid type for avatar in session data":
-		w.WriteHeader(http.StatusBadRequest)
 		statusCode = http.StatusBadRequest
 
 	case "user already exists",
 		"email already exists",
 		"session already exists",
 		"already logged in":
-		w.WriteHeader(http.StatusConflict)
 		statusCode = http.StatusConflict
 
 	case "no active session",
 		"session not found",
 		"user ID not found in session":
-		w.WriteHeader(http.StatusUnauthorized)
 		statusCode = http.StatusUnauthorized
 
 	case "user not found",
@@ -836,7 +821,6 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 		"error fetching user by name",
 		"error fetching user by email",
 		"there is none user in db":
-		w.WriteHeader(http.StatusNotFound)
 		statusCode = http.StatusNotFound
 
 	case "error creating user",
@@ -859,11 +843,9 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 		"token invalid",
 		"token expired",
 		"bad sign method":
-		w.WriteHeader(http.StatusInternalServerError)
 		statusCode = http.StatusInternalServerError
 
 	default:
-		w.WriteHeader(http.StatusInternalServerError)
 		statusCode = http.StatusInternalServerError
 	}
 

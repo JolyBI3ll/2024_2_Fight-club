@@ -7,8 +7,8 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/validation"
 	"context"
-	"encoding/json"
 	"errors"
+	"github.com/mailru/easyjson"
 	"go.uber.org/zap"
 	"net/http"
 	"regexp"
@@ -52,9 +52,9 @@ func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User) err
 	if creds.Username == "" || creds.Password == "" || creds.Email == "" {
 		return errors.New("username, password, and email are required")
 	}
-	errorResponse := map[string]interface{}{
-		"error":       "Incorrect data forms",
-		"wrongFields": []string{},
+	errorResponse := domain.WrongFieldErrorResponse{
+		Error:       "Incorrect data forms",
+		WrongFields: make([]string, 0),
 	}
 	var wrongFields []string
 	if !validation.ValidateLogin(creds.Username) {
@@ -70,8 +70,8 @@ func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User) err
 		wrongFields = append(wrongFields, "name")
 	}
 	if len(wrongFields) > 0 {
-		errorResponse["wrongFields"] = wrongFields
-		errorResponseJSON, err := json.Marshal(errorResponse)
+		errorResponse.WrongFields = wrongFields
+		errorResponseJSON, err := easyjson.Marshal(errorResponse)
 		if err != nil {
 			return errors.New("failed to generate error response")
 		}
@@ -123,9 +123,9 @@ func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*doma
 	if creds.Username == "" || creds.Password == "" {
 		return nil, errors.New("username and password are required")
 	}
-	errorResponse := map[string]interface{}{
-		"error":       "Incorrect data forms",
-		"wrongFields": []string{},
+	errorResponse := domain.WrongFieldErrorResponse{
+		Error:       "Incorrect data forms",
+		WrongFields: make([]string, 0),
 	}
 	var wrongFields []string
 	if !validation.ValidateLogin(creds.Username) {
@@ -135,8 +135,8 @@ func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*doma
 		wrongFields = append(wrongFields, "password")
 	}
 	if len(wrongFields) > 0 {
-		errorResponse["wrongFields"] = wrongFields
-		errorResponseJSON, err := json.Marshal(errorResponse)
+		errorResponse.WrongFields = wrongFields
+		errorResponseJSON, err := easyjson.Marshal(errorResponse)
 		if err != nil {
 			return nil, errors.New("failed to generate error response")
 		}
@@ -178,9 +178,9 @@ func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID s
 	}
 
 	var wrongFields []string
-	errorResponse := map[string]interface{}{
-		"error":       "Incorrect data forms",
-		"wrongFields": []string{},
+	errorResponse := domain.WrongFieldErrorResponse{
+		Error:       "Incorrect data forms",
+		WrongFields: make([]string, 0),
 	}
 	if !validation.ValidateLogin(creds.Username) && len(creds.Username) > 0 {
 		wrongFields = append(wrongFields, "username")
@@ -195,8 +195,8 @@ func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID s
 		wrongFields = append(wrongFields, "name")
 	}
 	if len(wrongFields) > 0 {
-		errorResponse["wrongFields"] = wrongFields
-		errorResponseJSON, err := json.Marshal(errorResponse)
+		errorResponse.WrongFields = wrongFields
+		errorResponseJSON, err := easyjson.Marshal(errorResponse)
 		if err != nil {
 			return errors.New("failed to generate error response")
 		}
@@ -208,6 +208,7 @@ func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID s
 
 		uploadedPath, err := uc.minioService.UploadFile(avatar, contentType, "user/"+userID)
 		if err != nil {
+			logger.AccessLogger.Warn("Failed to upload file", zap.String("request_id", requestID), zap.Error(err))
 			return errors.New("failed to upload file")
 		}
 

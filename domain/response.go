@@ -11,3 +11,9 @@ type ErrorResponse struct {
 type ResponseMessage struct {
 	Message string `json:"message"`
 }
+
+//easyjson:json
+type WrongFieldErrorResponse struct {
+	Error       string   `json:"error"`
+	WrongFields []string `json:"wrongFields"`
+}

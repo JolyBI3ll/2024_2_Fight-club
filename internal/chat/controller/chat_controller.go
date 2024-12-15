@@ -373,20 +373,15 @@ func (cc *ChatHandler) handleError(w http.ResponseWriter, err error, requestID s
 	case "error fetching chats", "error fetching messages",
 		"failed to generate session id", "failed to save session", "error generating random bytes for session ID",
 		"failed to delete session", "failed to get session id from request cookie", "failed to upgrade connection":
-		w.WriteHeader(http.StatusInternalServerError)
 		status = http.StatusInternalServerError
 	case "error sending message",
 		"failed to parse lastTime":
-		w.WriteHeader(http.StatusBadRequest)
 		status = http.StatusBadRequest
 	case "session not found", "user ID not found in session":
-		w.WriteHeader(http.StatusUnauthorized)
 		status = http.StatusUnauthorized
 	default:
-		w.WriteHeader(http.StatusInternalServerError)
 		status = http.StatusInternalServerError
 	}
-
 	w.WriteHeader(status)
 	if _, jsonErr := easyjson.MarshalToWriter(&errorResponse, w); jsonErr != nil {
 		logger.AccessLogger.Error("Failed to encode error response",

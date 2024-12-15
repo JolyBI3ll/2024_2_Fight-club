@@ -3,9 +3,9 @@ package controller
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
-	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/mailru/easyjson"
 	"go.uber.org/zap"
 	"strings"
 	"sync"
@@ -188,7 +188,7 @@ func (c *Client) Write() {
 	defer c.Socket.Close()
 	for msg := range c.Receive {
 		msg.CreatedAt = time.Now()
-		jsonForSend, err := json.Marshal(msg)
+		jsonForSend, err := easyjson.Marshal(msg)
 		if err != nil {
 			return
 		}

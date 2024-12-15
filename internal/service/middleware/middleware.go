@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/time/rate"
 	"gorm.io/driver/postgres"
@@ -30,10 +29,6 @@ const requestTimeout = 5 * time.Second
 
 func WithTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, requestTimeout)
-}
-
-func WithLogger(ctx context.Context, logger *zap.Logger) context.Context {
-	return context.WithValue(ctx, loggerKey, logger)
 }
 
 type key int

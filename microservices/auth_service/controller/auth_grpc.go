@@ -172,7 +172,7 @@ func (h *GrpcAuthHandler) LogoutUser(ctx context.Context, in *gen.LogoutRequest)
 func (h *GrpcAuthHandler) PutUser(ctx context.Context, in *gen.PutUserRequest) (*gen.UpdateResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	sanitizer := bluemonday.UGCPolicy()
-	logger.AccessLogger.Info("Received LoginUser request in microservice",
+	logger.AccessLogger.Info("Received PutUser request in microservice",
 		zap.String("request_id", requestID))
 
 	if in.AuthHeader == "" {
@@ -311,20 +311,8 @@ func (h *GrpcAuthHandler) GetSessionData(ctx context.Context, in *gen.GetSession
 	}
 	data := *sessionData
 
-	id, ok := data["id"].(string)
-	if !ok {
-		logger.AccessLogger.Warn("Invalid type for id in session data",
-			zap.String("request_id", requestID))
-		return nil, errors.New("invalid type for id in session data")
-	}
-
-	avatar, ok := data["avatar"].(string)
-	if !ok {
-		logger.AccessLogger.Warn("Invalid type for avatar in session data",
-			zap.String("request_id", requestID))
-		return nil, errors.New("invalid type for avatar in session data")
-	}
-
+	id := data.Id
+	avatar := data.Avatar
 	return &gen.SessionDataResponse{
 		Id:     id,
 		Avatar: avatar,
