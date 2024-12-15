@@ -16,9 +16,6 @@ jobs:
                   key: ${{ secrets.SSH_PRIVATE_KEY }}
                   script: |
                       cd /opt/backend-deploy
-                      git init
-                      git remote add origin ${{ github.server_url }}/${{ github.repository }}
-                      git fetch origin ${{ github.ref }}
-                      git reset --hard origin/${{ github.ref }}
+                      sudo git clone ${{ github.server_url }}/${{ github.repository }} .
                       sudo docker compose build --no-cache
                       sudo docker compose up -d --remove-orphans
