@@ -5,13 +5,14 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/dsn"
 	"context"
 	"fmt"
+	"log"
+	"os"
+
 	"github.com/joho/godotenv"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"log"
-	"os"
 )
 
 func connectMinio() (*minio.Client, error) {
@@ -42,6 +43,7 @@ func uploadImage(minioClient *minio.Client, bucketName, objectName, filePath str
 
 func migrate() (err error) {
 	_ = godotenv.Load()
+	println("GOD IS GREAT!")
 	db, err := gorm.Open(postgres.Open(dsn.FromEnv()), &gorm.Config{})
 	if err != nil {
 		return err
