@@ -18,62 +18,21 @@ jobs:
             - name: Login to DockerHub Registry
               run: echo dckr_pat_6HmV5MDVrUU3Wfzu59ejhGGOBjs | docker login -u rasulovarsen --password-stdin
 
-            # 3. Build ads_service
-            - name: Build and push ads_service
-              uses: docker/build-push-action@v4
+            # 3. Билдим наш проект
+            - uses: mr-smithers-excellent/docker-build-push@v6
+              name: Build & push Docker image
               with:
-                  context: .
-                  file: ./microservices/ads_service/Dockerfile
-                  tags: rasulovarsen/ads_service:latest
-                  push: true
-
-            - name: Build and push auth_service
-              uses: docker/build-push-action@v4
-              with:
-                  context: .
-                  file: ./microservices/auth_service/Dockerfile
-                  tags: rasulovarsen/auth_service:latest
-                  push: true
-
-            - name: Build and push city_service
-              uses: docker/build-push-action@v4
-              with:
-                  context: .
-                  file: ./microservices/city_service/Dockerfile
-                  tags: rasulovarsen/city_service:latest
-                  push: true
-
-            - name: Build and push migrator
-              uses: docker/build-push-action@v4
-              with:
-                  context: .
-                  file: ./cmd/migrator/Dockerfile
-                  tags: rasulovarsen/migrator:latest
-                  push: true
-
-            - name: Build and push backend
-              uses: docker/build-push-action@v4
-              with:
-                  context: .
-                  file: ./Dockerfile
-                  tags: rasulovarsen/backend:latest
-                  push: true
+                  image: rasulovarsen/fight-club
+                  tags: latest
+                  registry: docker.io
+                  username: rasulovarsen
+                  password: dckr_pat_6HmV5MDVrUU3Wfzu59ejhGGOBjs
 
     deploy:
         runs-on: ubuntu-latest
         needs: build
         steps:
-            # Передача docker-compose.yml
-            - name: Transfer Docker Compose to Virtual Machine
-              uses: appleboy/scp-action@v0.1.7
-              with:
-                  host: 37.139.41.110
-                  username: ubuntu
-                  key: ${{ secrets.SSH_PRIVATE_KEY }}
-                  source: ./docker-compose.yml
-                  target: /tmp/docker-compose.yml
-
-            # 5. Развертывание на виртуалке
+            # 3. Развертывание на виртуалке
             - name: Deploy on Virtual Machine
               uses: appleboy/ssh-action@v1.2.0
               with:
