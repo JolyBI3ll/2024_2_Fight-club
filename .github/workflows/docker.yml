@@ -1,23 +1,47 @@
-name: Build and Deploy Microservices
+name: Build and Deploy
 
 on:
     push:
-        branches: ["deploy"]
+        branches:
+            - deploy
 
 jobs:
-    deploy:
+    build-and-deploy:
         runs-on: ubuntu-latest
+
         steps:
-            - name: Checkout code and build on server
-              uses: appleboy/ssh-action@master
+            # 1. Checkout репозиторий
+            - name: Checkout code
+              uses: actions/checkout@v3
+
+            # 2. Сборка Docker-образа
+            - name: Build Docker Images
+              run: |
+                  docker compose -f docker-compose.yml build
+
+            # 3. Экспорт образа в tar-файл
+            - name: Save Docker Images to Tar
+              run: |
+                  docker save -o images.tar $(docker-compose -f docker-compose.yml config | grep 'image:' | awk '{print $2}')
+
+            # 4. Передача образа на виртуалку
+            - name: Transfer Docker Image to Virtual Machine
+              uses: appleboy/scp-action@v0.2.3
+              with:
+                  host: 37.139.41.110
+                  username: ubuntu
+                  password: ${{ secrets.VM_PASSWORD }}
+                  key: ${{ secrets.SSH_PRIVATE_KEY }}
+                  source: ./images.tar
+                  target: /tmp/images.tar
+
+            # 5. Развертывание на виртуалке
+            - name: Deploy on Virtual Machine
+              uses: appleboy/ssh-action@v0.5.3
               with:
                   host: 37.139.41.110
                   username: ubuntu
                   key: ${{ secrets.SSH_PRIVATE_KEY }}
                   script: |
-                      cd ~
-                      sudo git clone ${{ github.server_url }}/${{ github.repository }} backend/
-                      cd backend/
-                      git switch dev
-                      sudo docker compose build --no-cache
-                      sudo docker compose up -d --remove-orphans
+                      docker load -i /tmp/images.tar
+                      docker-compose -f /path/to/remote/docker-compose.yml up -d
