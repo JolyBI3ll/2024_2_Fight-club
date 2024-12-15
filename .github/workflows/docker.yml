@@ -15,7 +15,7 @@ jobs:
 
             # 2. Login to DockerHub
             - name: Login to DockerHub Registry
-              run: echo ${{ secrets.DOCKERHUB_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+              run: echo ${{secrets.DOCKERHUB_TOKEN}} | docker login -u ${{secrets.DOCKERHUB_USERNAME}} --password-stdin
 
             # 3. Build ads_service
             - name: Build and push ads_service
