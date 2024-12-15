@@ -7,9 +7,7 @@ services:
 
     # Go migrator. It applies all needed migrations.
     migrator:
-        build:
-            context: .
-            dockerfile: cmd/migrator/Dockerfile
+        image: rasulovarsen/migrator:latest
         environment:
             - DB_HOST=${DB_HOST}
             - DB_PORT=${DB_PORT}
@@ -23,9 +21,7 @@ services:
 
     # Go backend
     backend:
-        build:
-            context: .
-            dockerfile: Dockerfile
+        image: rasulovarsen/backend:latest
         ports:
             - "8008:8008"
         environment:
@@ -134,9 +130,7 @@ services:
 
     # Ads service
     ads_service:
-        build:
-            context: .
-            dockerfile: microservices/ads_service/Dockerfile
+        image: rasulovarsen/ads_service:latest
         ports:
             - "50052:50052"
         depends_on:
@@ -156,9 +150,7 @@ services:
 
     # Auth service
     auth_service:
-        build:
-            context: .
-            dockerfile: microservices/auth_service/Dockerfile
+        image: rasulovarsen/auth_service:latest
         ports:
             - "50051:50051"
         depends_on:
@@ -177,9 +169,7 @@ services:
 
     # City service
     city_service:
-        build:
-            context: .
-            dockerfile: microservices/city_service/Dockerfile
+        image: rasulovarsen/city_service:latest
         ports:
             - "50053:50053"
         depends_on:
