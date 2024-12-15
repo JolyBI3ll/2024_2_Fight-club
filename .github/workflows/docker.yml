@@ -6,7 +6,7 @@ on:
             - deploy
 
 jobs:
-    build-and-deploy:
+    build:
         runs-on: ubuntu-latest
 
         steps:
@@ -14,12 +14,18 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
+            # 2. Логинимся в DockerHub
+            - name: Login to DockerHub Registry
+              run: echo dckr_pat_6HmV5MDVrUU3Wfzu59ejhGGOBjs | docker login -u rasulovarsen --password-stdin
+
+            # 3. Build ads_service
             - name: Build and push ads_service
               uses: docker/build-push-action@v4
               with:
                   context: .
                   file: ./microservices/ads_service/Dockerfile
                   tags: ads_service:latest
+                  push: true
 
             - name: Build and push auth_service
               uses: docker/build-push-action@v4
@@ -27,6 +33,7 @@ jobs:
                   context: .
                   file: ./microservices/auth_service/Dockerfile
                   tags: auth_service:latest
+                  push: true
 
             - name: Build and push city_service
               uses: docker/build-push-action@v4
@@ -34,6 +41,7 @@ jobs:
                   context: .
                   file: ./microservices/city_service/Dockerfile
                   tags: city_service:latest
+                  push: true
 
             - name: Build and push migrator
               uses: docker/build-push-action@v4
@@ -41,6 +49,7 @@ jobs:
                   context: .
                   file: ./cmd/migrator/Dockerfile
                   tags: migrator:latest
+                  push: true
 
             - name: Build and push backend
               uses: docker/build-push-action@v4
@@ -48,21 +57,12 @@ jobs:
                   context: .
                   file: ./Dockerfile
                   tags: backend:latest
+                  push: true
 
-            - name: Save Docker Images
-              run: |
-                  docker save ads_service city_service migrator backend auth_service > images.tar
-
-            # 4. Передача образа на виртуалку
-            - name: Transfer Docker Image to Virtual Machine
-              uses: appleboy/scp-action@v0.1.7
-              with:
-                  host: 37.139.41.110
-                  username: ubuntu
-                  key: ${{ secrets.SSH_PRIVATE_KEY }}
-                  source: ./images.tar
-                  target: /tmp/images.tar
-
+    deploy:
+        runs-on: ubuntu-latest
+        needs: build
+        steps:
             # Передача docker-compose.yml
             - name: Transfer Docker Compose to Virtual Machine
               uses: appleboy/scp-action@v0.1.7
@@ -81,5 +81,4 @@ jobs:
                   username: ubuntu
                   key: ${{ secrets.SSH_PRIVATE_KEY }}
                   script: |
-                      docker load -i /tmp/images.tar/images.tar
                       docker compose -f /tmp/docker-compose.yml/docker-compose.yml up -d
