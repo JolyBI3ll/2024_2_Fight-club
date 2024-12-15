@@ -18,24 +18,21 @@ jobs:
               uses: docker/build-push-action@v4
               with:
                   context: .
-                  file: ./ads_service/Dockerfile
-                  push: true
+                  file: ./microservices/ads_service/Dockerfile
                   tags: ads_service:latest
 
             - name: Build and push auth_service
               uses: docker/build-push-action@v4
               with:
                   context: .
-                  file: ./auth_service/Dockerfile
-                  push: true
+                  file: ./microservices/auth_service/Dockerfile
                   tags: auth_service:latest
 
             - name: Build and push city_service
               uses: docker/build-push-action@v4
               with:
                   context: .
-                  file: ./city_service/Dockerfile
-                  push: true
+                  file: ./microservices/city_service/Dockerfile
                   tags: city_service:latest
 
             - name: Build and push migrator
@@ -43,7 +40,6 @@ jobs:
               with:
                   context: .
                   file: ./cmd/migrator/Dockerfile
-                  push: true
                   tags: migrator:latest
 
             - name: Build and push backend
@@ -51,7 +47,6 @@ jobs:
               with:
                   context: .
                   file: ./Dockerfile
-                  push: true
                   tags: backend:latest
 
             - name: Save Docker Images
