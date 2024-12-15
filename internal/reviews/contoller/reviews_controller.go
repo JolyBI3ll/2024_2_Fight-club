@@ -78,7 +78,8 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("missing X-CSRF-Token header")),
 		)
-		statusCode = rh.handleError(w, errors.New("missing X-CSRF-Token header"), requestID)
+		err = errors.New("missing X-CSRF-Token header")
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -120,7 +121,7 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 	body := domain.ReviewBody{
 		Review: review,
 	}
-	if _, err := easyjson.MarshalToWriter(&body, w); err != nil {
+	if _, err = easyjson.MarshalToWriter(&body, w); err != nil {
 		logger.AccessLogger.Warn("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = rh.handleError(w, err, requestID)
 		return
@@ -180,7 +181,7 @@ func (rh *ReviewHandler) GetUserReviews(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.WriteHeader(http.StatusOK)
-	if _, err := easyjson.MarshalToWriter(&reviews, w); err != nil {
+	if _, err = easyjson.MarshalToWriter(&reviews, w); err != nil {
 		logger.AccessLogger.Warn("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = rh.handleError(w, err, requestID)
 		return
@@ -241,7 +242,8 @@ func (rh *ReviewHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("missing X-CSRF-Token header")),
 		)
-		statusCode = rh.handleError(w, errors.New("missing X-CSRF-Token header"), requestID)
+		err = errors.New("missing X-CSRF-Token header")
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -270,7 +272,7 @@ func (rh *ReviewHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
 	response := domain.ResponseMessage{Message: "deleted successfully"}
-	if _, err := easyjson.MarshalToWriter(&response, w); err != nil {
+	if _, err = easyjson.MarshalToWriter(&response, w); err != nil {
 		logger.AccessLogger.Warn("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = rh.handleError(w, err, requestID)
 		return
@@ -332,7 +334,8 @@ func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("missing X-CSRF-Token header")),
 		)
-		statusCode = rh.handleError(w, errors.New("missing X-CSRF-Token header"), requestID)
+		err = errors.New("missing X-CSRF-Token header")
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -373,7 +376,7 @@ func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
 	response := domain.ResponseMessage{Message: "updated successfully"}
-	if _, err := easyjson.MarshalToWriter(&response, w); err != nil {
+	if _, err = easyjson.MarshalToWriter(&response, w); err != nil {
 		logger.AccessLogger.Warn("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = rh.handleError(w, err, requestID)
 		return

@@ -82,7 +82,7 @@ func (h *CityHandler) GetCities(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if _, err := easyjson.MarshalToWriter(body, w); err != nil {
+	if _, err = easyjson.MarshalToWriter(body, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -154,7 +154,7 @@ func (h *CityHandler) GetOneCity(w http.ResponseWriter, r *http.Request) {
 	body := domain.OneCityResponse{
 		City: payload,
 	}
-	if _, err := easyjson.MarshalToWriter(body, w); err != nil {
+	if _, err = easyjson.MarshalToWriter(body, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err))

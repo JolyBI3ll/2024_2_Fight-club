@@ -266,16 +266,17 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 
 	metadata := r.FormValue("metadata")
 	var newPlace domain.CreateAdRequest
-	if err := newPlace.UnmarshalJSON([]byte(metadata)); err != nil {
+	if err = newPlace.UnmarshalJSON([]byte(metadata)); err != nil {
 		logger.AccessLogger.Error("Failed to decode metadata", zap.String("request_id", requestID), zap.Error(err))
-		statusCode = h.handleError(w, errors.New("failed to decode metadata"), requestID)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
 	fileHeaders := r.MultipartForm.File["images"]
 	if len(fileHeaders) == 0 {
 		logger.AccessLogger.Warn("No images", zap.String("request_id", requestID))
-		statusCode = h.handleError(w, errors.New("no images provided"), requestID)
+		err = errors.New("no images provided")
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -388,7 +389,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 
 	metadata := r.FormValue("metadata")
 	var updatedPlace domain.UpdateAdRequest
-	if err := updatedPlace.UnmarshalJSON([]byte(metadata)); err != nil {
+	if err = updatedPlace.UnmarshalJSON([]byte(metadata)); err != nil {
 		logger.AccessLogger.Error("Failed to decode metadata", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = h.handleError(w, errors.New("invalid metadata JSON"), requestID)
 		return
@@ -459,7 +460,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	updateResponse := domain.ResponseMessage{
 		Message: "Successfully updated ad",
 	}
-	if _, err := easyjson.MarshalToWriter(updateResponse, w); err != nil {
+	if _, err = easyjson.MarshalToWriter(updateResponse, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -533,7 +534,7 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 	deleteResponse := domain.ResponseMessage{
 		Message: "Successfully deleted place",
 	}
-	if _, err := easyjson.MarshalToWriter(deleteResponse, w); err != nil {
+	if _, err = easyjson.MarshalToWriter(deleteResponse, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -751,7 +752,7 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 	deleteResponse := domain.ResponseMessage{
 		Message: "Successfully deleted ad image",
 	}
-	if _, err := easyjson.MarshalToWriter(deleteResponse, w); err != nil {
+	if _, err = easyjson.MarshalToWriter(deleteResponse, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -901,7 +902,7 @@ func (h *AdHandler) DeleteFromFavorites(w http.ResponseWriter, r *http.Request) 
 	deleteFromFavResponse := domain.ResponseMessage{
 		Message: "Successfully deleted from favorites",
 	}
-	if _, err := easyjson.MarshalToWriter(deleteFromFavResponse, w); err != nil {
+	if _, err = easyjson.MarshalToWriter(deleteFromFavResponse, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1027,7 +1028,7 @@ func (h *AdHandler) UpdatePriorityWithPayment(w http.ResponseWriter, r *http.Req
 		zap.String("userId", adId))
 
 	var card domain.PaymentInfo
-	if err := easyjson.UnmarshalFromReader(r.Body, &card); err != nil {
+	if err = easyjson.UnmarshalFromReader(r.Body, &card); err != nil {
 		logger.AccessLogger.Error("Failed to decode request body",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -1067,7 +1068,7 @@ func (h *AdHandler) UpdatePriorityWithPayment(w http.ResponseWriter, r *http.Req
 	updatePriorResponse := domain.ResponseMessage{
 		Message: "Successfully updated from favorites",
 	}
-	if _, err := easyjson.MarshalToWriter(updatePriorResponse, w); err != nil {
+	if _, err = easyjson.MarshalToWriter(updatePriorResponse, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

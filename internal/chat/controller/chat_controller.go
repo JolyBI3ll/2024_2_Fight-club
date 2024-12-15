@@ -66,6 +66,7 @@ func (cc *ChatHandler) SetConnection(w http.ResponseWriter, r *http.Request) {
 	mu.Lock()
 	if connCounter >= maxConnections {
 		mu.Unlock()
+		err = errors.New("too many connections")
 		http.Error(w, "Too many connections", http.StatusTooManyRequests)
 		return
 	}
@@ -247,7 +248,7 @@ func (cc *ChatHandler) GetAllChats(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if _, err := easyjson.MarshalToWriter(&body, w); err != nil {
+	if _, err = easyjson.MarshalToWriter(&body, w); err != nil {
 		logger.AccessLogger.Warn("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err))
@@ -342,7 +343,7 @@ func (cc *ChatHandler) GetChat(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if _, err := easyjson.MarshalToWriter(&body, w); err != nil {
+	if _, err = easyjson.MarshalToWriter(&body, w); err != nil {
 		logger.AccessLogger.Warn("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
