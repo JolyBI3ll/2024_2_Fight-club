@@ -9,15 +9,20 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
-            - name: Build Docker image
-              run: docker compose build --progress=plain --no-cache --tag fight-club-backend:latest .
+            - name: Set up Docker
+              uses: docker/setup-buildx-action@v2
+            - name: Build all Docker images
+              run: docker compose build --progress=plain --no-cache
     deploy:
         runs-on: ubuntu-latest
         needs: build
         steps:
-            - name: Save Docker image
-              run: docker save fight-club-backend:latest > fight-club-backend.tar
-            - name: Transfer image to server via SSH
+            - name: Save all Docker images
+              run: |
+                  docker images -q --format="{{.Repository}}:{{.Tag}}" | while read image; do
+                    docker save "$image" > "$image".tar
+                  done
+            - name: Transfer images to server via SSH
               uses: appleboy/ssh-action@master
               with:
                   host: 37.139.41.110
@@ -25,5 +30,7 @@ jobs:
                   key: ${{ secrets.SSH_PRIVATE_KEY }}
                   script: |
                       sudo mkdir -p /opt/docker-images
-                      cat fight-club-backend.tar | sudo docker load -i -
+                      docker images -q --format="{{.Repository}}:{{.Tag}}" | while read image; do
+                        cat "$image".tar | sudo docker load -i -
+                      done
                       sudo docker compose up -d --remove-orphans
