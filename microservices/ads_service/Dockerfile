@@ -6,7 +6,6 @@ WORKDIR /app
 COPY go.mod go.sum ./ 
 RUN go mod download
 
-COPY .env ./
 # This microservice uses other modules so we can't just copy only it
 # Therefore we need to copy the whole fucking project
 # I have wasted 3 hours of my life on this
