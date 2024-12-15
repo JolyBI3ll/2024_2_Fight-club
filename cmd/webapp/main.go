@@ -101,7 +101,7 @@ func main() {
 	mainRouter := router.SetUpRoutes(authHandler, adsHandler, cityHandler, chatsHandler, reviewsHandler)
 	mainRouter.Use(middleware.RequestIDMiddleware)
 	mainRouter.Use(middleware.RateLimitMiddleware)
-	http.Handle("/", middleware.EnableCORS(mainRouter))
+	http.Handle("/", middleware.RecoverWrap(middleware.EnableCORS(mainRouter)))
 	if os.Getenv("HTTPS") == "TRUE" {
 		fmt.Printf("Starting HTTPS server on address %s\n", os.Getenv("BACKEND_URL"))
 		if err := http.ListenAndServeTLS(os.Getenv("BACKEND_URL"), "ssl/pootnick.crt", "ssl/pootnick.key", nil); err != nil {

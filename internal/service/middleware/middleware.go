@@ -6,15 +6,20 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/images"
 	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/time/rate"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"sync"
 	"time"
 )
@@ -155,4 +160,62 @@ func ConvertGRPCToRooms(grpc []*gen.AdRooms) []domain.AdRoomsResponse {
 		})
 	}
 	return Rooms
+}
+
+func RecoverWrap(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			r := recover()
+			if r != nil {
+				var err error
+				switch t := r.(type) {
+				case string:
+					err = errors.New(t)
+				case error:
+					err = t
+				default:
+					err = errors.New("Unknown error")
+				}
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		}()
+		h.ServeHTTP(w, r)
+	})
+}
+
+func RecoveryInterceptor(
+	ctx context.Context,
+	req interface{},
+	info *grpc.UnaryServerInfo,
+	handler grpc.UnaryHandler,
+) (resp interface{}, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("Panic occurred: %v\n", r)
+			debug.PrintStack()
+			err = status.Errorf(codes.Internal, "internal server error: %v", r)
+		}
+	}()
+	return handler(ctx, req)
+}
+
+func ChainUnaryInterceptors(interceptors ...grpc.UnaryServerInterceptor) grpc.UnaryServerInterceptor {
+	return func(
+		ctx context.Context,
+		req interface{},
+		info *grpc.UnaryServerInfo,
+		handler grpc.UnaryHandler,
+	) (interface{}, error) {
+		current := len(interceptors) - 1
+		var chain grpc.UnaryHandler
+		chain = func(currentCtx context.Context, currentReq interface{}) (interface{}, error) {
+			if current < 0 {
+				return handler(currentCtx, currentReq)
+			}
+			interceptor := interceptors[current]
+			current--
+			return interceptor(currentCtx, currentReq, info, chain)
+		}
+		return chain(ctx, req)
+	}
 }

@@ -64,7 +64,10 @@ func main() {
 	authServer := grpcAuth.NewGrpcAuthHandler(auUseCase, sessionService, jwtToken)
 
 	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(middleware.UnaryMetricsInterceptor),
+		grpc.UnaryInterceptor(middleware.ChainUnaryInterceptors(
+			middleware.RecoveryInterceptor,     // интерсептор для обработки паники
+			middleware.UnaryMetricsInterceptor, // интерсептор для метрик
+		)),
 	)
 	generatedAuth.RegisterAuthServer(grpcServer, authServer)
 

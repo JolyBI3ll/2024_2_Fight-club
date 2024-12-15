@@ -54,7 +54,10 @@ func main() {
 	cityServer := grpcCity.NewGrpcCityHandler(citiesUseCase)
 
 	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(middleware.UnaryMetricsInterceptor),
+		grpc.UnaryInterceptor(middleware.ChainUnaryInterceptors(
+			middleware.RecoveryInterceptor,     // интерсептор для обработки паники
+			middleware.UnaryMetricsInterceptor, // интерсептор для метрик
+		)),
 	)
 	generatedCity.RegisterCityServiceServer(grpcServer, cityServer)
 

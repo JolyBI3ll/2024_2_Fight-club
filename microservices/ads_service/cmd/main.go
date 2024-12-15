@@ -63,7 +63,10 @@ func main() {
 	adsServer := grpcAd.NewGrpcAdHandler(sessionService, adsUseCase, jwtToken)
 	adsUseCase.StartPriorityResetWorker(ctx)
 	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(middleware.UnaryMetricsInterceptor),
+		grpc.UnaryInterceptor(middleware.ChainUnaryInterceptors(
+			middleware.RecoveryInterceptor,     // интерсептор для обработки паники
+			middleware.UnaryMetricsInterceptor, // интерсептор для метрик
+		)),
 	)
 	generatedAds.RegisterAdsServer(grpcServer, adsServer)
 
