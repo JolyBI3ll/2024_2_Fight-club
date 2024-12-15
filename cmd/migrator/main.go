@@ -5,13 +5,14 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/dsn"
 	"context"
 	"fmt"
+	"log"
+	"os"
+
 	"github.com/joho/godotenv"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"log"
-	"os"
 )
 
 func connectMinio() (*minio.Client, error) {

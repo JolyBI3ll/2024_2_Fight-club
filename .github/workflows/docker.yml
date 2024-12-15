@@ -1,0 +1,63 @@
+name: Build and push services
+
+on:
+    push:
+        branches:
+            - deploy
+
+jobs:
+    build-and-push:
+        runs-on: ubuntu-latest
+        steps:
+            # 1. Checkout repository
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            # 2. Login to DockerHub
+            - name: Login to DockerHub Registry
+              run: echo ${{secrets.DOCKERHUB_TOKEN}} | docker login -u ${{secrets.DOCKERHUB_USERNAME}} --password-stdin
+
+            # 3. Build ads_service
+            - name: Build and push ads_service
+              uses: docker/build-push-action@v4
+              with:
+                  context: .
+                  file: ./microservices/ads_service/Dockerfile
+                  tags: ${{secrets.DOCKERHUB_USERNAME}}/ads_service:latest
+                  push: true
+
+            # 4. Build auth_service
+            - name: Build and push auth_service
+              uses: docker/build-push-action@v4
+              with:
+                  context: .
+                  file: ./microservices/auth_service/Dockerfile
+                  tags: ${{secrets.DOCKERHUB_USERNAME}}/auth_service:latest
+                  push: true
+
+            # 5. Build city_service
+            - name: Build and push city_service
+              uses: docker/build-push-action@v4
+              with:
+                  context: .
+                  file: ./microservices/city_service/Dockerfile
+                  tags: ${{secrets.DOCKERHUB_USERNAME}}/city_service:latest
+                  push: true
+
+            # 6. Build migrator
+            - name: Build and push migrator
+              uses: docker/build-push-action@v4
+              with:
+                  context: .
+                  file: ./cmd/migrator/Dockerfile
+                  tags: ${{secrets.DOCKERHUB_USERNAME}}/migrator:latest
+                  push: true
+
+            # 7. Build backend (main service)
+            - name: Build and push backend
+              uses: docker/build-push-action@v4
+              with:
+                  context: .
+                  file: ./Dockerfile
+                  tags: ${{secrets.DOCKERHUB_USERNAME}}/backend:latest
+                  push: true

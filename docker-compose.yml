@@ -7,17 +7,15 @@ services:
 
     # Go migrator. It applies all needed migrations.
     migrator:
-        image: golang:1.23.1
-        working_dir: /app
-        volumes:
-            - .:/app
-        command: sh -c "go run ./cmd/migrator"
+        image: rasulovarsen/migrator:latest
         environment:
             - DB_HOST=${DB_HOST}
             - DB_PORT=${DB_PORT}
             - DB_USER=${DB_USER}
             - DB_PASSWORD=${DB_PASS}
             - DB_NAME=${DB_NAME}
+        volumes:
+            - .env:/.env
         depends_on:
             - postgres
         networks:
@@ -25,13 +23,9 @@ services:
 
     # Go backend
     backend:
-        image: golang:1.23.1
-        working_dir: /app
+        image: rasulovarsen/backend:latest
         ports:
             - "8008:8008"
-        volumes:
-            - .:/app
-        command: go run ./cmd/webapp
         environment:
             - DB_HOST=${DB_HOST}
             - DB_PORT=${DB_PORT}
@@ -44,6 +38,8 @@ services:
             - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
             - REDIS_HOST=redis
             - REDIS_PORT=6379
+        volumes:
+            - .env:/app/.env
         depends_on:
             - postgres
             - minio
@@ -138,16 +134,15 @@ services:
 
     # Ads service
     ads_service:
-        image: golang:1.23.1
-        working_dir: /app
+        image: rasulovarsen/ads_service:latest
         ports:
             - "50052:50052"
         volumes:
-            - .:/app
-        command: go run ./microservices/ads_service/cmd/main.go
+            - .env:/.env
         depends_on:
             - redis
             - postgres
+            - minio
         environment:
             - DB_HOST=${DB_HOST}
             - DB_PORT=${DB_PORT}
@@ -161,13 +156,11 @@ services:
 
     # Auth service
     auth_service:
-        image: golang:1.23.1
-        working_dir: /app
+        image: rasulovarsen/auth_service:latest
         ports:
             - "50051:50051"
         volumes:
-            - .:/app
-        command: go run ./microservices/auth_service/cmd/main.go
+            - .env:/.env
         depends_on:
             - redis
             - postgres
@@ -184,16 +177,15 @@ services:
 
     # City service
     city_service:
-        image: golang:1.23.1
-        working_dir: /app
+        image: rasulovarsen/city_service:latest
         ports:
             - "50053:50053"
         volumes:
-            - .:/app
-        command: go run ./microservices/city_service/cmd/main.go
+            - .env:/.env
         depends_on:
             - redis
             - postgres
+            - minio
         environment:
             - DB_HOST=${DB_HOST}
             - DB_PORT=${DB_PORT}
@@ -204,6 +196,16 @@ services:
             - REDIS_PORT=6379
         networks:
             - app-network
+    watchtower:
+        image: containrrr/watchtower:latest
+        container_name: watchtower
+        environment:
+            - WATCHTOWER_CLEANUP=true
+            - WATCHTOWER_ROLLING_RESTART=true
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        restart: unless-stopped
+        command: --interval 30
 
 volumes:
     postgres_data:
