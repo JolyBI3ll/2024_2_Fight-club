@@ -21,5 +21,4 @@ RUN go build -o /microservices/city_service/cmd/city_service ./microservices/cit
 FROM alpine:latest
 # WORKDIR /microservices/city_service
 COPY --from=builder ./microservices/city_service/cmd/city_service /app/city_service
-COPY --from=builder ./app/.env /.env
 CMD ["/app/city_service"]

@@ -21,6 +21,5 @@ RUN go build -o /microservices/ads_service/cmd/ads_service ./microservices/ads_s
 FROM alpine:latest
 # WORKDIR /microservices/ads_service
 COPY --from=builder ./microservices/ads_service/cmd/ads_service /app/ads_service
-COPY --from=builder ./app/.env /.env
 COPY --from=builder ./app/ssl /ssl/
 CMD ["/app/ads_service"]

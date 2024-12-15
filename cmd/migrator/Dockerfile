@@ -15,7 +15,6 @@ RUN go build -o /app/migrator ./cmd/migrator
 # 2. Run it
 FROM alpine:latest
 COPY --from=builder /app/migrator /app/migrator
-COPY --from=builder /app/.env /app/.env
 COPY --from=builder /app/cities_images/ /app/cities_images/
 WORKDIR /app
 CMD ["/app/migrator"]

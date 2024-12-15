@@ -21,5 +21,4 @@ RUN go build -o /microservices/auth_service/cmd/auth_service ./microservices/aut
 FROM alpine:latest
 # WORKDIR /microservices/auth_service
 COPY --from=builder ./microservices/auth_service/cmd/auth_service /app/auth_service
-COPY --from=builder ./app/.env /.env
 CMD ["/app/auth_service"]
