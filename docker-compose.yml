@@ -15,7 +15,7 @@ services:
             - DB_PASSWORD=${DB_PASS}
             - DB_NAME=${DB_NAME}
         volumes:
-            - .env:/.env
+            - .env:/app/.env
         depends_on:
             - postgres
         networks:
