@@ -43,7 +43,6 @@ func uploadImage(minioClient *minio.Client, bucketName, objectName, filePath str
 
 func migrate() (err error) {
 	_ = godotenv.Load()
-	println("GOD IS GREAT!")
 	db, err := gorm.Open(postgres.Open(dsn.FromEnv()), &gorm.Config{})
 	if err != nil {
 		return err
@@ -64,6 +63,7 @@ func migrate() (err error) {
 }
 
 func main() {
+	println("GOD IS GREAT!")
 	err := migrate()
 	if err != nil {
 		log.Fatal(err)
