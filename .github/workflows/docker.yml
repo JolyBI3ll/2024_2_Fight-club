@@ -6,58 +6,58 @@ on:
             - deploy
 
 jobs:
-    build:
-        runs-on: ubuntu-latest
+    # build:
+    #     runs-on: ubuntu-latest
 
-        steps:
-            # 1. Checkout репозиторий
-            - name: Checkout code
-              uses: actions/checkout@v4
+    #     steps:
+    #         # 1. Checkout репозиторий
+    #         - name: Checkout code
+    #           uses: actions/checkout@v4
 
-            # 2. Логинимся в DockerHub
-            - name: Login to DockerHub Registry
-              run: echo dckr_pat_6HmV5MDVrUU3Wfzu59ejhGGOBjs | docker login -u rasulovarsen --password-stdin
+    #         # 2. Логинимся в DockerHub
+    #         - name: Login to DockerHub Registry
+    #           run: echo dckr_pat_6HmV5MDVrUU3Wfzu59ejhGGOBjs | docker login -u rasulovarsen --password-stdin
 
-            # 3. Build ads_service
-            - name: Build and push ads_service
-              uses: docker/build-push-action@v4
-              with:
-                  context: .
-                  file: ./microservices/ads_service/Dockerfile
-                  tags: rasulovarsen/ads_service:latest
-                  push: true
+    #         # 3. Build ads_service
+    #         - name: Build and push ads_service
+    #           uses: docker/build-push-action@v4
+    #           with:
+    #               context: .
+    #               file: ./microservices/ads_service/Dockerfile
+    #               tags: rasulovarsen/ads_service:latest
+    #               push: true
 
-            - name: Build and push auth_service
-              uses: docker/build-push-action@v4
-              with:
-                  context: .
-                  file: ./microservices/auth_service/Dockerfile
-                  tags: rasulovarsen/auth_service:latest
-                  push: true
+    #         - name: Build and push auth_service
+    #           uses: docker/build-push-action@v4
+    #           with:
+    #               context: .
+    #               file: ./microservices/auth_service/Dockerfile
+    #               tags: rasulovarsen/auth_service:latest
+    #               push: true
 
-            - name: Build and push city_service
-              uses: docker/build-push-action@v4
-              with:
-                  context: .
-                  file: ./microservices/city_service/Dockerfile
-                  tags: rasulovarsen/city_service:latest
-                  push: true
+    #         - name: Build and push city_service
+    #           uses: docker/build-push-action@v4
+    #           with:
+    #               context: .
+    #               file: ./microservices/city_service/Dockerfile
+    #               tags: rasulovarsen/city_service:latest
+    #               push: true
 
-            - name: Build and push migrator
-              uses: docker/build-push-action@v4
-              with:
-                  context: .
-                  file: ./cmd/migrator/Dockerfile
-                  tags: rasulovarsen/migrator:latest
-                  push: true
+    #         - name: Build and push migrator
+    #           uses: docker/build-push-action@v4
+    #           with:
+    #               context: .
+    #               file: ./cmd/migrator/Dockerfile
+    #               tags: rasulovarsen/migrator:latest
+    #               push: true
 
-            - name: Build and push backend
-              uses: docker/build-push-action@v4
-              with:
-                  context: .
-                  file: ./Dockerfile
-                  tags: rasulovarsen/backend:latest
-                  push: true
+    #         - name: Build and push backend
+    #           uses: docker/build-push-action@v4
+    #           with:
+    #               context: .
+    #               file: ./Dockerfile
+    #               tags: rasulovarsen/backend:latest
+    #               push: true
 
     deploy:
         runs-on: ubuntu-latest
@@ -76,7 +76,7 @@ jobs:
                       else cd backend
                       fi
                       git fetch --all
-                      git switch deploy
+                      git switch deploy -f
                       git reset --hard origin/deploy
                       docker rm -f $(sudo docker ps -aq)
                       docker compose up -d
