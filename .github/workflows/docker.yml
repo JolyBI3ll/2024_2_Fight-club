@@ -22,7 +22,7 @@ jobs:
             # 3. Экспорт образа в tar-файл
             - name: Save Docker Images to Tar
               run: |
-                  docker save -o images.tar $(docker compose -f docker-compose.yml config | grep 'image:' | awk '{print $2}')
+                  docker save -o images.tar $(docker compose -f docker-compose.yml config --services | xargs -I {} docker inspect --format='{{.RepoTags}}' $(docker compose -f docker-compose.yml ps -q {}) | tr -d '[]')
 
             # 4. Передача образа на виртуалку
             - name: Transfer Docker Image to Virtual Machine
