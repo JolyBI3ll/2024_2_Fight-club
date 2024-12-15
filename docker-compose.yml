@@ -185,6 +185,7 @@ services:
         depends_on:
             - redis
             - postgres
+            - minio
         environment:
             - DB_HOST=${DB_HOST}
             - DB_PORT=${DB_PORT}
