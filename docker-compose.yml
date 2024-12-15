@@ -7,11 +7,9 @@ services:
 
     # Go migrator. It applies all needed migrations.
     migrator:
-        image: golang:1.23.1
-        working_dir: /app
-        volumes:
-            - .:/app
-        command: sh -c "go run ./cmd/migrator"
+        build:
+            context: .
+            dockerfile: cmd/migrator/Dockerfile
         environment:
             - DB_HOST=${DB_HOST}
             - DB_PORT=${DB_PORT}
@@ -25,13 +23,11 @@ services:
 
     # Go backend
     backend:
-        image: golang:1.23.1
-        working_dir: /app
+        build:
+            context: .
+            dockerfile: Dockerfile
         ports:
             - "8008:8008"
-        volumes:
-            - .:/app
-        command: go run ./cmd/webapp
         environment:
             - DB_HOST=${DB_HOST}
             - DB_PORT=${DB_PORT}
@@ -141,9 +137,6 @@ services:
         build:
             context: .
             dockerfile: microservices/ads_service/Dockerfile
-        volumes:
-            - ./.env:/app/.env
-
         ports:
             - "50052:50052"
         depends_on:
@@ -163,13 +156,11 @@ services:
 
     # Auth service
     auth_service:
-        image: golang:1.23.1
-        working_dir: /app
+        build:
+            context: .
+            dockerfile: microservices/auth_service/Dockerfile
         ports:
             - "50051:50051"
-        volumes:
-            - .:/app
-        command: go run ./microservices/auth_service/cmd/main.go
         depends_on:
             - redis
             - postgres
@@ -186,13 +177,11 @@ services:
 
     # City service
     city_service:
-        image: golang:1.23.1
-        working_dir: /app
+        build:
+            context: .
+            dockerfile: microservices/city_service/Dockerfile
         ports:
             - "50053:50053"
-        volumes:
-            - .:/app
-        command: go run ./microservices/city_service/cmd/main.go
         depends_on:
             - redis
             - postgres

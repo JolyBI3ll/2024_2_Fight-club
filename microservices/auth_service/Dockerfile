@@ -10,17 +10,16 @@ COPY .env ./
 # This microservice uses other modules so we can't just copy only it
 # Therefore we need to copy the whole fucking project
 # I have wasted 3 hours of my life on this
-# COPY ./microservices/ads_service/ ./microservices/ads_service/
+# COPY ./microservices/auth_service/ ./microservices/auth_service/
 COPY . .
 ENV CGO_ENABLED=0
 ENV GOOS=linux
-RUN go build -o /microservices/ads_service/cmd/ads_service ./microservices/ads_service/cmd/main.go
+RUN go build -o /microservices/auth_service/cmd/auth_service ./microservices/auth_service/cmd/main.go
 
 
 # 2. Run it
 FROM alpine:latest
-# WORKDIR /microservices/ads_service
-COPY --from=builder ./microservices/ads_service/cmd/ads_service /app/ads_service
+# WORKDIR /microservices/auth_service
+COPY --from=builder ./microservices/auth_service/cmd/auth_service /app/auth_service
 COPY --from=builder ./app/.env /.env
-COPY --from=builder ./app/ssl /ssl/
-CMD ["/app/ads_service"]
+CMD ["/app/auth_service"]
