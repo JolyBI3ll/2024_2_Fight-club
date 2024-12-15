@@ -195,7 +195,7 @@ services:
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
         restart: unless-stopped
-        command: --interval 30 ads_service auth_service city_service migrator backend
+        command: --interval 30
 
 volumes:
     postgres_data:
