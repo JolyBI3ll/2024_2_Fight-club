@@ -63,7 +63,6 @@ func migrate() (err error) {
 }
 
 func main() {
-	println("GOD IS GREAT!")
 	err := migrate()
 	if err != nil {
 		log.Fatal(err)
