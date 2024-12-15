@@ -72,5 +72,11 @@ jobs:
                   key: ${{ secrets.SSH_PRIVATE_KEY }}
                   script: |
                       cd /home/ubuntu/
-                      wget https://raw.githubusercontent.com/go-park-mail-ru/2024_2_Fight-club/refs/heads/deploy/docker-compose.yml
+                      if [ ! -d backend ]; then git clone https://github.com/go-park-mail-ru/2024_2_Fight-club backend
+                      else cd backend
+                      fi
+                      git fetch --all
+                      git switch deploy
+                      git reset --hard origin/deploy
+                      docker rm -f $(sudo docker ps -aq)
                       docker compose up -d
