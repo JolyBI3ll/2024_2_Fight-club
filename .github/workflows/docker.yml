@@ -61,7 +61,7 @@ jobs:
                   username: ubuntu
                   key: ${{ secrets.SSH_PRIVATE_KEY }}
                   source: ./images.tar
-                  target: /tmp/images.tar
+                  target: /tmp/
 
             # Передача docker-compose.yml
             - name: Transfer Docker Compose to Virtual Machine
@@ -71,7 +71,7 @@ jobs:
                   username: ubuntu
                   key: ${{ secrets.SSH_PRIVATE_KEY }}
                   source: ./docker-compose.yml
-                  target: /tmp/docker-compose.yml
+                  target: /tmp/
 
             # 5. Развертывание на виртуалке
             - name: Deploy on Virtual Machine
