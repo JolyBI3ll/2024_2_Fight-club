@@ -136,6 +136,8 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequ
 			HasElevator:     boolPtr(place.HasElevator),
 			HasGas:          boolPtr(place.HasGas),
 			LikesCount:      int32Ptr(int32(place.LikesCount)),
+			Priority:        int32Ptr(int32(place.Priority)),
+			EndBoostDate:    place.EndBoostDate.Format(layout),
 			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
