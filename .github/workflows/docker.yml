@@ -12,7 +12,7 @@ jobs:
         steps:
             # 1. Checkout репозиторий
             - name: Checkout code
-              uses: actions/checkout@v3
+              uses: actions/checkout@v4
 
             # 2. Сборка Docker-образа
             - name: Build Docker Images
@@ -47,7 +47,7 @@ jobs:
 
             # 5. Развертывание на виртуалке
             - name: Deploy on Virtual Machine
-              uses: appleboy/ssh-action@v0.5.3
+              uses: appleboy/ssh-action@v1.2.0
               with:
                   host: 37.139.41.110
                   username: ubuntu
