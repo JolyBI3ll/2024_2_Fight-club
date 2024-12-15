@@ -186,6 +186,18 @@ services:
             - REDIS_PORT=6379
         networks:
             - app-network
+    watchtower:
+        image: containrrr/watchtower:latest
+        container_name: watchtower
+        environment:
+            - WATCHTOWER_CLEANUP=true
+            - WATCHTOWER_ROLLING_RESTART=true
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        restart: unless-stopped
+        command: --interval 30 ads_service auth_service city_service migrator backend
+        depends_on:
+            - facade_app
 
 volumes:
     postgres_data:
