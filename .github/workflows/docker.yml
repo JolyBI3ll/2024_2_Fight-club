@@ -11,13 +11,13 @@ jobs:
             - uses: actions/checkout@v4
 
             - name: Copy context to server
-              uses: burnettk/rsync-deployments@5.2
+              uses: appleboy/scp-action@v0.1.1
               with:
-                  switches: -avz --delete
-                  path: .
-                  remote_destination: ubuntu@37.139.41.110:/opt/backend-deploy/
-                  remote_host: 37.139.41.110
-                  private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+                  host: 37.139.41.110
+                  username: ubuntu
+                  key: ${{ secrets.SSH_PRIVATE_KEY }}
+                  source: "./"
+                  target: "/opt/backend-deploy/"
 
             - name: Build and deploy on server
               uses: appleboy/ssh-action@master
