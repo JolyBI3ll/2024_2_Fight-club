@@ -17,7 +17,7 @@ type InterfaceSession interface {
 	GetUserID(ctx context.Context, sessionID string) (string, error)
 	LogoutSession(ctx context.Context, sessionID string) error
 	CreateSession(ctx context.Context, user *domain.User) (string, error)
-	GetSessionData(ctx context.Context, sessionID string) (*map[string]interface{}, error)
+	GetSessionData(ctx context.Context, sessionID string) (*domain.SessionData, error)
 }
 
 type ServiceSession struct {
@@ -43,11 +43,10 @@ func (s *ServiceSession) CreateSession(ctx context.Context, user *domain.User) (
 	}
 
 	// Данные для сессии
-	sessionData := map[string]interface{}{
-		"id":     user.UUID,
-		"avatar": user.Avatar,
+	sessionData := domain.SessionData{
+		Id:     user.UUID,
+		Avatar: user.Avatar,
 	}
-
 	// Сохранение сессии в Redis
 	if err := s.store.Set(ctx, sessionID, sessionData, 24*time.Hour); err != nil {
 		logger.AccessLogger.Error("Failed to save session", zap.String("request_id", requestID), zap.Error(err))
@@ -69,18 +68,14 @@ func (s *ServiceSession) GetUserID(ctx context.Context, sessionID string) (strin
 		return "", errors.New("session not found")
 	}
 
-	userID, ok := data["id"].(string)
-	if !ok {
-		logger.AccessLogger.Error("User ID not found or invalid type in session", zap.String("request_id", requestID))
-		return "", errors.New("user ID not found in session")
-	}
+	userID := data.Id
 
 	logger.AccessLogger.Info("Successfully retrieved user ID from session", zap.String("request_id", requestID), zap.String("userID", userID))
 	return userID, nil
 }
 
 // GetSessionData Получение данных сессии
-func (s *ServiceSession) GetSessionData(ctx context.Context, sessionID string) (*map[string]interface{}, error) {
+func (s *ServiceSession) GetSessionData(ctx context.Context, sessionID string) (*domain.SessionData, error) {
 	requestID := middleware.GetRequestID(ctx)
 	logger.AccessLogger.Info("GetSessionData called", zap.String("request_id", requestID))
 

@@ -1,13 +1,15 @@
 package controller
 
 import (
+	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
+	"2024_2_FIGHT-CLUB/internal/service/utils"
 	"2024_2_FIGHT-CLUB/microservices/city_service/controller/gen"
-	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
+	"github.com/mailru/easyjson"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/status"
 	"net/http"
@@ -67,10 +69,20 @@ func (h *CityHandler) GetCities(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-
+	payload, err := utils.ConvertAllCitiesProtoToGo(cities)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to convert cities data",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+	body := domain.AllCitiesResponse{
+		Cities: payload,
+	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(cities); err != nil {
+	if _, err := easyjson.MarshalToWriter(body, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -131,7 +143,18 @@ func (h *CityHandler) GetOneCity(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(city); err != nil {
+	payload, err := utils.ConvertOneCityProtoToGo(city.City)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to convert city data",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+	body := domain.OneCityResponse{
+		City: payload,
+	}
+	if _, err := easyjson.MarshalToWriter(body, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err))
@@ -152,28 +175,28 @@ func (h *CityHandler) handleError(w http.ResponseWriter, err error, requestID st
 	)
 
 	w.Header().Set("Content-Type", "application/json")
-	errorResponse := map[string]string{"error": err.Error()}
-	var status int
+	errorResponse := domain.ErrorResponse{
+		Error: err.Error(),
+	}
+	var statusCode int
 	switch err.Error() {
 	case "input contains invalid characters",
 		"input exceeds character limit":
-		w.WriteHeader(http.StatusBadRequest)
-		status = http.StatusBadRequest
+		statusCode = http.StatusBadRequest
 	case "error fetching all cities",
 		"error fetching city":
-		w.WriteHeader(http.StatusInternalServerError)
-		status = http.StatusInternalServerError
+		statusCode = http.StatusInternalServerError
 	default:
-		w.WriteHeader(http.StatusInternalServerError)
-		status = http.StatusInternalServerError
+		statusCode = http.StatusInternalServerError
 	}
 
-	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
+	w.WriteHeader(statusCode)
+	if _, jsonErr := easyjson.MarshalToWriter(errorResponse, w); jsonErr != nil {
 		logger.AccessLogger.Error("Failed to encode error response",
 			zap.String("request_id", requestID),
 			zap.Error(jsonErr),
 		)
 		http.Error(w, jsonErr.Error(), http.StatusInternalServerError)
 	}
-	return status
+	return statusCode
 }

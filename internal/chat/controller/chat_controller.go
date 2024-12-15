@@ -8,10 +8,10 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
 	"context"
-	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"github.com/mailru/easyjson"
 	"go.uber.org/zap"
 	"net/http"
 	"sync"
@@ -242,19 +242,18 @@ func (cc *ChatHandler) GetAllChats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body := map[string]interface{}{
-		"chats": chats,
+	body := domain.AllChats{
+		Chats: chats,
 	}
-
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
-		logger.AccessLogger.Error("Failed to encode response",
+	if _, err := easyjson.MarshalToWriter(&body, w); err != nil {
+		logger.AccessLogger.Warn("Failed to encode response",
 			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
+			zap.Error(err))
 		return
 	}
+
 	duration := time.Since(start)
 	logger.AccessLogger.Info("Completed GetAllChats request",
 		zap.String("request_id", requestID),
@@ -338,18 +337,19 @@ func (cc *ChatHandler) GetChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body := map[string]interface{}{
-		"chat": messages,
+	body := domain.AllMessages{
+		Chat: messages,
 	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
-		logger.AccessLogger.Error("Failed to encode response",
+	if _, err := easyjson.MarshalToWriter(&body, w); err != nil {
+		logger.AccessLogger.Warn("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
 		return
 	}
+
 	duration := time.Since(start)
 	logger.AccessLogger.Info("Completed GetAllChats request",
 		zap.String("request_id", requestID),
@@ -364,28 +364,26 @@ func (cc *ChatHandler) handleError(w http.ResponseWriter, err error, requestID s
 		zap.Error(err),
 	)
 
-	w.Header().Set("Content-Type", "application/json")
-	errorResponse := map[string]string{"error": err.Error()}
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	errorResponse := domain.ErrorResponse{
+		Error: err.Error(),
+	}
 	var status int
 	switch err.Error() {
 	case "error fetching chats", "error fetching messages",
 		"failed to generate session id", "failed to save session", "error generating random bytes for session ID",
 		"failed to delete session", "failed to get session id from request cookie", "failed to upgrade connection":
-		w.WriteHeader(http.StatusInternalServerError)
 		status = http.StatusInternalServerError
 	case "error sending message",
 		"failed to parse lastTime":
-		w.WriteHeader(http.StatusBadRequest)
 		status = http.StatusBadRequest
 	case "session not found", "user ID not found in session":
-		w.WriteHeader(http.StatusUnauthorized)
 		status = http.StatusUnauthorized
 	default:
-		w.WriteHeader(http.StatusInternalServerError)
 		status = http.StatusInternalServerError
 	}
-
-	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
+	w.WriteHeader(status)
+	if _, jsonErr := easyjson.MarshalToWriter(&errorResponse, w); jsonErr != nil {
 		logger.AccessLogger.Error("Failed to encode error response",
 			zap.String("request_id", requestID),
 			zap.Error(jsonErr),

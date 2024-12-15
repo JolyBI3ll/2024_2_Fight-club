@@ -1,10 +1,21 @@
 package domain
 
+//go:generate easyjson -all review.go
+
 import (
 	"context"
 	"time"
 )
 
+//easyjson:json
+type ReviewBody struct {
+	Review Review `json:"review"`
+}
+
+//easyjson:json
+type UserReviewsList []UserReviews
+
+//easyjson:json
 type Review struct {
 	ID        int       `gorm:"primary_key;auto_increment;column:id" json:"id"`
 	UserID    string    `gorm:"column:userId;not null" json:"userId"`
@@ -17,6 +28,7 @@ type Review struct {
 	Host      User      `gorm:"foreignkey:HostID;references:UUID" json:"-"`
 }
 
+//easyjson:json
 type UserReviews struct {
 	ID         int       `gorm:"primary_key;auto_increment;column:id" json:"id"`
 	UserID     string    `gorm:"column:userId;not null" json:"userId"`

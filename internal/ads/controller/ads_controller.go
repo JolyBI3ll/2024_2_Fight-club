@@ -6,10 +6,11 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	"2024_2_FIGHT-CLUB/internal/service/utils"
 	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
-	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
+	"github.com/mailru/easyjson"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -48,16 +49,15 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 		clientIP = forwarded
 	}
 	defer func() {
+		sanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
-
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received GetAllPlaces request",
 		zap.String("request_id", requestID),
@@ -72,8 +72,6 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(err))
 	}
-
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
 	queryParams := r.URL.Query()
 
@@ -100,10 +98,21 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-
+	body, err := utils.ConvertGetAllAdsResponseProtoToGo(response)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to Convert From Proto to Go",
+			zap.Error(err),
+			zap.String("request_id", requestID))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
+	if _, err = easyjson.MarshalToWriter(body, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		statusCode = h.handleError(w, err, requestID)
 		return
 	}
@@ -141,7 +150,6 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 		duration := time.Since(start).Seconds()
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received GetOnePlace request",
 		zap.String("request_id", requestID),
@@ -179,13 +187,24 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body := map[string]interface{}{
-		"place": place,
+	payload, err := utils.ConvertAdProtoToGo(place)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to Convert From Proto to Go",
+			zap.Error(err),
+			zap.String("request_id", requestID))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+	response := domain.GetOneAdResponse{
+		Place: payload,
 	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err = json.NewEncoder(w).Encode(body); err != nil {
-		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
+	if _, err = easyjson.MarshalToWriter(response, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		statusCode = h.handleError(w, err, requestID)
 		return
 	}
@@ -213,16 +232,15 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		clientIP = forwarded
 	}
 	defer func() {
-		if statusCode == http.StatusCreated {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		sanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
-
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received CreatePlace request",
 		zap.String("request_id", requestID),
@@ -239,8 +257,6 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 
 	authHeader := r.Header.Get("X-CSRF-Token")
 
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-
 	err = r.ParseMultipartForm(10 << 20) // 10 MB
 	if err != nil {
 		logger.AccessLogger.Error("Failed to parse multipart form", zap.String("request_id", requestID), zap.Error(err))
@@ -250,7 +266,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 
 	metadata := r.FormValue("metadata")
 	var newPlace domain.CreateAdRequest
-	if err := json.Unmarshal([]byte(metadata), &newPlace); err != nil {
+	if err := newPlace.UnmarshalJSON([]byte(metadata)); err != nil {
 		logger.AccessLogger.Error("Failed to decode metadata", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = h.handleError(w, errors.New("failed to decode metadata"), requestID)
 		return
@@ -284,7 +300,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		files = append(files, data)
 	}
 
-	response, err := h.client.CreatePlace(ctx, &gen.CreateAdRequest{
+	_, err = h.client.CreatePlace(ctx, &gen.CreateAdRequest{
 		CityName:     newPlace.CityName,
 		Description:  newPlace.Description,
 		Address:      newPlace.Address,
@@ -311,11 +327,12 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body := map[string]interface{}{
-		"place": response,
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusOK)
+	body := domain.ResponseMessage{
+		Message: "Successfully created ad",
 	}
-
-	if err := json.NewEncoder(w).Encode(body); err != nil {
+	if _, err := easyjson.MarshalToWriter(body, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = h.handleError(w, errors.New("failed to encode response"), requestID)
 		return
@@ -355,16 +372,12 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
-
 	logger.AccessLogger.Info("Received UpdatePlace request",
 		zap.String("request_id", requestID),
 		zap.String("adId", adId),
 	)
 
 	authHeader := r.Header.Get("X-CSRF-Token")
-
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
 	err = r.ParseMultipartForm(10 << 20) // 10 MB
 	if err != nil {
@@ -375,7 +388,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 
 	metadata := r.FormValue("metadata")
 	var updatedPlace domain.UpdateAdRequest
-	if err := json.Unmarshal([]byte(metadata), &updatedPlace); err != nil {
+	if err := updatedPlace.UnmarshalJSON([]byte(metadata)); err != nil {
 		logger.AccessLogger.Error("Failed to decode metadata", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = h.handleError(w, errors.New("invalid metadata JSON"), requestID)
 		return
@@ -413,7 +426,7 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := h.client.UpdatePlace(ctx, &gen.UpdateAdRequest{
+	_, err = h.client.UpdatePlace(ctx, &gen.UpdateAdRequest{
 		AdId:         adId,
 		CityName:     updatedPlace.CityName,
 		Address:      updatedPlace.Address,
@@ -441,9 +454,12 @@ func (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	updateResponse := map[string]string{"response": response.Response}
-	if err := json.NewEncoder(w).Encode(updateResponse); err != nil {
+	updateResponse := domain.ResponseMessage{
+		Message: "Successfully updated ad",
+	}
+	if _, err := easyjson.MarshalToWriter(updateResponse, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -482,16 +498,12 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
-
 	logger.AccessLogger.Info("Received DeletePlace request",
 		zap.String("request_id", requestID),
 		zap.String("adId", adId),
 	)
 
 	authHeader := r.Header.Get("X-CSRF-Token")
-
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
 	sessionID, err := session.GetSessionId(r)
 	if err != nil {
@@ -502,7 +514,7 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := h.client.DeletePlace(ctx, &gen.DeletePlaceRequest{
+	_, err = h.client.DeletePlace(ctx, &gen.DeletePlaceRequest{
 		AdId:       adId,
 		SessionID:  sessionID,
 		AuthHeader: authHeader,
@@ -516,9 +528,12 @@ func (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	updateResponse := map[string]string{"response": response.Response}
-	if err := json.NewEncoder(w).Encode(updateResponse); err != nil {
+	deleteResponse := domain.ResponseMessage{
+		Message: "Successfully deleted place",
+	}
+	if _, err := easyjson.MarshalToWriter(deleteResponse, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -541,23 +556,21 @@ func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 		clientIP = forwarded
 	}
 	defer func() {
+		sanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
-
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	logger.AccessLogger.Info("Received GetPlacesPerCity request",
 		zap.String("request_id", requestID),
 		zap.String("city", city),
 	)
 
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	response, err := h.client.GetPlacesPerCity(ctx, &gen.GetPlacesPerCityRequest{
 		CityName: city,
 	})
@@ -569,13 +582,26 @@ func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	body := map[string]interface{}{
-		"places": response,
+
+	payload, err := utils.ConvertGetAllAdsResponseProtoToGo(response)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to Convert From Proto to Go",
+			zap.Error(err),
+			zap.String("request_id", requestID))
+		statusCode = h.handleError(w, err, requestID)
+		return
 	}
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
-		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	body := domain.PlacesResponse{
+		Places: payload,
+	}
+	if _, err = easyjson.MarshalToWriter(body, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -613,14 +639,11 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
-
 	logger.AccessLogger.Info("Received GetUserPlaces request",
 		zap.String("request_id", requestID),
 		zap.String("userId", userId),
 	)
 
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	response, err := h.client.GetUserPlaces(ctx, &gen.GetUserPlacesRequest{
 		UserId: userId,
 	})
@@ -635,8 +658,24 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
+	payload, err := utils.ConvertGetAllAdsResponseProtoToGo(response)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to Convert From Proto to Go",
+			zap.Error(err),
+			zap.String("request_id", requestID))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusOK)
+	body := domain.PlacesResponse{
+		Places: payload,
+	}
+	if _, err = easyjson.MarshalToWriter(body, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
 		statusCode = h.handleError(w, err, requestID)
 		return
 	}
@@ -676,8 +715,6 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
-
 	logger.AccessLogger.Info("Received DeleteAdImage request",
 		zap.String("request_id", requestID),
 		zap.String("adId", adId),
@@ -694,9 +731,7 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-
-	response, err := h.client.DeleteAdImage(ctx, &gen.DeleteAdImageRequest{
+	_, err = h.client.DeleteAdImage(ctx, &gen.DeleteAdImageRequest{
 		AdId:       adId,
 		ImageId:    imageId,
 		AuthHeader: authHeader,
@@ -711,9 +746,12 @@ func (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	updateResponse := map[string]string{"response": response.Response}
-	if err := json.NewEncoder(w).Encode(updateResponse); err != nil {
+	deleteResponse := domain.ResponseMessage{
+		Message: "Successfully deleted ad image",
+	}
+	if _, err := easyjson.MarshalToWriter(deleteResponse, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -754,8 +792,6 @@ func (h *AdHandler) AddToFavorites(w http.ResponseWriter, r *http.Request) {
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
-
 	logger.AccessLogger.Info("Received AddToFavorites request",
 		zap.String("request_id", requestID),
 		zap.String("adId", adId))
@@ -771,9 +807,7 @@ func (h *AdHandler) AddToFavorites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-
-	response, err := h.client.AddToFavorites(ctx, &gen.AddToFavoritesRequest{
+	_, err = h.client.AddToFavorites(ctx, &gen.AddToFavoritesRequest{
 		AdId:       adId,
 		AuthHeader: authHeader,
 		SessionID:  sessionID,
@@ -787,9 +821,12 @@ func (h *AdHandler) AddToFavorites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	updateResponse := map[string]string{"response": response.Response}
-	if err := json.NewEncoder(w).Encode(updateResponse); err != nil {
+	addToResponse := domain.ResponseMessage{
+		Message: "Successfully added to favorites",
+	}
+	if _, err := easyjson.MarshalToWriter(addToResponse, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -830,8 +867,6 @@ func (h *AdHandler) DeleteFromFavorites(w http.ResponseWriter, r *http.Request) 
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
-
 	logger.AccessLogger.Info("Received DeleteFromFavorites request",
 		zap.String("request_id", requestID),
 		zap.String("adId", adId))
@@ -847,9 +882,7 @@ func (h *AdHandler) DeleteFromFavorites(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-
-	response, err := h.client.DeleteFromFavorites(ctx, &gen.DeleteFromFavoritesRequest{
+	_, err = h.client.DeleteFromFavorites(ctx, &gen.DeleteFromFavoritesRequest{
 		AdId:       adId,
 		AuthHeader: authHeader,
 		SessionID:  sessionID,
@@ -863,9 +896,12 @@ func (h *AdHandler) DeleteFromFavorites(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	updateResponse := map[string]string{"response": response.Response}
-	if err := json.NewEncoder(w).Encode(updateResponse); err != nil {
+	deleteFromFavResponse := domain.ResponseMessage{
+		Message: "Successfully deleted from favorites",
+	}
+	if _, err := easyjson.MarshalToWriter(deleteFromFavResponse, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -906,8 +942,6 @@ func (h *AdHandler) GetUserFavorites(w http.ResponseWriter, r *http.Request) {
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
-
 	logger.AccessLogger.Info("Received GetUserFavorites request",
 		zap.String("request_id", requestID),
 		zap.String("userId", userId))
@@ -920,8 +954,6 @@ func (h *AdHandler) GetUserFavorites(w http.ResponseWriter, r *http.Request) {
 		statusCode = h.handleError(w, err, requestID)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
 	response, err := h.client.GetUserFavorites(ctx, &gen.GetUserFavoritesRequest{
 		UserId:    userId,
@@ -936,10 +968,22 @@ func (h *AdHandler) GetUserFavorites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	body, err := utils.ConvertGetAllAdsResponseProtoToGo(response)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to Convert From Proto to Go",
+			zap.Error(err),
+			zap.String("request_id", requestID))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if _, err = easyjson.MarshalToWriter(body, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -978,14 +1022,12 @@ func (h *AdHandler) UpdatePriorityWithPayment(w http.ResponseWriter, r *http.Req
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
-
 	logger.AccessLogger.Info("Received UpdatePriorityWithPayment request",
 		zap.String("request_id", requestID),
 		zap.String("userId", adId))
 
 	var card domain.PaymentInfo
-	if err := json.NewDecoder(r.Body).Decode(&card); err != nil {
+	if err := easyjson.UnmarshalFromReader(r.Body, &card); err != nil {
 		logger.AccessLogger.Error("Failed to decode request body",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -1005,7 +1047,7 @@ func (h *AdHandler) UpdatePriorityWithPayment(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	response, err := h.client.UpdatePriority(ctx, &gen.UpdatePriorityRequest{
+	_, err = h.client.UpdatePriority(ctx, &gen.UpdatePriorityRequest{
 		AdId:       adId,
 		AuthHeader: authHeader,
 		SessionID:  sessionID,
@@ -1020,8 +1062,12 @@ func (h *AdHandler) UpdatePriorityWithPayment(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response.Response); err != nil {
+	updatePriorResponse := domain.ResponseMessage{
+		Message: "Successfully updated from favorites",
+	}
+	if _, err := easyjson.MarshalToWriter(updatePriorResponse, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1033,8 +1079,6 @@ func (h *AdHandler) UpdatePriorityWithPayment(w http.ResponseWriter, r *http.Req
 		zap.String("userId", adId),
 		zap.Duration("duration", duration),
 	)
-
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 }
 
 func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID string) int {
@@ -1042,21 +1086,19 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 		zap.String("request_id", requestID),
 		zap.Error(err),
 	)
-	var status int
+	var statusCode int
 	w.Header().Set("Content-Type", "application/json")
-	errorResponse := map[string]string{"error": err.Error()}
-
+	errorResponse := domain.ErrorResponse{
+		Error: err.Error(),
+	}
 	switch err.Error() {
 	case "ad not found", "ad date not found", "image not found":
-		w.WriteHeader(http.StatusNotFound)
-		status = http.StatusNotFound
+		statusCode = http.StatusNotFound
 	case "ad already exists", "RoomsNumber out of range", "not owner of ad":
-		w.WriteHeader(http.StatusConflict)
-		status = http.StatusConflict
+		statusCode = http.StatusConflict
 	case "no active session", "missing X-CSRF-Token header",
 		"invalid JWT token", "user is not host", "session not found", "user ID not found in session":
-		w.WriteHeader(http.StatusUnauthorized)
-		status = http.StatusUnauthorized
+		statusCode = http.StatusUnauthorized
 	case "invalid metadata JSON", "invalid multipart form", "input contains invalid characters",
 		"input exceeds character limit", "invalid size, type or resolution of image",
 		"query offset not int", "query limit not int", "query dateFrom not int",
@@ -1065,8 +1107,7 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 		"failed to decode metadata", "no images provided", "failed to open file",
 		"failed to read file", "failed to encode response", "invalid rating value",
 		"cant access other user favorites":
-		w.WriteHeader(http.StatusBadRequest)
-		status = http.StatusBadRequest
+		statusCode = http.StatusBadRequest
 	case "error fetching all places", "error fetching images for ad", "error fetching user",
 		"error finding user", "error finding city", "error creating place", "error creating date",
 		"error saving place", "error updating place", "error updating date",
@@ -1075,15 +1116,15 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 		"delete ad image error", "failed to generate session id", "failed to save session",
 		"failed to delete session", "error generating random bytes for session ID",
 		"failed to get session id from request cookie", "error fetching rooms for ad",
-		"error counting favorites", "error updating favorites count", "error creating room":
-		w.WriteHeader(http.StatusInternalServerError)
-		status = http.StatusInternalServerError
+		"error counting favorites", "error updating favorites count", "error creating room", "error parsing date",
+		"adAuthor is nil", "ad is nil":
+		statusCode = http.StatusInternalServerError
 	default:
-		w.WriteHeader(http.StatusInternalServerError)
-		status = http.StatusInternalServerError
+		statusCode = http.StatusInternalServerError
 	}
 
-	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
+	w.WriteHeader(statusCode)
+	if _, jsonErr := easyjson.MarshalToWriter(&errorResponse, w); jsonErr != nil {
 		logger.AccessLogger.Error("Failed to encode error response",
 			zap.String("request_id", requestID),
 			zap.Error(jsonErr),
@@ -1091,5 +1132,5 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 		http.Error(w, jsonErr.Error(), http.StatusInternalServerError)
 	}
 
-	return status
+	return statusCode
 }

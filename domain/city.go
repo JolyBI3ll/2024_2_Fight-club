@@ -1,7 +1,20 @@
 package domain
 
+//go:generate easyjson -all city.go
+
 import "context"
 
+//easyjson:json
+type OneCityResponse struct {
+	City City `json:"city"`
+}
+
+//easyjson:json
+type AllCitiesResponse struct {
+	Cities []*City `json:"cities"`
+}
+
+//easyjson:json
 type City struct {
 	ID          int    `gorm:"primary_key;auto_increment;column:id" json:"id"`
 	Title       string `gorm:"type:varchar(100);column:title" json:"title"`
