@@ -24,7 +24,7 @@ jobs:
               with:
                   context: .
                   file: ./microservices/ads_service/Dockerfile
-                  tags: ads_service:latest
+                  tags: rasulovarsen/ads_service:latest
                   push: true
 
             - name: Build and push auth_service
@@ -32,7 +32,7 @@ jobs:
               with:
                   context: .
                   file: ./microservices/auth_service/Dockerfile
-                  tags: auth_service:latest
+                  tags: rasulovarsen/auth_service:latest
                   push: true
 
             - name: Build and push city_service
@@ -40,7 +40,7 @@ jobs:
               with:
                   context: .
                   file: ./microservices/city_service/Dockerfile
-                  tags: city_service:latest
+                  tags: rasulovarsen/city_service:latest
                   push: true
 
             - name: Build and push migrator
@@ -48,7 +48,7 @@ jobs:
               with:
                   context: .
                   file: ./cmd/migrator/Dockerfile
-                  tags: migrator:latest
+                  tags: rasulovarsen/migrator:latest
                   push: true
 
             - name: Build and push backend
@@ -56,7 +56,7 @@ jobs:
               with:
                   context: .
                   file: ./Dockerfile
-                  tags: backend:latest
+                  tags: rasulovarsen/backend:latest
                   push: true
 
     deploy:
