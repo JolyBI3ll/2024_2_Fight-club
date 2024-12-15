@@ -14,15 +14,49 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            # 2. Сборка Docker-образа
-            - name: Build Docker Images
-              run: |
-                  docker compose -f docker-compose.yml build
+            - name: Build and push ads_service
+              uses: docker/build-push-action@v4
+              with:
+                  context: .
+                  file: ./ads_service/Dockerfile
+                  push: true
+                  tags: ads_service:latest
 
-            # 3. Экспорт образа в tar-файл
-            - name: Save Docker Images to Tar
+            - name: Build and push auth_service
+              uses: docker/build-push-action@v4
+              with:
+                  context: .
+                  file: ./auth_service/Dockerfile
+                  push: true
+                  tags: auth_service:latest
+
+            - name: Build and push city_service
+              uses: docker/build-push-action@v4
+              with:
+                  context: .
+                  file: ./city_service/Dockerfile
+                  push: true
+                  tags: city_service:latest
+
+            - name: Build and push migrator
+              uses: docker/build-push-action@v4
+              with:
+                  context: .
+                  file: ./cmd/migrator/Dockerfile
+                  push: true
+                  tags: migrator:latest
+
+            - name: Build and push backend
+              uses: docker/build-push-action@v4
+              with:
+                  context: .
+                  file: ./Dockerfile
+                  push: true
+                  tags: backend:latest
+
+            - name: Save Docker Images
               run: |
-                  docker save -o images.tar ads_service city_service migrator backend auth_service
+                  docker save ads_service city_service migrator backend auth_service > images.tar
 
             # 4. Передача образа на виртуалку
             - name: Transfer Docker Image to Virtual Machine
@@ -30,7 +64,6 @@ jobs:
               with:
                   host: 37.139.41.110
                   username: ubuntu
-                  password: ${{ secrets.VM_PASSWORD }}
                   key: ${{ secrets.SSH_PRIVATE_KEY }}
                   source: ./images.tar
                   target: /tmp/images.tar
@@ -54,4 +87,4 @@ jobs:
                   key: ${{ secrets.SSH_PRIVATE_KEY }}
                   script: |
                       docker load -i /tmp/images.tar
-                      docker-compose -f /tmp/docker-compose.yml up -d
+                      docker compose -f /tmp/docker-compose.yml up -d
