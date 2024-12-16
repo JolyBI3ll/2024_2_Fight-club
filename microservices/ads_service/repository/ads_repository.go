@@ -334,7 +334,7 @@ func (r *adRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd dom
 	}
 	ad.CityID = city.ID
 	ad.AuthorUUID = userId
-	ad.PublicationDate = time.Now()
+	ad.PublicationDate = time.Now().Truncate(time.Second)
 	ad.Description = newAd.Description
 	ad.Address = newAd.Address
 	ad.RoomsNumber = newAd.RoomsNumber
