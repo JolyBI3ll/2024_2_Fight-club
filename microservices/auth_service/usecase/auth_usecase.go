@@ -173,7 +173,7 @@ func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID s
 	if avatar != nil {
 		if err := validation.ValidateImage(avatar, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
 			logger.AccessLogger.Warn("Invalid size, type or resolution of image", zap.String("request_id", requestID), zap.Error(err))
-			return errors.New("invalid size, type or resolution of image")
+			return err
 		}
 	}
 

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"strings"
 	"time"
 )
 
@@ -82,12 +83,21 @@ func (r *authRepository) PutUser(ctx context.Context, creds *domain.User, userID
 		duration := time.Since(start).Seconds()
 		metrics.RepoRequestDuration.WithLabelValues("PutUser").Observe(duration)
 	}()
+
 	if err := r.db.Model(&domain.User{}).Where("UUID = ?", userID).Updates(creds).Error; err != nil {
+		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+			logger.DBLogger.Warn("Unique constraint violation", zap.String("request_id", requestID), zap.String("userID", userID), zap.Error(err))
+			return errors.New("username or email already exists")
+		}
 		logger.DBLogger.Error("Error updating user", zap.String("request_id", requestID), zap.String("userID", userID), zap.Error(err))
 		return errors.New("error updating user")
 	}
-	//для булевых false
+
 	if err := r.db.Model(&domain.User{}).Where("UUID = ?", userID).Update("isHost", creds.IsHost).Error; err != nil {
+		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+			logger.DBLogger.Warn("Unique constraint violation on isHost", zap.String("request_id", requestID), zap.String("userID", userID), zap.Error(err))
+			return errors.New("username or email already exists")
+		}
 		logger.DBLogger.Error("Error updating user", zap.String("request_id", requestID), zap.String("userID", userID), zap.Error(err))
 		return errors.New("error updating user")
 	}

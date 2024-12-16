@@ -33,9 +33,9 @@ func ValidateName(name string) bool {
 }
 
 func ValidateImages(files [][]byte, maxSize int64, allowedMimeTypes []string, maxWidth, maxHeight int) error {
-	for i, file := range files {
+	for _, file := range files {
 		if err := ValidateImage(file, maxSize, allowedMimeTypes, maxWidth, maxHeight); err != nil {
-			return fmt.Errorf("file at index %d is invalid: %w", i, err)
+			return err
 		}
 	}
 	return nil
@@ -56,7 +56,7 @@ func ValidateImage(file []byte, maxSize int64, allowedMimeTypes []string, maxWid
 		}
 	}
 	if !allowed {
-		return fmt.Errorf("file type %s is not allowed", mimeType)
+		return errors.New("file type is not allowed, please use (png, jpg, jpeg) types")
 	}
 
 	var img image.Image
@@ -72,13 +72,13 @@ func ValidateImage(file []byte, maxSize int64, allowedMimeTypes []string, maxWid
 		return errors.New("unsupported image format")
 	}
 	if err != nil {
-		return fmt.Errorf("could not decode image: %v", err)
+		return errors.New("could not decode image")
 	}
 
 	width := img.Bounds().Dx()
 	height := img.Bounds().Dy()
 	if width > maxWidth || height > maxHeight {
-		return fmt.Errorf("image resolution exceeds maximum allowed size of %dx%d", maxWidth, maxHeight)
+		return errors.New("image resolution exceeds maximum allowed size of 2000 x 2000")
 	}
 
 	return nil

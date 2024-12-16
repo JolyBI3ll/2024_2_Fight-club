@@ -103,12 +103,12 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, files []
 	const minRooms, maxRooms = 1, 100
 	if newPlace.RoomsNumber < minRooms || newPlace.RoomsNumber > maxRooms {
 		logger.AccessLogger.Warn("RoomsNumber out of range", zap.String("request_id", requestID))
-		return errors.New("RoomsNumber out of range")
+		return errors.New("roomsNumber out of range")
 	}
 
 	if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
 		logger.AccessLogger.Warn("Invalid image", zap.String("request_id", requestID), zap.Error(err))
-		return errors.New("invalid size, type or resolution of image")
+		return err
 	}
 
 	err := uc.adRepository.CreatePlace(ctx, place, newPlace, userId)
@@ -147,7 +147,7 @@ func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId str
 	if len(files) > 0 {
 		if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
 			logger.AccessLogger.Warn("Invalid image", zap.String("request_id", requestID), zap.Error(err))
-			return errors.New("invalid size, type or resolution of image")
+			return err
 		}
 	}
 
@@ -178,7 +178,7 @@ func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId str
 	const minRooms, maxRooms = 1, 100
 	if updatedPlace.RoomsNumber < minRooms || updatedPlace.RoomsNumber > maxRooms {
 		logger.AccessLogger.Warn("RoomsNumber out of range", zap.String("request_id", requestID))
-		return errors.New("RoomsNumber out of range")
+		return errors.New("roomsNumber out of range")
 	}
 
 	_, err := uc.adRepository.GetPlaceById(ctx, adId)

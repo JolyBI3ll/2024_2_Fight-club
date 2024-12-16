@@ -807,25 +807,32 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 		"username and password are required",
 		"invalid credentials",
 		"csrf_token already exists",
-		"Input contains invalid characters",
-		"Input exceeds character limit",
-		"Invalid size, type or resolution of image",
+		"input contains invalid characters",
+		"input exceeds character limit",
+		"invalid size, type or resolution of image",
 		"invalid metadata JSON",
 		"missing X-CSRF-Token header",
 		"invalid JWT token",
 		"invalid type for id in session data",
-		"invalid type for avatar in session data":
+		"invalid type for avatar in session data",
+		"token invalid",
+		"token expired",
+		"file type is not allowed, please use (png, jpg, jpeg) types",
+		"unsupported image format",
+		"image resolution exceeds maximum allowed size of 2000 x 2000":
 		statusCode = http.StatusBadRequest
 
 	case "user already exists",
 		"email already exists",
 		"session already exists",
-		"already logged in":
+		"already logged in",
+		"username or email already exists":
 		statusCode = http.StatusConflict
 
 	case "no active session",
 		"session not found",
-		"user ID not found in session":
+		"user ID not found in session",
+		"failed to get session id from request cookie":
 		statusCode = http.StatusUnauthorized
 
 	case "user not found",
@@ -850,11 +857,9 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 		"failed to get session data",
 		"failed to refresh csrf token",
 		"error generating random bytes for session ID",
-		"failed to get session id from request cookie",
 		"token parse error",
-		"token invalid",
-		"token expired",
-		"bad sign method":
+		"bad sign method",
+		"could not decode image":
 		statusCode = http.StatusInternalServerError
 
 	default:

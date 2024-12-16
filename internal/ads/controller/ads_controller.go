@@ -1095,7 +1095,7 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 	switch err.Error() {
 	case "ad not found", "ad date not found", "image not found":
 		statusCode = http.StatusNotFound
-	case "ad already exists", "RoomsNumber out of range", "not owner of ad":
+	case "ad already exists", "roomsNumber out of range", "not owner of ad":
 		statusCode = http.StatusConflict
 	case "no active session", "missing X-CSRF-Token header",
 		"invalid JWT token", "user is not host", "session not found", "user ID not found in session":
