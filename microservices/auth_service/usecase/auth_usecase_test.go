@@ -545,7 +545,7 @@ func TestPutUser(t *testing.T) {
 
 		err := uc.PutUser(ctx, creds, userID, invalidAvatar)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid size, type or resolution of image")
+		assert.Contains(t, err.Error(), "image resolution exceeds maximum allowed size of 2000 x 2000")
 	})
 
 	// Тест-кейс 6: Ошибка загрузки аватара

@@ -70,6 +70,10 @@ func TestGetAllPlaces(t *testing.T) {
 	}).AddRow("some-uuid", 1, "author-uuid", "Some Address", fixedDate, "Some Description", 3, 0, "City Name", fixedDate, fixedDate)
 	mock.ExpectQuery(regexp.QuoteMeta(query)).WillReturnRows(adRows)
 
+	favoritesQuery := `SELECT "adId" FROM "favorites" WHERE "userId" = $1`
+	favoritesRows := sqlmock.NewRows([]string{"adId"}).AddRow("id1").AddRow("id2")
+	mock.ExpectQuery(regexp.QuoteMeta(favoritesQuery)).WillReturnRows(favoritesRows)
+
 	imagesQuery := `SELECT * FROM "images" WHERE "adId" = $1`
 	imageRows := sqlmock.NewRows([]string{"id", "adId", "imageUrl"}).
 		AddRow(1, "some-uuid", "images/image1.jpg").
@@ -81,6 +85,10 @@ func TestGetAllPlaces(t *testing.T) {
 		"uuid", "username", "password", "email", "name", "score", "avatar", "sex", "guestCount", "birthdate",
 	}).AddRow("author-uuid", "test_username", "some_password", "test@example.com", "Test User", 4.5, "avatar_url", "M", 2, fixedDate)
 	mock.ExpectQuery(regexp.QuoteMeta(userQuery)).WithArgs("author-uuid").WillReturnRows(userRows)
+
+	adQuery := `SELECT * FROM "ad_rooms" WHERE "adId" = $1`
+	addRows := sqlmock.NewRows([]string{"id", "adId", "type", "squaremeters"}).AddRow(1, "id1", "some-type", 12)
+	mock.ExpectQuery(regexp.QuoteMeta(adQuery)).WithArgs("some-uuid").WillReturnRows(addRows)
 
 	ads, err := repo.GetAllPlaces(context.Background(), filter, userId)
 
@@ -193,6 +201,10 @@ func TestGetPlaceById(t *testing.T) {
 	}).AddRow("author-uuid", "test_username", "some_password", "test@example.com", "Test User", 4.5, "avatar_url", "M", 2, fixedDate)
 	mock.ExpectQuery(regexp.QuoteMeta(userQuery)).WithArgs("author-uuid").WillReturnRows(userRows)
 
+	adQuery := `SELECT * FROM "ad_rooms" WHERE "adId" = $1`
+	addRows := sqlmock.NewRows([]string{"id", "adId", "type", "squaremeters"}).AddRow(1, "id1", "some-type", 12)
+	mock.ExpectQuery(regexp.QuoteMeta(adQuery)).WithArgs("some-uuid").WillReturnRows(addRows)
+
 	ad, err := repo.GetPlaceById(context.Background(), "some-uuid")
 
 	require.NoError(t, err)
@@ -273,6 +285,9 @@ func TestUpdatePlace(t *testing.T) {
 		RoomsNumber: 3,
 		DateFrom:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		DateTo:      time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC),
+		HasBalcony:  true,
+		HasGas:      true,
+		HasElevator: true,
 	}
 
 	adRows := sqlmock.NewRows([]string{"uuid", "authorUUID", "cityId", "address", "roomsNumber"}).
@@ -290,13 +305,38 @@ func TestUpdatePlace(t *testing.T) {
 		WithArgs("Новый город", 1).WillReturnRows(cityRows)
 
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "cityId"=$1 WHERE "uuid" = $2`)).
-		WithArgs(1, adId).
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "cityId"=$1,"address"=$2,"description"=$3,"roomsNumber"=$4,"hasBalcony"=$5,"hasElevator"=$6,"hasGas"=$7 WHERE "uuid" = $8`)).
+		WithArgs(1, "New Address", "Updated Description", 3, true, true, true, adId).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "hasBalcony"=$1 WHERE "uuid" = $2`)).
+		WithArgs(true, adId).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "hasElevator"=$1 WHERE "uuid" = $2`)).
+		WithArgs(true, adId).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "hasGas"=$1 WHERE "uuid" = $2`)).
+		WithArgs(true, adId).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ad_available_dates" SET "id"=$1,"adId"=$2,"availableDateFrom"=$3,"availableDateTo"=$4 WHERE "id" = $5`)).
 		WithArgs(1, adId, updatedRequest.DateFrom, updatedRequest.DateTo, 1).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "ad_rooms" WHERE "adId" = $1`)).
+		WithArgs(adId).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
@@ -467,6 +507,12 @@ func TestDeletePlace(t *testing.T) {
 	mock.ExpectCommit()
 
 	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "ad_rooms" WHERE "adId" = $1`)).
+		WithArgs(adId).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "requests" WHERE "adId" = $1`)).
 		WithArgs(adId).
 		WillReturnResult(sqlmock.NewResult(1, 1))
@@ -533,10 +579,18 @@ func TestCreatePlace(t *testing.T) {
 	repo := NewAdRepository(db)
 
 	ad := &domain.Ad{
-		UUID:        "some-ad-uuid",
-		Description: "A great place",
-		Address:     "123 Main Street",
-		RoomsNumber: 2,
+		UUID:         "some-ad-uuid",
+		Description:  "A great place",
+		Address:      "123 Main Street",
+		RoomsNumber:  2,
+		SquareMeters: 15,
+		Floor:        2,
+		BuildingType: "house",
+		HasElevator:  true,
+		HasGas:       true,
+		HasBalcony:   true,
+		LikesCount:   5,
+		Priority:     10,
 	}
 
 	newAd := domain.CreateAdRequest{
@@ -546,6 +600,18 @@ func TestCreatePlace(t *testing.T) {
 		RoomsNumber: 2,
 		DateFrom:    time.Now(),
 		DateTo:      time.Now().AddDate(0, 0, 7),
+		Rooms: []domain.AdRoomsResponse{
+			{
+				Type:         "room",
+				SquareMeters: 14,
+			},
+		},
+		SquareMeters: 15,
+		Floor:        2,
+		BuildingType: "house",
+		HasElevator:  true,
+		HasGas:       true,
+		HasBalcony:   true,
 	}
 
 	user := domain.User{
@@ -565,6 +631,13 @@ func TestCreatePlace(t *testing.T) {
 		AvailableDateTo:   newAd.DateTo,
 	}
 
+	room := domain.AdRooms{
+		ID:           1,
+		AdID:         "some-ad-uuid",
+		Type:         "room",
+		SquareMeters: 14,
+	}
+
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE uuid = $1 ORDER BY "users"."uuid" LIMIT $2`)).
 		WithArgs(user.UUID, 1).
 		WillReturnRows(sqlmock.NewRows([]string{"uuid", "isHost"}).
@@ -576,7 +649,7 @@ func TestCreatePlace(t *testing.T) {
 			AddRow(city.ID, city.Title))
 
 	mock.ExpectBegin()
-	mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "ads" ("cityId","authorUUID","address","publicationDate","description","roomsNumber","viewsCount","uuid") VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING "uuid"`)).
+	mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "ads" ("cityId","authorUUID","address","publicationDate","description","roomsNumber","viewsCount","squareMeters","floor","buildingType","hasBalcony","hasElevator","hasGas","likesCount","priority","endBoostDate","uuid") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING "uuid"`)).
 		WithArgs(
 			city.ID,          // cityId
 			user.UUID,        // authorUUID
@@ -585,7 +658,16 @@ func TestCreatePlace(t *testing.T) {
 			ad.Description,   // description
 			ad.RoomsNumber,   // roomsNumber
 			0,                // viewsCount
-			ad.UUID,          // uuid
+			ad.SquareMeters,
+			ad.Floor,
+			ad.BuildingType,
+			ad.HasBalcony,
+			ad.HasElevator,
+			ad.HasGas,
+			ad.LikesCount,
+			ad.Priority,
+			sqlmock.AnyArg(),
+			ad.UUID, // uuid
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"uuid"}).AddRow(ad.UUID))
 	mock.ExpectCommit()
@@ -597,6 +679,16 @@ func TestCreatePlace(t *testing.T) {
 			date.AdID,              // adID
 			date.AvailableDateFrom, // availableDateFrom
 			date.AvailableDateTo,   // availableDateTo
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(date.ID))
+	mock.ExpectCommit()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "ad_rooms" ("adId","type","squareMeters") VALUES ($1,$2,$3) RETURNING "id"`)).
+		WithArgs(
+			room.AdID,
+			room.Type,
+			room.SquareMeters,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(date.ID))
 	mock.ExpectCommit()
@@ -744,12 +836,21 @@ func TestSavePlace_Success(t *testing.T) {
 		RoomsNumber:     4,
 		ViewsCount:      2,
 		PublicationDate: time.Now(),
+		SquareMeters:    10,
+		Floor:           3,
+		BuildingType:    "house",
+		HasBalcony:      true,
+		HasElevator:     true,
+		HasGas:          true,
+		LikesCount:      10,
+		Priority:        12,
+		EndBoostDate:    time.Now(),
 	}
 
 	// Mock update ad
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "cityId"=$1,"authorUUID"=$2,"address"=$3,"publicationDate"=$4,"description"=$5,"roomsNumber"=$6,"viewsCount"=$7 WHERE "uuid" = $8`)).
-		WithArgs(ad.CityID, ad.AuthorUUID, ad.Address, time.Now(), ad.Description, ad.RoomsNumber, ad.ViewsCount, ad.UUID).
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "cityId"=$1,"authorUUID"=$2,"address"=$3,"publicationDate"=$4,"description"=$5,"roomsNumber"=$6,"viewsCount"=$7,"squareMeters"=$8,"floor"=$9,"buildingType"=$10,"hasBalcony"=$11,"hasElevator"=$12,"hasGas"=$13,"likesCount"=$14,"priority"=$15,"endBoostDate"=$16 WHERE "uuid" = $17`)).
+		WithArgs(ad.CityID, ad.AuthorUUID, ad.Address, time.Now(), ad.Description, ad.RoomsNumber, ad.ViewsCount, ad.SquareMeters, ad.Floor, ad.BuildingType, ad.HasBalcony, ad.HasElevator, ad.HasGas, ad.LikesCount, ad.Priority, ad.EndBoostDate, ad.UUID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
@@ -790,12 +891,21 @@ func TestSavePlace_Failure(t *testing.T) {
 		RoomsNumber:     4,
 		ViewsCount:      2,
 		PublicationDate: time.Now(),
+		SquareMeters:    10,
+		Floor:           3,
+		BuildingType:    "house",
+		HasBalcony:      true,
+		HasElevator:     true,
+		HasGas:          true,
+		LikesCount:      10,
+		Priority:        12,
+		EndBoostDate:    time.Now(),
 	}
 
-	// Mock update ad with error
+	// Mock update ad
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "cityId"=$1,"authorUUID"=$2,"address"=$3,"publicationDate"=$4,"description"=$5,"roomsNumber"=$6,"viewsCount"=$7 WHERE "uuid" = $8`)).
-		WithArgs(ad.CityID, ad.AuthorUUID, ad.Address, time.Now(), ad.Description, ad.RoomsNumber, ad.ViewsCount, ad.UUID).
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "cityId"=$1,"authorUUID"=$2,"address"=$3,"publicationDate"=$4,"description"=$5,"roomsNumber"=$6,"viewsCount"=$7,"squareMeters"=$8,"floor"=$9,"buildingType"=$10,"hasBalcony"=$11,"hasElevator"=$12,"hasGas"=$13,"likesCount"=$14,"priority"=$15,"endBoostDate"=$16 WHERE "uuid" = $17`)).
+		WithArgs(ad.CityID, ad.AuthorUUID, ad.Address, time.Now(), ad.Description, ad.RoomsNumber, ad.ViewsCount, ad.SquareMeters, ad.Floor, ad.BuildingType, ad.HasBalcony, ad.HasElevator, ad.HasGas, ad.LikesCount, ad.Priority, ad.EndBoostDate, ad.UUID).
 		WillReturnError(gorm.ErrInvalidData)
 	mock.ExpectRollback()
 
@@ -850,6 +960,10 @@ func TestGetPlacesPerCity_Success(t *testing.T) {
 	rows2 := sqlmock.NewRows([]string{"uuid", "username", "password", "email", "username"}).
 		AddRow("some-uuid", "test_username", "some_password", "test@example.com", "test_username")
 	mock.ExpectQuery(regexp.QuoteMeta(query2)).WillReturnRows(rows2)
+
+	adQuery := "SELECT * FROM \"ad_rooms\" WHERE \"adId\" = $1"
+	addRows := sqlmock.NewRows([]string{"id", "adId", "type", "squaremeters"}).AddRow(1, "id1", "some-type", 12)
+	mock.ExpectQuery(regexp.QuoteMeta(adQuery)).WithArgs("ad-uuid-123").WillReturnRows(addRows)
 
 	ads, err := adRepo.GetPlacesPerCity(ctx, city)
 
@@ -1110,6 +1224,10 @@ func TestGetUserPlaces_Success(t *testing.T) {
 	mock.ExpectQuery(`SELECT \* FROM "images" WHERE "adId" = \$1`).
 		WithArgs("ad-uuid-123").
 		WillReturnRows(imageRows)
+
+	adQuery := "SELECT * FROM \"ad_rooms\" WHERE \"adId\" = $1"
+	addRows := sqlmock.NewRows([]string{"id", "adId", "type", "squaremeters"}).AddRow(1, "id1", "some-type", 12)
+	mock.ExpectQuery(regexp.QuoteMeta(adQuery)).WithArgs("ad-uuid-123").WillReturnRows(addRows)
 
 	ads, err := adRepo.GetUserPlaces(ctx, userId)
 	assert.NoError(t, err)
