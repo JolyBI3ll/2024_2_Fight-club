@@ -223,7 +223,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "csrf_token",
 		Value:    jwtToken,
 		Path:     "/",
-		HttpOnly: true,
+		HttpOnly: false,
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
@@ -324,7 +324,7 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "csrf_token",
 		Value:    "",
 		Path:     "/",
-		HttpOnly: true,
+		HttpOnly: false,
 		Secure:   true,
 		Expires:  time.Unix(0, 0),
 		SameSite: http.SameSiteStrictMode,
@@ -764,7 +764,7 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 		Name:     "csrf_token",
 		Value:    newCsrfToken.CsrfToken,
 		Path:     "/",
-		HttpOnly: true,
+		HttpOnly: false,
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
