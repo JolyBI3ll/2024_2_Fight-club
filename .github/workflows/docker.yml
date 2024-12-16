@@ -17,7 +17,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22' # Укажите нужную версию Go
+          go-version: '1.23'
 
       # 3. Install golangci-lint
       - name: Install golangci-lint
@@ -27,12 +27,12 @@ jobs:
       # 4. Run linter
       - name: Run golangci-lint
         run: |
-          golangci-lint run ./...
+          golangci-lint run
 
       # 5. Run tests
       - name: Run Go tests
         run: |
-          go test ./... -v
+          go test -coverpkg=./... -coverprofile=cover ./... && cat cover | grep -v "mock" | grep -v  "easyjson" | grep -v "proto" | grep -v "pb" > cover.out && go tool cover -func=cover.out
 
       # 6. Login to DockerHub
       - name: Login to DockerHub Registry
