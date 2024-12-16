@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"time"
 )
 
@@ -95,7 +96,7 @@ func ConvertAdProtoToGo(ad *gen.GetAllAdsResponse) (domain.GetAllAdsResponse, er
 		AdDateTo:        parsedDateTo,
 		IsFavorite:      ad.IsFavorite,
 		AdAuthor: domain.UserResponce{
-			Rating:     float64(ad.AdAuthor.Rating),
+			Rating:     math.Round(float64(ad.AdAuthor.Rating)*10) / 10,
 			Avatar:     ad.AdAuthor.Avatar,
 			Name:       ad.AdAuthor.Name,
 			Sex:        ad.AdAuthor.Sex,
