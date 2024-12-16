@@ -13,32 +13,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Set up Go
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
-
-      # 3. Install golangci-lint
-      - name: Install golangci-lint
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.54.2
-
-      # 4. Run linter
+      # 2. Run linter
       - name: Run golangci-lint
         run: |
           golangci-lint run
 
-      # 5. Run tests
+      # 3. Run tests
       - name: Run Go tests
         run: |
           go test -coverpkg=./... -coverprofile=cover ./... && cat cover | grep -v "mock" | grep -v  "easyjson" | grep -v "proto" | grep -v "pb" > cover.out && go tool cover -func=cover.out
 
-      # 6. Login to DockerHub
+      # 4. Login to DockerHub
       - name: Login to DockerHub Registry
         run: echo ${{secrets.DOCKERHUB_TOKEN}} | docker login -u ${{secrets.DOCKERHUB_USERNAME}} --password-stdin
 
-      # 7. Build ads_service
+      # 5. Build ads_service
       - name: Build and push ads_service
         uses: docker/build-push-action@v4
         with:
@@ -47,7 +36,7 @@ jobs:
           tags: ${{secrets.DOCKERHUB_USERNAME}}/ads_service:latest
           push: true
 
-      # 8. Build auth_service
+      # 6. Build auth_service
       - name: Build and push auth_service
         uses: docker/build-push-action@v4
         with:
@@ -56,7 +45,7 @@ jobs:
           tags: ${{secrets.DOCKERHUB_USERNAME}}/auth_service:latest
           push: true
 
-      # 9. Build city_service
+      # 7. Build city_service
       - name: Build and push city_service
         uses: docker/build-push-action@v4
         with:
@@ -65,7 +54,7 @@ jobs:
           tags: ${{secrets.DOCKERHUB_USERNAME}}/city_service:latest
           push: true
 
-      # 10. Build migrator
+      # 8. Build migrator
       - name: Build and push migrator
         uses: docker/build-push-action@v4
         with:
@@ -74,7 +63,7 @@ jobs:
           tags: ${{secrets.DOCKERHUB_USERNAME}}/migrator:latest
           push: true
 
-      # 11. Build backend (main service)
+      # 9. Build backend (main service)
       - name: Build and push backend
         uses: docker/build-push-action@v4
         with:
