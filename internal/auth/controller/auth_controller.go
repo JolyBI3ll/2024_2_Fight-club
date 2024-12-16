@@ -9,15 +9,16 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/utils"
 	"2024_2_FIGHT-CLUB/microservices/auth_service/controller/gen"
 	"errors"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"time"
+
 	"github.com/gorilla/mux"
 	"github.com/mailru/easyjson"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"io"
-	"mime/multipart"
-	"net/http"
-	"time"
 )
 
 type AuthHandler struct {
@@ -108,7 +109,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "csrf_token",
 		Value:    jwtToken,
 		Path:     "/",
-		HttpOnly: true,
+		HttpOnly: false,
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
