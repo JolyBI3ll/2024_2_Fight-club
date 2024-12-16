@@ -100,9 +100,9 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter,
 		query = query.Limit(filter.Limit)
 	}
 
-	if err := query.Find(&ads).Order("priority DESC").Error; err != nil {
+	if err := query.Order("priority DESC").Find(&ads).Error; err != nil {
 		logger.DBLogger.Error("Error fetching all places", zap.String("request_id", requestID), zap.Error(err))
-		return nil, errors.New("error fetching all places")
+		return nil, errors.New("erro0r fetching all places")
 	}
 
 	var favoriteAdIds []string
@@ -559,7 +559,7 @@ func (r *adRepository) GetPlacesPerCity(ctx context.Context, city string) ([]dom
 	var ads []domain.GetAllAdsResponse
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
 		Select("ads.*, cities.title as \"CityName\"").Where("cities.\"enTitle\" = ?", city)
-	if err := query.Find(&ads).Order("priority DESC").Error; err != nil {
+	if err := query.Order("priority DESC").Find(&ads).Error; err != nil {
 		logger.DBLogger.Error("Error fetching places per city", zap.String("city", city), zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("error fetching places per city")
 	}
@@ -680,7 +680,7 @@ func (r *adRepository) GetUserPlaces(ctx context.Context, userId string) ([]doma
 	var ads []domain.GetAllAdsResponse
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
 		Select("ads.*, users.avatar, users.name, users.score as rating, cities.title as \"CityName\"").Where("users.uuid = ?", userId)
-	if err := query.Find(&ads).Error; err != nil {
+	if err := query.Order("priority DESC").Find(&ads).Error; err != nil {
 		logger.DBLogger.Error("Error fetching user places", zap.String("city", userId), zap.String("request_id", requestID), zap.Error(err))
 		return nil, errors.New("error fetching user places")
 	}
