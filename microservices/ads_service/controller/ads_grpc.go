@@ -710,18 +710,6 @@ func (adh *GrpcAdHandler) UpdatePriority(ctx context.Context, in *gen.UpdatePrio
 	return &gen.AdResponse{Response: "Successfully update ad priority"}, nil
 }
 
-func float32Ptr(f float32) *float32 {
-	return &f
-}
-
-func int32Ptr(i int32) *int32 {
-	return &i
-}
-
-func boolPtr(b bool) *bool {
-	return &b
-}
-
 func convertImagesToGRPC(images []domain.ImageResponse) []*gen.ImageResponse {
 	var grpcImages []*gen.ImageResponse
 	for _, img := range images {

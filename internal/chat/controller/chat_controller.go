@@ -169,7 +169,6 @@ func (cc *ChatHandler) SendChatMsg(ctx context.Context, reqID string) {
 		zap.Int("status", http.StatusOK),
 	)
 
-	return
 }
 
 func (cc *ChatHandler) GetAllChats(w http.ResponseWriter, r *http.Request) {

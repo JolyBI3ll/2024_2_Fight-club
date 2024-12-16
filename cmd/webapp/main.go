@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"net/http"
 	"os"
@@ -53,7 +54,7 @@ func main() {
 	if authAdress == "" {
 		log.Fatalf("AUTH_SERVICE_ADDRESS is not set")
 	}
-	authConn, err := grpc.NewClient(authAdress, grpc.WithInsecure()) // Укажите адрес AuthService
+	authConn, err := grpc.NewClient(authAdress, grpc.WithTransportCredentials(insecure.NewCredentials())) // Укажите адрес AuthService
 	if err != nil {
 		log.Fatalf("Failed to connect to AuthService: %v", err)
 	}
@@ -63,7 +64,7 @@ func main() {
 	if adsAdress == "" {
 		log.Fatalf("ADS_SERVICE_ADDRESS is not set")
 	}
-	adsConn, err := grpc.NewClient(adsAdress, grpc.WithInsecure())
+	adsConn, err := grpc.NewClient(adsAdress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Failed to connect to AdsService: %v", err)
 	}
@@ -73,7 +74,7 @@ func main() {
 	if cityAdress == "" {
 		log.Fatalf("CITY_SERVICE_ADDRESS is not set")
 	}
-	cityConn, err := grpc.NewClient(cityAdress, grpc.WithInsecure())
+	cityConn, err := grpc.NewClient(cityAdress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Failed to connect to AdsService: %v", err)
 	}

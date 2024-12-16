@@ -4,7 +4,6 @@ import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/microservices/city_service/controller/gen"
 	"errors"
-	"fmt"
 )
 
 func ConvertAllCitiesProtoToGo(cities *gen.GetCitiesResponse) ([]*domain.City, error) {
@@ -15,7 +14,7 @@ func ConvertAllCitiesProtoToGo(cities *gen.GetCitiesResponse) ([]*domain.City, e
 	for _, city := range cities.Cities {
 		cityResponse, err := ConvertOneCityProtoToGo(city)
 		if err != nil {
-			return nil, fmt.Errorf("error converting city %s: %v", city.Id, err)
+			return nil, errors.New("error convert city")
 		}
 
 		body = append(body, &cityResponse)

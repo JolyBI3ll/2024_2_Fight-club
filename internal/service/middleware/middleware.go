@@ -24,12 +24,6 @@ import (
 	"time"
 )
 
-type contextKey string
-
-const (
-	loggerKey contextKey = "logger"
-)
-
 const requestTimeout = 5 * time.Second
 
 func WithTimeout(ctx context.Context) (context.Context, context.CancelFunc) {

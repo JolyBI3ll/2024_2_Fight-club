@@ -156,18 +156,17 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 		zap.String("adId", adId),
 	)
 
-	var isAuthorized bool
+	isAuthorized := false
 
 	sessionID, err := session.GetSessionId(r)
 	if err != nil || sessionID == "" {
 		logger.AccessLogger.Warn("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		isAuthorized = false
-	}
-
-	if _, err := h.sessionService.GetUserID(ctx, sessionID); err != nil {
-		isAuthorized = false
+	} else if _, err := h.sessionService.GetUserID(ctx, sessionID); err != nil {
+		logger.AccessLogger.Warn("Failed to validate session",
+			zap.String("request_id", requestID),
+			zap.Error(err))
 	} else {
 		isAuthorized = true
 	}

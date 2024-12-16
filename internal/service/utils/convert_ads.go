@@ -4,7 +4,6 @@ import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
 	"errors"
-	"fmt"
 	"log"
 	"math"
 	"time"
@@ -19,7 +18,7 @@ func parseDate(dateStr, adID, fieldName string) (time.Time, error) {
 	parsedDate, err := time.Parse(layout, dateStr)
 	if err != nil {
 		log.Printf("Error parsing %s for ad %s: %v\n", fieldName, adID, err)
-		return time.Time{}, errors.New(fmt.Sprintf("Error parsing %s for ad %s: %v", fieldName, adID, err))
+		return time.Time{}, errors.New("error parsing date for ad")
 	}
 	return parsedDate, nil
 }
