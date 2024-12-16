@@ -1,63 +1,84 @@
-name: Build and push services
+name: Build, Lint, Test, and Push Services
 
 on:
-    push:
-        branches:
-            - dev
+  push:
+    branches:
+      - dev
 
 jobs:
-    build-and-push:
-        runs-on: ubuntu-latest
-        steps:
-            # 1. Checkout repository
-            - name: Checkout code
-              uses: actions/checkout@v4
+  build-lint-test-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout repository
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            # 2. Login to DockerHub
-            - name: Login to DockerHub Registry
-              run: echo ${{secrets.DOCKERHUB_TOKEN}} | docker login -u ${{secrets.DOCKERHUB_USERNAME}} --password-stdin
+      # 2. Set up Go
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22' # Укажите нужную версию Go
 
-            # 3. Build ads_service
-            - name: Build and push ads_service
-              uses: docker/build-push-action@v4
-              with:
-                  context: .
-                  file: ./microservices/ads_service/Dockerfile
-                  tags: ${{secrets.DOCKERHUB_USERNAME}}/ads_service:latest
-                  push: true
+      # 3. Install golangci-lint
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.54.2
 
-            # 4. Build auth_service
-            - name: Build and push auth_service
-              uses: docker/build-push-action@v4
-              with:
-                  context: .
-                  file: ./microservices/auth_service/Dockerfile
-                  tags: ${{secrets.DOCKERHUB_USERNAME}}/auth_service:latest
-                  push: true
+      # 4. Run linter
+      - name: Run golangci-lint
+        run: |
+          golangci-lint run ./...
 
-            # 5. Build city_service
-            - name: Build and push city_service
-              uses: docker/build-push-action@v4
-              with:
-                  context: .
-                  file: ./microservices/city_service/Dockerfile
-                  tags: ${{secrets.DOCKERHUB_USERNAME}}/city_service:latest
-                  push: true
+      # 5. Run tests
+      - name: Run Go tests
+        run: |
+          go test ./... -v
 
-            # 6. Build migrator
-            - name: Build and push migrator
-              uses: docker/build-push-action@v4
-              with:
-                  context: .
-                  file: ./cmd/migrator/Dockerfile
-                  tags: ${{secrets.DOCKERHUB_USERNAME}}/migrator:latest
-                  push: true
+      # 6. Login to DockerHub
+      - name: Login to DockerHub Registry
+        run: echo ${{secrets.DOCKERHUB_TOKEN}} | docker login -u ${{secrets.DOCKERHUB_USERNAME}} --password-stdin
 
-            # 7. Build backend (main service)
-            - name: Build and push backend
-              uses: docker/build-push-action@v4
-              with:
-                  context: .
-                  file: ./Dockerfile
-                  tags: ${{secrets.DOCKERHUB_USERNAME}}/backend:latest
-                  push: true
+      # 7. Build ads_service
+      - name: Build and push ads_service
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./microservices/ads_service/Dockerfile
+          tags: ${{secrets.DOCKERHUB_USERNAME}}/ads_service:latest
+          push: true
+
+      # 8. Build auth_service
+      - name: Build and push auth_service
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./microservices/auth_service/Dockerfile
+          tags: ${{secrets.DOCKERHUB_USERNAME}}/auth_service:latest
+          push: true
+
+      # 9. Build city_service
+      - name: Build and push city_service
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./microservices/city_service/Dockerfile
+          tags: ${{secrets.DOCKERHUB_USERNAME}}/city_service:latest
+          push: true
+
+      # 10. Build migrator
+      - name: Build and push migrator
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./cmd/migrator/Dockerfile
+          tags: ${{secrets.DOCKERHUB_USERNAME}}/migrator:latest
+          push: true
+
+      # 11. Build backend (main service)
+      - name: Build and push backend
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          tags: ${{secrets.DOCKERHUB_USERNAME}}/backend:latest
+          push: true
