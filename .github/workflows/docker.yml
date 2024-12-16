@@ -23,7 +23,8 @@ jobs:
       - name: Install Go dependencies
         run: |
           go mod tidy
-          go mod download
+          go get ./...
+          go mod vendor
 
       # 4. Install golangci-lint
       - name: Install golangci-lint
