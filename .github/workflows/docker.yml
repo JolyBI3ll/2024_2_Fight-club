@@ -8,6 +8,17 @@ on:
 jobs:
   build-lint-test-and-push:
     runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+      minio:
+        image: minio/minio
+        ports:
+          - 9000:9000
+          - 8070:9001
+
     steps:
       # 1. Checkout repository
       - name: Checkout code
@@ -34,7 +45,7 @@ jobs:
       # 5. Run linter
       - name: Run golangci-lint
         run: |
-          golangci-lint run
+          golangci-lint run --verbose
 
       # 6. Run tests
       - name: Run Go tests
