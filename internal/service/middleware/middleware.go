@@ -162,11 +162,24 @@ func ConvertGRPCToRooms(grpc []*gen.AdRooms) []domain.AdRoomsResponse {
 	return Rooms
 }
 
+type responseWriterWrapper struct {
+	http.ResponseWriter
+	written bool
+}
+
+func (w *responseWriterWrapper) WriteHeader(statusCode int) {
+	if !w.written {
+		w.written = true
+		w.ResponseWriter.WriteHeader(statusCode)
+	}
+}
+
 func RecoverWrap(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		wrappedWriter := &responseWriterWrapper{ResponseWriter: w}
+
 		defer func() {
-			r := recover()
-			if r != nil {
+			if r := recover(); r != nil {
 				var err error
 				switch t := r.(type) {
 				case string:
@@ -176,10 +189,12 @@ func RecoverWrap(h http.Handler) http.Handler {
 				default:
 					err = errors.New("Unknown error")
 				}
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				if !wrappedWriter.written {
+					http.Error(wrappedWriter, err.Error(), http.StatusInternalServerError)
+				}
 			}
 		}()
-		h.ServeHTTP(w, r)
+		h.ServeHTTP(wrappedWriter, r)
 	})
 }
 
