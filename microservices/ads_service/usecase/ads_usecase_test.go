@@ -22,13 +22,14 @@ func TestAdUseCase_GetAllPlaces(t *testing.T) {
 	expectedAds := []domain.GetAllAdsResponse{
 		{UUID: "1234", CityID: 1, AuthorUUID: "user123"},
 	}
-	mockRepo.MockGetAllPlaces = func(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error) {
+	mockRepo.MockGetAllPlaces = func(ctx context.Context, filter domain.AdFilter, userId string) ([]domain.GetAllAdsResponse, error) {
 		return expectedAds, nil
 	}
 
 	ctx := context.Background()
 	filter := domain.AdFilter{Location: "New York"}
-	ads, err := useCase.GetAllPlaces(ctx, filter)
+	userId := "user123"
+	ads, err := useCase.GetAllPlaces(ctx, filter, userId)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedAds, ads)
@@ -242,13 +243,14 @@ func TestAdUseCase_GetAllPlaces_Error(t *testing.T) {
 	mockMinioService := &mocks.MockMinioService{}
 	useCase := NewAdUseCase(mockRepo, mockMinioService)
 
-	mockRepo.MockGetAllPlaces = func(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error) {
+	mockRepo.MockGetAllPlaces = func(ctx context.Context, filter domain.AdFilter, userId string) ([]domain.GetAllAdsResponse, error) {
 		return nil, errors.New("database error")
 	}
 
 	ctx := context.Background()
 	filter := domain.AdFilter{Location: "New York"}
-	ads, err := useCase.GetAllPlaces(ctx, filter)
+	userId := "user123"
+	ads, err := useCase.GetAllPlaces(ctx, filter, userId)
 
 	assert.Error(t, err)
 	assert.Nil(t, ads)
@@ -369,6 +371,9 @@ func TestAdUseCase_UpdatePlace_ErrorOnUploadImage(t *testing.T) {
 	mockMinioService := &mocks.MockMinioService{}
 	useCase := NewAdUseCase(mockRepo, mockMinioService)
 	fileHeaders, err := createValidFileHeaders(3)
+	if err != nil {
+		return
+	}
 	adID := "invalid_ad_id"
 	userID := "user456"
 	newAd := domain.Ad{}

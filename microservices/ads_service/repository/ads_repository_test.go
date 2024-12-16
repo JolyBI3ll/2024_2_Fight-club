@@ -31,7 +31,12 @@ func TestGetAllPlaces(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	require.NoError(t, err)
@@ -45,6 +50,8 @@ func TestGetAllPlaces(t *testing.T) {
 		HostGender:  "",
 		GuestCount:  "",
 	}
+
+	userId := "12345"
 
 	// Фиксированная дата для теста
 	fixedDate := time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
@@ -75,7 +82,7 @@ func TestGetAllPlaces(t *testing.T) {
 	}).AddRow("author-uuid", "test_username", "some_password", "test@example.com", "Test User", 4.5, "avatar_url", "M", 2, fixedDate)
 	mock.ExpectQuery(regexp.QuoteMeta(userQuery)).WithArgs("author-uuid").WillReturnRows(userRows)
 
-	ads, err := repo.GetAllPlaces(context.Background(), filter)
+	ads, err := repo.GetAllPlaces(context.Background(), filter, userId)
 
 	require.NoError(t, err)
 	assert.Len(t, ads, 1)
@@ -113,9 +120,16 @@ func TestGetAllPlaces_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
+
+	userId := "12345"
 
 	repo := NewAdRepository(db)
 	filter := domain.AdFilter{}
@@ -129,7 +143,7 @@ func TestGetAllPlaces_Failure(t *testing.T) {
 	mock.ExpectQuery(query).
 		WillReturnError(errors.New("db error"))
 
-	ads, err := repo.GetAllPlaces(context.Background(), filter)
+	ads, err := repo.GetAllPlaces(context.Background(), filter, userId)
 	assert.Error(t, err)
 	assert.Nil(t, ads)
 }
@@ -138,7 +152,12 @@ func TestGetPlaceById(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
 
@@ -209,7 +228,12 @@ func TestGetPlaceById_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
 
@@ -228,7 +252,12 @@ func TestUpdatePlace(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -282,7 +311,12 @@ func TestUpdatePlace_AdNotFound(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -313,7 +347,12 @@ func TestUpdatePlace_AdDateNotFound(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -346,7 +385,12 @@ func TestUpdatePlace_UserNotAuthorized(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -383,7 +427,12 @@ func TestDeletePlace(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -439,7 +488,12 @@ func TestDeletePlace_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -466,7 +520,12 @@ func TestCreatePlace(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	require.NoError(t, err)
@@ -556,7 +615,12 @@ func TestCreatePlace_CityNotFound(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -606,7 +670,12 @@ func TestCreatePlace_UserNotHost(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -653,7 +722,12 @@ func TestSavePlace_Success(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -694,7 +768,12 @@ func TestSavePlace_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -735,7 +814,12 @@ func TestGetPlacesPerCity_Success(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -786,7 +870,12 @@ func TestGetPlacesPerCity_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -820,7 +909,12 @@ func TestSaveImages_Success(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -854,7 +948,12 @@ func TestSaveImages_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -893,7 +992,12 @@ func TestGetAdImages_Success(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -931,7 +1035,12 @@ func TestGetAdImages_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -965,7 +1074,12 @@ func TestGetUserPlaces_Success(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -1020,7 +1134,12 @@ func TestGetUserPlaces_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -1067,7 +1186,12 @@ func TestDeleteAdImage(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)

@@ -33,7 +33,12 @@ func TestCreateUser(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	gormDB, mock := setupTestDB(t)
 	defer func() {
@@ -120,10 +125,20 @@ func TestCreateUser_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock := setupTestDB(t)
-	defer db.DB()
+	defer func(db *gorm.DB) {
+		_, err := db.DB()
+		if err != nil {
+			return
+		}
+	}(db)
 
 	repo := NewAuthRepository(db)
 
@@ -173,11 +188,21 @@ func TestSaveUser_Success(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	// Настройка тестовой базы данных и sqlmock
 	db, mock := setupTestDB(t)
-	defer db.DB()
+	defer func(db *gorm.DB) {
+		_, err := db.DB()
+		if err != nil {
+			return
+		}
+	}(db)
 
 	// Создание репозитория
 	repo := NewAuthRepository(db)
@@ -229,9 +254,19 @@ func TestSaveUser_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	db, mock := setupTestDB(t)
-	defer db.DB()
+	defer func(db *gorm.DB) {
+		_, err := db.DB()
+		if err != nil {
+			return
+		}
+	}(db)
 
 	repo := NewAuthRepository(db)
 
@@ -274,9 +309,19 @@ func TestGetUserById_Success(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	db, mock := setupTestDB(t)
-	defer db.DB()
+	defer func(db *gorm.DB) {
+		_, err := db.DB()
+		if err != nil {
+			return
+		}
+	}(db)
 
 	repo := NewAuthRepository(db)
 
@@ -297,9 +342,19 @@ func TestGetUserById_NotFound(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	db, mock := setupTestDB(t)
-	defer db.DB()
+	defer func(db *gorm.DB) {
+		_, err := db.DB()
+		if err != nil {
+			return
+		}
+	}(db)
 
 	repo := NewAuthRepository(db)
 
@@ -316,9 +371,19 @@ func TestGetAllUser_Success(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	db, mock := setupTestDB(t)
-	defer db.DB()
+	defer func(db *gorm.DB) {
+		_, err := db.DB()
+		if err != nil {
+			return
+		}
+	}(db)
 
 	repo := NewAuthRepository(db)
 
@@ -337,9 +402,19 @@ func TestGetAllUser_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	db, mock := setupTestDB(t)
-	defer db.DB()
+	defer func(db *gorm.DB) {
+		_, err := db.DB()
+		if err != nil {
+			return
+		}
+	}(db)
 
 	repo := NewAuthRepository(db)
 
@@ -353,9 +428,19 @@ func TestAuthRepository_GetUserByName(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	db, mock := setupTestDB(t)
-	defer db.DB()
+	defer func(db *gorm.DB) {
+		_, err := db.DB()
+		if err != nil {
+			return
+		}
+	}(db)
 
 	repo := NewAuthRepository(db)
 
@@ -409,11 +494,21 @@ func TestAuthRepository_PutUser(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	// Настраиваем тестовую базу данных и sqlmock
 	db, mock := setupTestDB(t)
-	defer db.DB()
+	defer func(db *gorm.DB) {
+		_, err := db.DB()
+		if err != nil {
+			return
+		}
+	}(db)
 
 	repo := NewAuthRepository(db)
 
@@ -500,12 +595,20 @@ func TestGetUserByEmail(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	gormDB, mock := setupTestDB(t)
 	defer func() {
 		db, _ := gormDB.DB()
-		db.Close()
+		err := db.Close()
+		if err != nil {
+			return
+		}
 	}()
 
 	authRepo := NewAuthRepository(gormDB)

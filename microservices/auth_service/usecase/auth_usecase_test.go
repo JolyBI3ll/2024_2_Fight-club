@@ -52,7 +52,12 @@ func TestRegisterUser(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	mockAuthRepo := &mocks.MockAuthRepository{}
 	mockMinioService := &mocks.MockMinioService{}
@@ -253,7 +258,12 @@ func TestLoginUser(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	mockAuthRepo := &mocks.MockAuthRepository{}
 
 	uc := NewAuthUseCase(mockAuthRepo, nil)
@@ -439,7 +449,12 @@ func TestPutUser(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	mockAuthRepo := &mocks.MockAuthRepository{}
 	mockMinioService := &mocks.MockMinioService{}
@@ -633,7 +648,12 @@ func TestGetUserById(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	mockAuthRepo := &mocks.MockAuthRepository{}
 	uc := NewAuthUseCase(mockAuthRepo, nil)

@@ -99,26 +99,32 @@ func (m *MockAdUseCase) GetUserPlaces(ctx context.Context, userId string) ([]dom
 }
 
 type MockAdRepository struct {
-	MockGetAllPlaces     func(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error)
-	MockGetPlaceById     func(ctx context.Context, adId string) (domain.GetAllAdsResponse, error)
-	MockUpdateViewsCount func(ctx context.Context, ad domain.GetAllAdsResponse) (domain.GetAllAdsResponse, error)
-	MockCreatePlace      func(ctx context.Context, ad *domain.Ad, newAd domain.CreateAdRequest, userId string) error
-	MockSavePlace        func(ctx context.Context, ad *domain.Ad) error
-	MockUpdatePlace      func(ctx context.Context, ad *domain.Ad, adId string, userId string, updatedAd domain.UpdateAdRequest) error
-	MockDeletePlace      func(ctx context.Context, adId string, userId string) error
-	MockGetPlacesPerCity func(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error)
-	MockSaveImages       func(ctx context.Context, adUUID string, imagePaths []string) error
-	MockGetAdImages      func(ctx context.Context, adId string) ([]string, error)
-	MockGetUserPlaces    func(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
-	MockDeleteAdImage    func(ctx context.Context, adId string, imageId int, userId string) (string, error)
+	MockGetAllPlaces           func(ctx context.Context, filter domain.AdFilter, userId string) ([]domain.GetAllAdsResponse, error)
+	MockGetPlaceById           func(ctx context.Context, adId string) (domain.GetAllAdsResponse, error)
+	MockUpdateViewsCount       func(ctx context.Context, ad domain.GetAllAdsResponse) (domain.GetAllAdsResponse, error)
+	MockCreatePlace            func(ctx context.Context, ad *domain.Ad, newAd domain.CreateAdRequest, userId string) error
+	MockSavePlace              func(ctx context.Context, ad *domain.Ad) error
+	MockUpdatePlace            func(ctx context.Context, ad *domain.Ad, adId string, userId string, updatedAd domain.UpdateAdRequest) error
+	MockDeletePlace            func(ctx context.Context, adId string, userId string) error
+	MockGetPlacesPerCity       func(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error)
+	MockSaveImages             func(ctx context.Context, adUUID string, imagePaths []string) error
+	MockGetAdImages            func(ctx context.Context, adId string) ([]string, error)
+	MockGetUserPlaces          func(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
+	MockDeleteAdImage          func(ctx context.Context, adId string, imageId int, userId string) (string, error)
+	MockAddToFavorites         func(ctx context.Context, adId string, userId string) error
+	MockDeleteFromFavorites    func(ctx context.Context, adId string, userId string) error
+	MockGetUserFavorites       func(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
+	MockUpdateFavoritesCount   func(ctx context.Context, adId string) error
+	MockUpdatePriority         func(ctx context.Context, adId string, userId string, amount int) error
+	MockResetExpiredPriorities func(ctx context.Context) error
 }
 
 func (m *MockAdRepository) DeleteAdImage(ctx context.Context, adId string, imageId int, userId string) (string, error) {
 	return m.MockDeleteAdImage(ctx, adId, imageId, userId)
 }
 
-func (m *MockAdRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error) {
-	return m.MockGetAllPlaces(ctx, filter)
+func (m *MockAdRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter, userId string) ([]domain.GetAllAdsResponse, error) {
+	return m.MockGetAllPlaces(ctx, filter, userId)
 }
 
 func (m *MockAdRepository) GetPlaceById(ctx context.Context, adId string) (domain.GetAllAdsResponse, error) {
@@ -159,6 +165,30 @@ func (m *MockAdRepository) GetAdImages(ctx context.Context, adId string) ([]stri
 
 func (m *MockAdRepository) GetUserPlaces(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
 	return m.MockGetUserPlaces(ctx, userId)
+}
+
+func (m *MockAdRepository) AddToFavorites(ctx context.Context, adId string, userId string) error {
+	return m.MockAddToFavorites(ctx, adId, userId)
+}
+
+func (m *MockAdRepository) DeleteFromFavorites(ctx context.Context, adId string, userId string) error {
+	return m.MockDeleteFromFavorites(ctx, adId, userId)
+}
+
+func (m *MockAdRepository) GetUserFavorites(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
+	return m.MockGetUserFavorites(ctx, userId)
+}
+
+func (m *MockAdRepository) UpdateFavoritesCount(ctx context.Context, adId string) error {
+	return m.MockUpdateFavoritesCount(ctx, adId)
+}
+
+func (m *MockAdRepository) UpdatePriority(ctx context.Context, adId string, userId string, amount int) error {
+	return m.MockUpdatePriority(ctx, adId, userId, amount)
+}
+
+func (m *MockAdRepository) ResetExpiredPriorities(ctx context.Context) error {
+	return m.MockResetExpiredPriorities(ctx)
 }
 
 type MockMinioService struct {
