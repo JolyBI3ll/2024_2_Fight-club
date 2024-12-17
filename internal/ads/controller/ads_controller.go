@@ -23,13 +23,15 @@ type AdHandler struct {
 	client         gen.AdsClient
 	sessionService session.InterfaceSession
 	jwtToken       middleware.JwtTokenService
+	utils          utils.UtilsInterface
 }
 
-func NewAdHandler(client gen.AdsClient, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService) *AdHandler {
+func NewAdHandler(client gen.AdsClient, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService, utils utils.UtilsInterface) *AdHandler {
 	return &AdHandler{
 		client:         client,
 		sessionService: sessionService,
 		jwtToken:       jwtToken,
+		utils:          utils,
 	}
 }
 
@@ -98,7 +100,7 @@ func (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	body, err := utils.ConvertGetAllAdsResponseProtoToGo(response)
+	body, err := h.utils.ConvertGetAllAdsResponseProtoToGo(response)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to Convert From Proto to Go",
 			zap.Error(err),
@@ -186,7 +188,7 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload, err := utils.ConvertAdProtoToGo(place)
+	payload, err := h.utils.ConvertAdProtoToGo(place)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to Convert From Proto to Go",
 			zap.Error(err),
@@ -583,7 +585,7 @@ func (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload, err := utils.ConvertGetAllAdsResponseProtoToGo(response)
+	payload, err := h.utils.ConvertGetAllAdsResponseProtoToGo(response)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to Convert From Proto to Go",
 			zap.Error(err),
@@ -658,7 +660,7 @@ func (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload, err := utils.ConvertGetAllAdsResponseProtoToGo(response)
+	payload, err := h.utils.ConvertGetAllAdsResponseProtoToGo(response)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to Convert From Proto to Go",
 			zap.Error(err),
@@ -968,7 +970,7 @@ func (h *AdHandler) GetUserFavorites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := utils.ConvertGetAllAdsResponseProtoToGo(response)
+	body, err := h.utils.ConvertGetAllAdsResponseProtoToGo(response)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to Convert From Proto to Go",
 			zap.Error(err),

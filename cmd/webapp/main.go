@@ -15,6 +15,7 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/router"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	"2024_2_FIGHT-CLUB/internal/service/utils"
 	generatedAds "2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
 	generatedAuth "2024_2_FIGHT-CLUB/microservices/auth_service/controller/gen"
 	generatedCity "2024_2_FIGHT-CLUB/microservices/city_service/controller/gen"
@@ -81,15 +82,16 @@ func main() {
 	defer cityConn.Close()
 
 	sessionService := session.NewSessionService(redisStore)
-
+	utilsService := utils.NewUtilsInterface()
 	authClient := generatedAuth.NewAuthClient(authConn)
-	authHandler := authHttpDelivery.NewAuthHandler(authClient, sessionService, jwtToken)
+	authHandler := authHttpDelivery.NewAuthHandler(authClient, sessionService, jwtToken, utilsService)
 
 	adsClient := generatedAds.NewAdsClient(adsConn)
-	adsHandler := adHttpDelivery.NewAdHandler(adsClient, sessionService, jwtToken)
+
+	adsHandler := adHttpDelivery.NewAdHandler(adsClient, sessionService, jwtToken, utilsService)
 
 	cityClient := generatedCity.NewCityServiceClient(cityConn)
-	cityHandler := cityHttpDelivery.NewCityHandler(cityClient)
+	cityHandler := cityHttpDelivery.NewCityHandler(cityClient, utilsService)
 
 	chatsRepository := chatRepository.NewChatRepository(db)
 	chatsUseCase := chatUseCase.NewChatService(chatsRepository)

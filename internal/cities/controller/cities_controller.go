@@ -18,11 +18,13 @@ import (
 
 type CityHandler struct {
 	client gen.CityServiceClient
+	utils  utils.UtilsInterface
 }
 
-func NewCityHandler(client gen.CityServiceClient) *CityHandler {
+func NewCityHandler(client gen.CityServiceClient, utils utils.UtilsInterface) *CityHandler {
 	return &CityHandler{
 		client: client,
+		utils:  utils,
 	}
 }
 
@@ -69,7 +71,7 @@ func (h *CityHandler) GetCities(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	payload, err := utils.ConvertAllCitiesProtoToGo(cities)
+	payload, err := h.utils.ConvertAllCitiesProtoToGo(cities)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to convert cities data",
 			zap.String("request_id", requestID),
@@ -143,7 +145,7 @@ func (h *CityHandler) GetOneCity(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	payload, err := utils.ConvertOneCityProtoToGo(city.City)
+	payload, err := h.utils.ConvertOneCityProtoToGo(city.City)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to convert city data",
 			zap.String("request_id", requestID),

@@ -25,13 +25,15 @@ type AuthHandler struct {
 	client         gen.AuthClient
 	sessionService session.InterfaceSession
 	jwtToken       middleware.JwtTokenService
+	utils          utils.UtilsInterface
 }
 
-func NewAuthHandler(client gen.AuthClient, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService) *AuthHandler {
+func NewAuthHandler(client gen.AuthClient, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService, utils utils.UtilsInterface) *AuthHandler {
 	return &AuthHandler{
 		client:         client,
 		sessionService: sessionService,
 		jwtToken:       jwtToken,
+		utils:          utils,
 	}
 }
 
@@ -114,7 +116,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	body, err := utils.ConvertAuthResponseProtoToGo(response, userSession)
+	body, err := h.utils.ConvertAuthResponseProtoToGo(response, userSession)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to convert auth response",
 			zap.String("request_id", requestID),
@@ -228,7 +230,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	body, err := utils.ConvertAuthResponseProtoToGo(response, userSession)
+	body, err := h.utils.ConvertAuthResponseProtoToGo(response, userSession)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to convert auth response",
 			zap.String("request_id", requestID),
@@ -529,7 +531,7 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := utils.ConvertUserResponseProtoToGo(user.User)
+	response, err := h.utils.ConvertUserResponseProtoToGo(user.User)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to convert user response",
 			zap.String("request_id", requestID),
@@ -598,7 +600,7 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := utils.ConvertUsersProtoToGo(users)
+	body, err := h.utils.ConvertUsersProtoToGo(users)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to convert users proto",
 			zap.String("request_id", requestID),
@@ -683,7 +685,7 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	response, err := utils.ConvertSessionDataProtoToGo(sessionData)
+	response, err := h.utils.ConvertSessionDataProtoToGo(sessionData)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to convert session data",
 			zap.String("request_id", requestID),
