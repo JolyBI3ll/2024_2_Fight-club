@@ -6,10 +6,9 @@ import (
 	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
 	"context"
 	"github.com/golang-jwt/jwt"
-	"github.com/gorilla/sessions"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc"
-	"net/http"
+	"time"
 )
 
 type MockJwtTokenService struct {
@@ -35,7 +34,6 @@ type MockServiceSession struct {
 	MockLogoutSession  func(ctx context.Context, sessionID string) error
 	MockCreateSession  func(ctx context.Context, user *domain.User) (string, error)
 	MockGetSessionData func(ctx context.Context, sessionID string) (*domain.SessionData, error)
-	MockGetSession     func(r *http.Request) (*sessions.Session, error)
 }
 
 func (m *MockServiceSession) GetUserID(ctx context.Context, sessionID string) (string, error) {
@@ -54,12 +52,8 @@ func (m *MockServiceSession) GetSessionData(ctx context.Context, sessionID strin
 	return m.MockGetSessionData(ctx, sessionID)
 }
 
-func (m *MockServiceSession) GetSession(r *http.Request) (*sessions.Session, error) {
-	return m.MockGetSession(r)
-}
-
 type MockAdUseCase struct {
-	MockGetAllPlaces             func(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error)
+	MockGetAllPlaces             func(ctx context.Context, filter domain.AdFilter, userId string) ([]domain.GetAllAdsResponse, error)
 	MockGetOnePlace              func(ctx context.Context, adId string, isAuthorized bool) (domain.GetAllAdsResponse, error)
 	MockCreatePlace              func(ctx context.Context, place *domain.Ad, fileHeader [][]byte, newPlace domain.CreateAdRequest, userId string) error
 	MockUpdatePlace              func(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeader [][]byte, updatedPlace domain.UpdateAdRequest) error
@@ -71,15 +65,15 @@ type MockAdUseCase struct {
 	MockDeleteFromFavorites      func(ctx context.Context, adId string, userId string) error
 	MockGetUserFavorites         func(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
 	MockUpdatePriority           func(ctx context.Context, adId string, userId string, amount int) error
-	MockStartPriorityResetWorker func(ctx context.Context)
+	MockStartPriorityResetWorker func(ctx context.Context, tickerInterval time.Duration)
 }
 
 func (m *MockAdUseCase) DeleteAdImage(ctx context.Context, adId string, imageId string, userId string) error {
 	return m.MockDeleteAdImage(ctx, adId, imageId, userId)
 }
 
-func (m *MockAdUseCase) GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error) {
-	return m.MockGetAllPlaces(ctx, filter)
+func (m *MockAdUseCase) GetAllPlaces(ctx context.Context, filter domain.AdFilter, userId string) ([]domain.GetAllAdsResponse, error) {
+	return m.MockGetAllPlaces(ctx, filter, userId)
 }
 
 func (m *MockAdUseCase) GetOnePlace(ctx context.Context, adId string, isAuthorized bool) (domain.GetAllAdsResponse, error) {
@@ -122,8 +116,8 @@ func (m *MockAdUseCase) UpdatePriority(ctx context.Context, adId string, userId 
 	return m.MockUpdatePriority(ctx, adId, userId, amount)
 }
 
-func (m *MockAdUseCase) StartPriorityResetWorker(ctx context.Context) {
-	m.MockStartPriorityResetWorker(ctx)
+func (m *MockAdUseCase) StartPriorityResetWorker(ctx context.Context, tickerInterval time.Duration) {
+	m.MockStartPriorityResetWorker(ctx, tickerInterval)
 }
 
 type MockAdRepository struct {

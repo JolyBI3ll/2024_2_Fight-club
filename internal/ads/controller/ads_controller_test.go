@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
 	"2024_2_FIGHT-CLUB/microservices/ads_service/mocks"
@@ -15,7 +14,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 )
 
 func TestAdHandler_GetAllPlaces_Success(t *testing.T) {
@@ -103,12 +101,13 @@ func TestAdHandler_GetAllPlaces_ConvertError(t *testing.T) {
 	mockGrpcClient.On("GetAllPlaces", mock.Anything, mock.Anything, mock.Anything).
 		Return(response, nil)
 
-	utilsMock := mocks.MockUtils{}
+	utilsMock := &mocks.MockUtils{}
 	utilsMock.On("ConvertGetAllAdsResponseProtoToGo", response).
 		Return(nil, errors.New("conversion error"))
 
 	adHandler := &AdHandler{
 		client: mockGrpcClient,
+		utils:  utilsMock,
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/housing", nil)
@@ -119,62 +118,14 @@ func TestAdHandler_GetAllPlaces_ConvertError(t *testing.T) {
 
 	// Проверка результата
 	result := w.Result()
-	defer result.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
 
 	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
 	mockGrpcClient.AssertExpectations(t)
 	utilsMock.AssertExpectations(t)
-}
-
-func TestConvertGetAllAdsResponseProtoToGo_Error(t *testing.T) {
-	mockUtils := new(mocks.MockUtils)
-
-	protoResponse := &gen.GetAllAdsResponseList{}
-
-	mockUtils.On("ConvertGetAllAdsResponseProtoToGo", protoResponse).
-		Return(domain.GetAllAdsListResponse{}, errors.New("conversion error"))
-
-	result, err := mockUtils.ConvertGetAllAdsResponseProtoToGo(protoResponse)
-
-	assert.Error(t, err)
-	assert.Equal(t, "conversion error", err.Error())
-	assert.Empty(t, result)
-
-	mockUtils.AssertExpectations(t)
-}
-
-func TestConvertAdProtoToGo_Error(t *testing.T) {
-	mockUtils := new(mocks.MockUtils)
-
-	protoAd := &gen.GetAllAdsResponse{}
-
-	mockUtils.On("ConvertAdProtoToGo", protoAd).
-		Return(domain.GetAllAdsResponse{}, errors.New("ad conversion error"))
-
-	result, err := mockUtils.ConvertAdProtoToGo(protoAd)
-
-	assert.Error(t, err)
-	assert.Equal(t, "ad conversion error", err.Error())
-	assert.Empty(t, result)
-
-	mockUtils.AssertExpectations(t)
-}
-
-func TestParseDate_Error(t *testing.T) {
-	mockUtils := new(mocks.MockUtils)
-
-	dateStr := "invalid-date"
-	adID := "123"
-	fieldName := "PublicationDate"
-
-	mockUtils.On("ParseDate", dateStr, adID, fieldName).
-		Return(time.Time{}, errors.New("invalid date format"))
-
-	parsedDate, err := mockUtils.ParseDate(dateStr, adID, fieldName)
-
-	assert.Error(t, err)
-	assert.Equal(t, "invalid date format", err.Error())
-	assert.Equal(t, time.Time{}, parsedDate)
-
-	mockUtils.AssertExpectations(t)
 }

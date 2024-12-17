@@ -3,8 +3,9 @@ package mocks
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
+	authGen "2024_2_FIGHT-CLUB/microservices/auth_service/controller/gen"
+	cityGen "2024_2_FIGHT-CLUB/microservices/city_service/controller/gen"
 	"github.com/stretchr/testify/mock"
-	"time"
 )
 
 type MockUtils struct {
@@ -27,10 +28,50 @@ func (m *MockUtils) ConvertAdProtoToGo(ad *gen.GetAllAdsResponse) (domain.GetAll
 	return domain.GetAllAdsResponse{}, args.Error(1)
 }
 
-func (m *MockUtils) ParseDate(dateStr, adID, fieldName string) (time.Time, error) {
-	args := m.Called(dateStr, adID, fieldName)
-	if res, ok := args.Get(0).(time.Time); ok {
+func (m *MockUtils) ConvertAuthResponseProtoToGo(response *authGen.UserResponse, userSession string) (domain.AuthResponse, error) {
+	args := m.Called(response, userSession)
+	if res, ok := args.Get(0).(domain.AuthResponse); ok {
 		return res, args.Error(1)
 	}
-	return time.Time{}, args.Error(1)
+	return domain.AuthResponse{}, args.Error(1)
+}
+
+func (m *MockUtils) ConvertUserResponseProtoToGo(user *authGen.MetadataOneUser) (domain.UserDataResponse, error) {
+	args := m.Called(user)
+	if res, ok := args.Get(0).(domain.UserDataResponse); ok {
+		return res, args.Error(1)
+	}
+	return domain.UserDataResponse{}, args.Error(1)
+}
+
+func (m *MockUtils) ConvertUsersProtoToGo(users *authGen.AllUsersResponse) ([]*domain.UserDataResponse, error) {
+	args := m.Called(users)
+	if res, ok := args.Get(0).([]*domain.UserDataResponse); ok {
+		return res, args.Error(1)
+	}
+	return []*domain.UserDataResponse{}, args.Error(1)
+}
+
+func (m *MockUtils) ConvertSessionDataProtoToGo(sessionData *authGen.SessionDataResponse) (domain.SessionData, error) {
+	args := m.Called(sessionData)
+	if res, ok := args.Get(0).(domain.SessionData); ok {
+		return res, args.Error(1)
+	}
+	return domain.SessionData{}, args.Error(1)
+}
+
+func (m *MockUtils) ConvertAllCitiesProtoToGo(cities *cityGen.GetCitiesResponse) ([]*domain.City, error) {
+	args := m.Called(cities)
+	if res, ok := args.Get(0).([]*domain.City); ok {
+		return res, args.Error(1)
+	}
+	return []*domain.City{}, args.Error(1)
+}
+
+func (m *MockUtils) ConvertOneCityProtoToGo(city *cityGen.City) (domain.City, error) {
+	args := m.Called(city)
+	if res, ok := args.Get(0).(domain.City); ok {
+		return res, args.Error(1)
+	}
+	return domain.City{}, args.Error(1)
 }

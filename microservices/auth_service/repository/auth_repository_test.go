@@ -587,6 +587,36 @@ func TestAuthRepository_PutUser(t *testing.T) {
 		assert.Equal(t, "error updating user", err.Error())
 	})
 
+	// Тест-кейс 3: Ошибка обновления пользователя
+	t.Run("Error on Update isHost", func(t *testing.T) {
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "username"=$1,"password"=$2,"email"=$3,"name"=$4,"score"=$5,"avatar"=$6,"sex"=$7,"guestCount"=$8,"birthDate"=$9,"isHost"=$10 WHERE UUID = $11`)).
+			WithArgs(
+				creds.Username,
+				creds.Password,
+				creds.Email,
+				creds.Name,
+				creds.Score,
+				creds.Avatar,
+				creds.Sex,
+				creds.GuestCount,
+				creds.Birthdate,
+				creds.IsHost,
+				userID,
+			).WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectCommit()
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "isHost"=$1 WHERE UUID = $2`)).
+			WithArgs(creds.IsHost, userID).
+			WillReturnError(errors.New("error updating user"))
+		mock.ExpectRollback()
+
+		err := repo.PutUser(ctx, creds, userID)
+
+		assert.Error(t, err)
+		assert.Equal(t, "error updating user", err.Error())
+	})
+
 	// Проверяем, что все ожидания выполнены
 	require.NoError(t, mock.ExpectationsWereMet())
 }
