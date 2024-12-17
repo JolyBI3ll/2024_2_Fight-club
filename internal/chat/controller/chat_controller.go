@@ -299,7 +299,7 @@ func (cc *ChatHandler) GetChat(w http.ResponseWriter, r *http.Request) {
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
-	logger.AccessLogger.Info("Received RegisterUser request",
+	logger.AccessLogger.Info("Received GetChat request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
 		zap.String("url", r.URL.String()),

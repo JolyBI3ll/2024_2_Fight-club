@@ -119,7 +119,8 @@ func (c *Client) Read(userID string) {
 			logger.AccessLogger.Warn("Invalid message content received (only whitespace characters)",
 				zap.String("user_id", userID))
 			errMsg := map[string]string{
-				"error": "Invalid message content: only whitespace characters, tabs, or line breaks are not allowed.",
+				"response": "Invalid message content: only whitespace characters, tabs, or line breaks are not allowed.",
+				"sent":     "false",
 			}
 			if writeErr := c.Socket.WriteJSON(errMsg); writeErr != nil {
 				logger.AccessLogger.Error("Failed to send invalid message content error to client",
@@ -141,7 +142,8 @@ func (c *Client) Read(userID string) {
 
 			// Сообщаем клиенту о блокировке
 			errMsg := map[string]string{
-				"error": rateErr.Error(),
+				"response": rateErr.Error(),
+				"sent":     "false",
 			}
 			if writeErr := c.Socket.WriteJSON(errMsg); writeErr != nil {
 				logger.AccessLogger.Error("Failed to send rate limit error to client",
@@ -159,7 +161,8 @@ func (c *Client) Read(userID string) {
 		case c.ChatController.Messages <- msg:
 			// Возвращаем успешный ответ клиенту
 			successMsg := map[string]string{
-				"status": "Message delivered successfully",
+				"response": "Message delivered successfully",
+				"sent":     "true",
 			}
 			if writeErr := c.Socket.WriteJSON(successMsg); writeErr != nil {
 				logger.AccessLogger.Error("Failed to send success message to client",
@@ -170,7 +173,8 @@ func (c *Client) Read(userID string) {
 			logger.AccessLogger.Warn("Message channel is full, dropping message",
 				zap.String("user_id", userID))
 			errMsg := map[string]string{
-				"error": "Message channel is full. Please try again later.",
+				"response": "Message channel is full. Please try again later.",
+				"sent":     "false",
 			}
 			if writeErr := c.Socket.WriteJSON(errMsg); writeErr != nil {
 				logger.AccessLogger.Error("Failed to send channel full error to client",
