@@ -45,6 +45,10 @@ services:
             - minio
             - certs
             - redis
+            - ads_service
+            - auth_service
+            - city_service
+            - migrator
         networks:
             - app-network
 
@@ -143,6 +147,7 @@ services:
             - redis
             - postgres
             - minio
+            - minio-client
         environment:
             - DB_HOST=${DB_HOST}
             - DB_PORT=${DB_PORT}
@@ -186,6 +191,7 @@ services:
             - redis
             - postgres
             - minio
+            - minio-client
         environment:
             - DB_HOST=${DB_HOST}
             - DB_PORT=${DB_PORT}
