@@ -3,9 +3,12 @@ package mocks
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
+	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
 	"context"
 	"github.com/golang-jwt/jwt"
 	"github.com/gorilla/sessions"
+	"github.com/stretchr/testify/mock"
+	"google.golang.org/grpc"
 	"net/http"
 )
 
@@ -31,7 +34,7 @@ type MockServiceSession struct {
 	MockGetUserID      func(ctx context.Context, sessionID string) (string, error)
 	MockLogoutSession  func(ctx context.Context, sessionID string) error
 	MockCreateSession  func(ctx context.Context, user *domain.User) (string, error)
-	MockGetSessionData func(ctx context.Context, sessionID string) (*map[string]interface{}, error)
+	MockGetSessionData func(ctx context.Context, sessionID string) (*domain.SessionData, error)
 	MockGetSession     func(r *http.Request) (*sessions.Session, error)
 }
 
@@ -47,7 +50,7 @@ func (m *MockServiceSession) CreateSession(ctx context.Context, user *domain.Use
 	return m.MockCreateSession(ctx, user)
 }
 
-func (m *MockServiceSession) GetSessionData(ctx context.Context, sessionID string) (*map[string]interface{}, error) {
+func (m *MockServiceSession) GetSessionData(ctx context.Context, sessionID string) (*domain.SessionData, error) {
 	return m.MockGetSessionData(ctx, sessionID)
 }
 
@@ -227,4 +230,68 @@ func (m *MockMinioService) UploadFile(file []byte, contentType, id string) (stri
 
 func (m *MockMinioService) DeleteFile(filePath string) error {
 	return m.DeleteFileFunc(filePath)
+}
+
+type MockGrpcClient struct {
+	mock.Mock
+}
+
+func (m *MockGrpcClient) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequest, opts ...grpc.CallOption) (*gen.GetAllAdsResponseList, error) {
+	args := m.Called(ctx, in, opts)
+	return args.Get(0).(*gen.GetAllAdsResponseList), args.Error(1)
+}
+
+func (m *MockGrpcClient) GetOnePlace(ctx context.Context, in *gen.GetPlaceByIdRequest, opts ...grpc.CallOption) (*gen.GetAllAdsResponse, error) {
+	args := m.Called(ctx, in, opts)
+	return args.Get(0).(*gen.GetAllAdsResponse), args.Error(1)
+}
+
+func (m *MockGrpcClient) CreatePlace(ctx context.Context, in *gen.CreateAdRequest, opts ...grpc.CallOption) (*gen.Ad, error) {
+	args := m.Called(ctx, in, opts)
+	return args.Get(0).(*gen.Ad), args.Error(1)
+}
+
+func (m *MockGrpcClient) UpdatePlace(ctx context.Context, in *gen.UpdateAdRequest, opts ...grpc.CallOption) (*gen.AdResponse, error) {
+	args := m.Called(ctx, in, opts)
+	return args.Get(0).(*gen.AdResponse), args.Error(1)
+}
+
+func (m *MockGrpcClient) DeletePlace(ctx context.Context, in *gen.DeletePlaceRequest, opts ...grpc.CallOption) (*gen.DeleteResponse, error) {
+	args := m.Called(ctx, in, opts)
+	return args.Get(0).(*gen.DeleteResponse), args.Error(1)
+}
+
+func (m *MockGrpcClient) GetPlacesPerCity(ctx context.Context, in *gen.GetPlacesPerCityRequest, opts ...grpc.CallOption) (*gen.GetAllAdsResponseList, error) {
+	args := m.Called(ctx, in, opts)
+	return args.Get(0).(*gen.GetAllAdsResponseList), args.Error(1)
+}
+
+func (m *MockGrpcClient) GetUserPlaces(ctx context.Context, in *gen.GetUserPlacesRequest, opts ...grpc.CallOption) (*gen.GetAllAdsResponseList, error) {
+	args := m.Called(ctx, in, opts)
+	return args.Get(0).(*gen.GetAllAdsResponseList), args.Error(1)
+}
+
+func (m *MockGrpcClient) DeleteAdImage(ctx context.Context, in *gen.DeleteAdImageRequest, opts ...grpc.CallOption) (*gen.DeleteResponse, error) {
+	args := m.Called(ctx, in, opts)
+	return args.Get(0).(*gen.DeleteResponse), args.Error(1)
+}
+
+func (m *MockGrpcClient) AddToFavorites(ctx context.Context, in *gen.AddToFavoritesRequest, opts ...grpc.CallOption) (*gen.AdResponse, error) {
+	args := m.Called(ctx, in, opts)
+	return args.Get(0).(*gen.AdResponse), args.Error(1)
+}
+
+func (m *MockGrpcClient) DeleteFromFavorites(ctx context.Context, in *gen.DeleteFromFavoritesRequest, opts ...grpc.CallOption) (*gen.AdResponse, error) {
+	args := m.Called(ctx, in, opts)
+	return args.Get(0).(*gen.AdResponse), args.Error(1)
+}
+
+func (m *MockGrpcClient) GetUserFavorites(ctx context.Context, in *gen.GetUserFavoritesRequest, opts ...grpc.CallOption) (*gen.GetAllAdsResponseList, error) {
+	args := m.Called(ctx, in, opts)
+	return args.Get(0).(*gen.GetAllAdsResponseList), args.Error(1)
+}
+
+func (m *MockGrpcClient) UpdatePriority(ctx context.Context, in *gen.UpdatePriorityRequest, opts ...grpc.CallOption) (*gen.AdResponse, error) {
+	args := m.Called(ctx, in, opts)
+	return args.Get(0).(*gen.AdResponse), args.Error(1)
 }
