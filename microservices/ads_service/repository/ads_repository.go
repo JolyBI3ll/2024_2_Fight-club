@@ -372,28 +372,6 @@ func (r *adRepository) CreatePlace(ctx context.Context, ad *domain.Ad, newAd dom
 	return nil
 }
 
-func (r *adRepository) SavePlace(ctx context.Context, ad *domain.Ad) error {
-	start := time.Now()
-	requestID := middleware.GetRequestID(ctx)
-	logger.DBLogger.Info("SavePlace called", zap.String("adId", ad.UUID), zap.String("request_id", requestID))
-	var err error
-	defer func() {
-		if err != nil {
-			metrics.RepoErrorsTotal.WithLabelValues("SavePlace", "error", err.Error()).Inc()
-		} else {
-			metrics.RepoRequestTotal.WithLabelValues("SavePlace", "success").Inc()
-		}
-		duration := time.Since(start).Seconds()
-		metrics.RepoRequestDuration.WithLabelValues("SavePlace").Observe(duration)
-	}()
-	if err := r.db.Save(ad).Error; err != nil {
-		logger.DBLogger.Error("Error saving place", zap.String("adId", ad.UUID), zap.String("request_id", requestID), zap.Error(err))
-		return errors.New("error saving place")
-	}
-	logger.DBLogger.Info("Successfully saved place", zap.String("adId", ad.UUID), zap.String("request_id", requestID))
-	return nil
-}
-
 func (r *adRepository) UpdatePlace(ctx context.Context, ad *domain.Ad, adId string, userId string, updatedPlace domain.UpdateAdRequest) error {
 	start := time.Now()
 	requestID := middleware.GetRequestID(ctx)

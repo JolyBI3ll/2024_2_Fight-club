@@ -105,6 +105,12 @@ func (cc *ChatHandler) SetConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, ok := w.(http.Hijacker); !ok {
+		http.Error(w, "WebSocket upgrade not supported", http.StatusInternalServerError)
+		logger.AccessLogger.Error("ResponseWriter does not support Hijacker")
+		return
+	}
+
 	socket, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		cc.handleError(w, errors.New("failed to upgrade connection"), requestID)

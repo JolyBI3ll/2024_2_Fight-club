@@ -1,4 +1,4 @@
-name: Build, Lint, Test, and Push Services
+name: Build, Test, and Push Services
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - dev
 
 jobs:
-  build-lint-test-and-push:
+  build-test-and-push:
     runs-on: ubuntu-latest
 
     steps:

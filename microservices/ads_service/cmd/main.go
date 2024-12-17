@@ -17,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"time"
 )
 
 func main() {
@@ -61,7 +62,7 @@ func main() {
 	sessionService := session.NewSessionService(redisStore)
 	adsUseCase := adUseCase.NewAdUseCase(adsRepository, minioService)
 	adsServer := grpcAd.NewGrpcAdHandler(sessionService, adsUseCase, jwtToken)
-	adsUseCase.StartPriorityResetWorker(ctx)
+	adsUseCase.StartPriorityResetWorker(ctx, 24*time.Hour)
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(middleware.ChainUnaryInterceptors(
 			middleware.RecoveryInterceptor,     // интерсептор для обработки паники

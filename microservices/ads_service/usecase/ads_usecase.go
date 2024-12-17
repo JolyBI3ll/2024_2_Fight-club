@@ -31,7 +31,7 @@ type AdUseCase interface {
 	DeleteFromFavorites(ctx context.Context, adId string, userId string) error
 	GetUserFavorites(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
 	UpdatePriority(ctx context.Context, adId string, userId string, amount int) error
-	StartPriorityResetWorker(ctx context.Context)
+	StartPriorityResetWorker(ctx context.Context, tickerInterval time.Duration)
 }
 
 type adUseCase struct {
@@ -325,15 +325,16 @@ func (uc *adUseCase) DeleteAdImage(ctx context.Context, adId string, imageId str
 func (uc *adUseCase) AddToFavorites(ctx context.Context, adId string, userId string) error {
 	requestID := middleware.GetRequestID(ctx)
 	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
-	if !validCharPattern.MatchString(adId) {
-		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		return errors.New("input contains invalid characters")
-	}
 
 	if len(adId) > maxLen {
 		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
 		return errors.New("input exceeds character limit")
+	}
+
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(adId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("input contains invalid characters")
 	}
 
 	err := uc.adRepository.AddToFavorites(ctx, adId, userId)
@@ -350,15 +351,16 @@ func (uc *adUseCase) AddToFavorites(ctx context.Context, adId string, userId str
 func (uc *adUseCase) DeleteFromFavorites(ctx context.Context, adId string, userId string) error {
 	requestID := middleware.GetRequestID(ctx)
 	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
-	if !validCharPattern.MatchString(adId) {
-		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		return errors.New("input contains invalid characters")
-	}
 
 	if len(adId) > maxLen {
 		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
 		return errors.New("input exceeds character limit")
+	}
+
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(adId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("input contains invalid characters")
 	}
 
 	err := uc.adRepository.DeleteFromFavorites(ctx, adId, userId)
@@ -375,15 +377,16 @@ func (uc *adUseCase) DeleteFromFavorites(ctx context.Context, adId string, userI
 func (uc *adUseCase) GetUserFavorites(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
-	if !validCharPattern.MatchString(userId) {
-		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		return nil, errors.New("input contains invalid characters")
-	}
 
 	if len(userId) > maxLen {
 		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
 		return nil, errors.New("input exceeds character limit")
+	}
+
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(userId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return nil, errors.New("input contains invalid characters")
 	}
 
 	places, err := uc.adRepository.GetUserFavorites(ctx, userId)
@@ -397,15 +400,16 @@ func (uc *adUseCase) GetUserFavorites(ctx context.Context, userId string) ([]dom
 func (uc *adUseCase) UpdatePriority(ctx context.Context, adId string, userId string, amount int) error {
 	requestID := middleware.GetRequestID(ctx)
 	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
-	if !validCharPattern.MatchString(adId) {
-		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		return errors.New("input contains invalid characters")
-	}
 
 	if len(adId) > maxLen {
 		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
 		return errors.New("input exceeds character limit")
+	}
+
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(adId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("input contains invalid characters")
 	}
 
 	err := uc.adRepository.UpdatePriority(ctx, adId, userId, amount)
@@ -415,9 +419,9 @@ func (uc *adUseCase) UpdatePriority(ctx context.Context, adId string, userId str
 	return nil
 }
 
-func (uc *adUseCase) StartPriorityResetWorker(ctx context.Context) {
+func (uc *adUseCase) StartPriorityResetWorker(ctx context.Context, tickerInterval time.Duration) {
 	go func() {
-		ticker := time.NewTicker(24 * time.Hour) // Интервал в 24 часа
+		ticker := time.NewTicker(tickerInterval) // Интервал передаётся извне
 		defer ticker.Stop()
 
 		for {

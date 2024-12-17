@@ -2,16 +2,19 @@ package usecase
 
 import (
 	"2024_2_FIGHT-CLUB/domain"
+	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/microservices/ads_service/mocks"
 	"bytes"
 	"context"
 	"errors"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"math/rand"
 	"testing"
+	"time"
 )
 
 func TestAdUseCase_GetAllPlaces(t *testing.T) {
@@ -435,6 +438,215 @@ func TestAdUseCase_DeletePlace_ErrorOnGet(t *testing.T) {
 	assert.Equal(t, "ad not found", err.Error())
 }
 
+func TestAdUseCase_AddToFavorites(t *testing.T) {
+	setupLogger()
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	ctx := context.Background()
+	validAdID := "ad123"
+	invalidAdID := "ad!@#"
+	overMaxLenID := string(make([]rune, 256))
+	userID := "user123"
+
+	mockRepo.MockAddToFavorites = func(ctx context.Context, adId, userId string) error {
+		return nil
+	}
+	mockRepo.MockUpdateFavoritesCount = func(ctx context.Context, adId string) error {
+		return nil
+	}
+
+	err := useCase.AddToFavorites(ctx, validAdID, userID)
+	assert.NoError(t, err)
+
+	err = useCase.AddToFavorites(ctx, invalidAdID, userID)
+	assert.Error(t, err)
+	assert.Equal(t, "input contains invalid characters", err.Error())
+
+	err = useCase.AddToFavorites(ctx, overMaxLenID, userID)
+	assert.Error(t, err)
+	assert.Equal(t, "input exceeds character limit", err.Error())
+
+	mockRepo.MockAddToFavorites = func(ctx context.Context, adId, userId string) error {
+		return errors.New("repository error")
+	}
+	err = useCase.AddToFavorites(ctx, validAdID, userID)
+	assert.Error(t, err)
+	assert.Equal(t, "repository error", err.Error())
+
+	mockRepo.MockAddToFavorites = func(ctx context.Context, adId, userId string) error {
+		return nil
+	}
+	mockRepo.MockUpdateFavoritesCount = func(ctx context.Context, adId string) error {
+		return errors.New("update count error")
+	}
+
+	err = useCase.AddToFavorites(ctx, validAdID, userID)
+	assert.Error(t, err)
+	assert.Equal(t, "update count error", err.Error())
+}
+
+func TestAdUseCase_DeleteFromFavorites(t *testing.T) {
+	setupLogger()
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	ctx := context.Background()
+	validAdID := "ad123"
+	invalidAdID := "ad!@#"
+	overMaxLenID := string(make([]rune, 256))
+	userID := "user123"
+
+	mockRepo.MockDeleteFromFavorites = func(ctx context.Context, adId, userId string) error {
+		return nil
+	}
+	mockRepo.MockUpdateFavoritesCount = func(ctx context.Context, adId string) error {
+		return nil
+	}
+
+	err := useCase.DeleteFromFavorites(ctx, validAdID, userID)
+	assert.NoError(t, err)
+
+	err = useCase.DeleteFromFavorites(ctx, invalidAdID, userID)
+	assert.Error(t, err)
+	assert.Equal(t, "input contains invalid characters", err.Error())
+
+	err = useCase.DeleteFromFavorites(ctx, overMaxLenID, userID)
+	assert.Error(t, err)
+	assert.Equal(t, "input exceeds character limit", err.Error())
+
+	mockRepo.MockDeleteFromFavorites = func(ctx context.Context, adId, userId string) error {
+		return errors.New("repository error")
+	}
+	err = useCase.DeleteFromFavorites(ctx, validAdID, userID)
+	assert.Error(t, err)
+	assert.Equal(t, "repository error", err.Error())
+
+	mockRepo.MockDeleteFromFavorites = func(ctx context.Context, adId, userId string) error {
+		return nil
+	}
+	mockRepo.MockUpdateFavoritesCount = func(ctx context.Context, adId string) error {
+		return errors.New("update count error")
+	}
+
+	err = useCase.DeleteFromFavorites(ctx, validAdID, userID)
+	assert.Error(t, err)
+	assert.Equal(t, "update count error", err.Error())
+}
+
+func TestAdUseCase_GetUserFavorites(t *testing.T) {
+	setupLogger()
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	ctx := context.Background()
+	validUserID := "user123"
+	invalidUserID := "user!@#"
+	overMaxLenUserID := string(make([]rune, 256))
+
+	expectedAds := []domain.GetAllAdsResponse{
+		{UUID: "ad123", AuthorUUID: "user123"},
+	}
+
+	mockRepo.MockGetUserFavorites = func(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
+		return expectedAds, nil
+	}
+
+	ads, err := useCase.GetUserFavorites(ctx, validUserID)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedAds, ads)
+
+	ads, err = useCase.GetUserFavorites(ctx, invalidUserID)
+	assert.Error(t, err)
+	assert.Nil(t, ads)
+	assert.Equal(t, "input contains invalid characters", err.Error())
+
+	ads, err = useCase.GetUserFavorites(ctx, overMaxLenUserID)
+	assert.Error(t, err)
+	assert.Nil(t, ads)
+	assert.Equal(t, "input exceeds character limit", err.Error())
+
+	mockRepo.MockGetUserFavorites = func(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
+		return nil, errors.New("repository error")
+	}
+
+	ads, err = useCase.GetUserFavorites(ctx, validUserID)
+	assert.Error(t, err)
+	assert.Nil(t, ads)
+	assert.Equal(t, "repository error", err.Error())
+}
+
+func TestAdUseCase_UpdatePriority(t *testing.T) {
+	setupLogger()
+
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	ctx := context.Background()
+
+	t.Run("Error: invalid characters in adId", func(t *testing.T) {
+		invalidAdID := "invalid#ID" // Недопустимый символ #
+		userID := "user123"
+		amount := 5
+
+		err := useCase.UpdatePriority(ctx, invalidAdID, userID, amount)
+		assert.Error(t, err)
+		assert.Equal(t, "input contains invalid characters", err.Error())
+	})
+
+	t.Run("Error: adId exceeds max length", func(t *testing.T) {
+		overMaxLenID := string(make([]rune, 256)) // Строка длиной 256 символов
+		userID := "user123"
+		amount := 5
+
+		err := useCase.UpdatePriority(ctx, overMaxLenID, userID, amount)
+		assert.Error(t, err)
+		assert.Equal(t, "input exceeds character limit", err.Error())
+	})
+
+	t.Run("Success: valid input", func(t *testing.T) {
+		validAdID := "ad123"
+		userID := "user123"
+		amount := 10
+
+		mockRepo.MockUpdatePriority = func(ctx context.Context, adId, userId string, amount int) error {
+			return nil
+		}
+
+		err := useCase.UpdatePriority(ctx, validAdID, userID, amount)
+		assert.NoError(t, err)
+	})
+}
+
+func TestAdUseCase_StartPriorityResetWorker(t *testing.T) {
+	setupLogger()
+
+	mockRepo := &mocks.MockAdRepository{}
+	mockMinioService := &mocks.MockMinioService{}
+	useCase := NewAdUseCase(mockRepo, mockMinioService)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	resetCalled := false
+
+	mockRepo.MockResetExpiredPriorities = func(ctx context.Context) error {
+		resetCalled = true
+		return nil
+	}
+
+	useCase.StartPriorityResetWorker(ctx, 10*time.Millisecond)
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	assert.True(t, resetCalled, "ResetExpiredPriorities should be called")
+}
+
 func TestDeleteAdImage(t *testing.T) {
 	ctx := context.Background()
 	adId := "ad-uuid"
@@ -553,4 +765,8 @@ func createValidFileHeaders(numFiles int) ([][]byte, error) {
 	}
 
 	return fileHeaders, nil
+}
+
+func setupLogger() {
+	logger.AccessLogger = zap.NewNop()
 }

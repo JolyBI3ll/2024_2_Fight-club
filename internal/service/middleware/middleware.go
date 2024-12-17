@@ -5,6 +5,7 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/dsn"
 	"2024_2_FIGHT-CLUB/internal/service/images"
 	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -166,6 +168,13 @@ func (w *responseWriterWrapper) WriteHeader(statusCode int) {
 		w.written = true
 		w.ResponseWriter.WriteHeader(statusCode)
 	}
+}
+
+func (w *responseWriterWrapper) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hijacker, ok := w.ResponseWriter.(http.Hijacker); ok {
+		return hijacker.Hijack()
+	}
+	return nil, nil, errors.New("Hijack not supported")
 }
 
 func RecoverWrap(h http.Handler) http.Handler {
