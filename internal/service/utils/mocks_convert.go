@@ -62,8 +62,12 @@ func (m *MockUtils) ConvertSessionDataProtoToGo(sessionData *authGen.SessionData
 
 func (m *MockUtils) ConvertAllCitiesProtoToGo(cities *cityGen.GetCitiesResponse) ([]*domain.City, error) {
 	args := m.Called(cities)
-	if res, ok := args.Get(0).([]*domain.City); ok {
-		return res, args.Error(1)
+	var trueRes []*domain.City
+	if res, ok := args.Get(0).(domain.AllCitiesResponse); ok {
+		for _, city := range res.Cities {
+			trueRes = append(trueRes, city)
+		}
+		return trueRes, args.Error(1)
 	}
 	return []*domain.City{}, args.Error(1)
 }

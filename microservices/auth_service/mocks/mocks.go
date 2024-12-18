@@ -166,15 +166,3 @@ func (m *MockGrpcClient) RefreshCsrfToken(ctx context.Context, in *gen.RefreshCs
 	args := m.Called(ctx, in, opts)
 	return args.Get(0).(*gen.RefreshCsrfTokenResponse), args.Error(1)
 }
-
-type MockUtils struct {
-	mock.Mock
-}
-
-func (m *MockUtils) ConvertAuthResponseProtoToGo(response *gen.UserResponse, userSession string) (domain.AuthResponse, error) {
-	args := m.Called(response, userSession)
-	if res, ok := args.Get(0).(domain.AuthResponse); ok {
-		return res, args.Error(1)
-	}
-	return domain.AuthResponse{}, args.Error(1)
-}

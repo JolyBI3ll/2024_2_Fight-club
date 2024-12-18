@@ -143,8 +143,6 @@ func (h *CityHandler) GetOneCity(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
 	payload, err := h.utils.ConvertOneCityProtoToGo(city.City)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to convert city data",
@@ -156,6 +154,8 @@ func (h *CityHandler) GetOneCity(w http.ResponseWriter, r *http.Request) {
 	body := domain.OneCityResponse{
 		City: payload,
 	}
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusOK)
 	if _, err = easyjson.MarshalToWriter(body, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response",
 			zap.String("request_id", requestID),
