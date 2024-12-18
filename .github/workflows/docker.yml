@@ -49,7 +49,7 @@ jobs:
       # 4. Run tests
       - name: Run Go tests
         run: |
-          go test -coverpkg=./... -coverprofile=cover ./... && cat cover | grep -v "mock" | grep -v  "easyjson" | grep -v "proto" | grep -v "pb" > cover.out && go tool cover -func=cover.out
+          go test -coverpkg=./... -coverprofile=cover ./... && cat cover | grep -v "mock" | grep -v  "easyjson" | grep -v "proto" | grep -v "pb" | grep -v "grpc" > cover.out && go tool cover -func=cover.out
 
       # 5. Login to DockerHub
       - name: Login to DockerHub Registry
