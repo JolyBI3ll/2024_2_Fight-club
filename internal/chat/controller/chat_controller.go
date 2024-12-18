@@ -224,10 +224,11 @@ func (cc *ChatHandler) GetAllChats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sess, err := session.GetSessionId(r)
-	if err != nil {
+	if err != nil || sess == "" {
 		logger.AccessLogger.Info("Failed to get sessionId",
 			zap.String("request_id", requestID),
 			zap.Error(err))
+		err = errors.New("session not found")
 		cc.handleError(w, err, requestID)
 		return
 	}
@@ -319,10 +320,11 @@ func (cc *ChatHandler) GetChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sess, err := session.GetSessionId(r)
-	if err != nil {
+	if err != nil || sess == "" {
 		logger.AccessLogger.Info("Failed to get sessionId",
 			zap.String("request_id", requestID),
 			zap.Error(err))
+		err = errors.New("session not found")
 		cc.handleError(w, err, requestID)
 		return
 	}
