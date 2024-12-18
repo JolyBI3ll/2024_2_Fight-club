@@ -2,6 +2,7 @@ package controller
 
 import (
 	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/utils"
 	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
 	"2024_2_FIGHT-CLUB/microservices/ads_service/mocks"
 	"errors"
@@ -101,7 +102,7 @@ func TestAdHandler_GetAllPlaces_ConvertError(t *testing.T) {
 	mockGrpcClient.On("GetAllPlaces", mock.Anything, mock.Anything, mock.Anything).
 		Return(response, nil)
 
-	utilsMock := &mocks.MockUtils{}
+	utilsMock := &utils.MockUtils{}
 	utilsMock.On("ConvertGetAllAdsResponseProtoToGo", response).
 		Return(nil, errors.New("conversion error"))
 

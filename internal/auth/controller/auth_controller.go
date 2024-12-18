@@ -683,8 +683,6 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
 	response, err := h.utils.ConvertSessionDataProtoToGo(sessionData)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to convert session data",
@@ -693,6 +691,8 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err, requestID)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusOK)
 	if _, err = easyjson.MarshalToWriter(response, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode GetSessionData response",
 			zap.String("request_id", requestID),
