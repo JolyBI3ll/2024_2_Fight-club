@@ -64,9 +64,7 @@ func (m *MockUtils) ConvertAllCitiesProtoToGo(cities *cityGen.GetCitiesResponse)
 	args := m.Called(cities)
 	var trueRes []*domain.City
 	if res, ok := args.Get(0).(domain.AllCitiesResponse); ok {
-		for _, city := range res.Cities {
-			trueRes = append(trueRes, city)
-		}
+		trueRes = append(trueRes, res.Cities...)
 		return trueRes, args.Error(1)
 	}
 	return []*domain.City{}, args.Error(1)

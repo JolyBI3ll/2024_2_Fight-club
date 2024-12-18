@@ -353,7 +353,12 @@ func TestAdRepository_UpdateFavoritesCount_Success(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -384,7 +389,12 @@ func TestAdRepository_UpdateFavoritesCount_CountError(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -409,7 +419,12 @@ func TestAdRepository_UpdateFavoritesCount_UpdateError(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -1371,7 +1386,12 @@ func TestAdRepository_AddToFavorites_Success(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -1402,7 +1422,12 @@ func TestAdRepository_AddToFavorites_AdNotFound(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -1428,7 +1453,12 @@ func TestAdRepository_AddToFavorites_ErrorOnCreateFavorite(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -1460,7 +1490,12 @@ func TestAdRepository_DeleteFromFavorites_Success(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -1491,7 +1526,12 @@ func TestAdRepository_DeleteFromFavorites_AdNotFound(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -1517,7 +1557,12 @@ func TestAdRepository_DeleteFromFavorites_DeleteError(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
