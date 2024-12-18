@@ -234,7 +234,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() {
 		sanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)
-		if statusCode == http.StatusOK {
+		if statusCode == http.StatusCreated {
 			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
 		} else {
 			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
@@ -330,7 +330,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusCreated)
 	body := domain.ResponseMessage{
 		Message: "Successfully created ad",
 	}
@@ -344,7 +344,7 @@ func (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	logger.AccessLogger.Info("Completed CreatePlace request",
 		zap.String("request_id", requestID),
 		zap.Duration("duration", duration),
-		zap.Int("status", http.StatusOK),
+		zap.Int("status", http.StatusCreated),
 	)
 }
 
@@ -1056,7 +1056,7 @@ func (h *AdHandler) UpdatePriorityWithPayment(w http.ResponseWriter, r *http.Req
 		Amount:     card.DonationAmount,
 	})
 	if err != nil {
-		logger.AccessLogger.Error("Failed to delete ad from favorites", zap.String("request_id", requestID), zap.Error(err))
+		logger.AccessLogger.Error("Failed to update priority", zap.String("request_id", requestID), zap.Error(err))
 		st, ok := status.FromError(err)
 		if ok {
 			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
@@ -1067,7 +1067,7 @@ func (h *AdHandler) UpdatePriorityWithPayment(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
 	updatePriorResponse := domain.ResponseMessage{
-		Message: "Successfully updated from favorites",
+		Message: "Successfully update ad priority",
 	}
 	if _, err = easyjson.MarshalToWriter(updatePriorResponse, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
