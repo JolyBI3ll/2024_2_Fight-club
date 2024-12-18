@@ -118,9 +118,9 @@ func (c *Client) Read(userID string) {
 			// Логируем и отправляем клиенту сообщение об ошибке
 			logger.AccessLogger.Warn("Invalid message content received (only whitespace characters)",
 				zap.String("user_id", userID))
-			errMsg := map[string]string{
+			errMsg := map[string]interface{}{
 				"response": "Invalid message content: only whitespace characters, tabs, or line breaks are not allowed.",
-				"sent":     "false",
+				"sent":     false,
 			}
 			if writeErr := c.Socket.WriteJSON(errMsg); writeErr != nil {
 				logger.AccessLogger.Error("Failed to send invalid message content error to client",
@@ -141,9 +141,9 @@ func (c *Client) Read(userID string) {
 				zap.Error(rateErr))
 
 			// Сообщаем клиенту о блокировке
-			errMsg := map[string]string{
+			errMsg := map[string]interface{}{
 				"response": rateErr.Error(),
-				"sent":     "false",
+				"sent":     false,
 			}
 			if writeErr := c.Socket.WriteJSON(errMsg); writeErr != nil {
 				logger.AccessLogger.Error("Failed to send rate limit error to client",
@@ -160,9 +160,9 @@ func (c *Client) Read(userID string) {
 		select {
 		case c.ChatController.Messages <- msg:
 			// Возвращаем успешный ответ клиенту
-			successMsg := map[string]string{
+			successMsg := map[string]interface{}{
 				"response": "Message delivered successfully",
-				"sent":     "true",
+				"sent":     true,
 			}
 			if writeErr := c.Socket.WriteJSON(successMsg); writeErr != nil {
 				logger.AccessLogger.Error("Failed to send success message to client",
@@ -172,9 +172,9 @@ func (c *Client) Read(userID string) {
 		default:
 			logger.AccessLogger.Warn("Message channel is full, dropping message",
 				zap.String("user_id", userID))
-			errMsg := map[string]string{
+			errMsg := map[string]interface{}{
 				"response": "Message channel is full. Please try again later.",
-				"sent":     "false",
+				"sent":     false,
 			}
 			if writeErr := c.Socket.WriteJSON(errMsg); writeErr != nil {
 				logger.AccessLogger.Error("Failed to send channel full error to client",
