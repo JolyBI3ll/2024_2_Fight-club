@@ -5,12 +5,13 @@ import (
 	auth "2024_2_FIGHT-CLUB/internal/auth/controller"
 	chat "2024_2_FIGHT-CLUB/internal/chat/controller"
 	city "2024_2_FIGHT-CLUB/internal/cities/controller"
+	regions "2024_2_FIGHT-CLUB/internal/regions/controller"
 	review "2024_2_FIGHT-CLUB/internal/reviews/contoller"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler, cityHandler *city.CityHandler, chatHandler *chat.ChatHandler, reviewHandler *review.ReviewHandler) *mux.Router {
+func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler, cityHandler *city.CityHandler, chatHandler *chat.ChatHandler, reviewHandler *review.ReviewHandler, regionsHandler *regions.RegionHandler) *mux.Router {
 	router := mux.NewRouter()
 	api := "/api"
 
@@ -25,6 +26,8 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler, cityH
 	router.HandleFunc(api+"/session", authHandler.GetSessionData).Methods("GET")                   // Get session data
 	router.HandleFunc(api+"/users/{userId}/housing", adsHandler.GetUserPlaces).Methods("GET")      // Get User Ads
 	router.HandleFunc(api+"/users/{userId}/favorites", adsHandler.GetUserFavorites).Methods("GET") // Get User Favorites
+	router.HandleFunc(api+"/users/regions", authHandler.UpdateUserRegion).Methods("POST")
+	router.HandleFunc(api+"/users/regions/{regionName}", authHandler.DeleteUserRegion).Methods("DELETE")
 	// Ad Management Routes
 	router.HandleFunc(api+"/housing", adsHandler.GetAllPlaces).Methods("GET")                             // Get all ads
 	router.HandleFunc(api+"/housing/{adId}", adsHandler.GetOnePlace).Methods("GET")                       // Get ad by ID
@@ -51,6 +54,8 @@ func SetUpRoutes(authHandler *auth.AuthHandler, adsHandler *ads.AdHandler, cityH
 	router.HandleFunc(api+"/reviews/{hostId}", reviewHandler.UpdateReview).Methods("PUT")
 	// Payment Management Routes
 	router.HandleFunc(api+"/housing/{adId}/payment", adsHandler.UpdatePriorityWithPayment).Methods("PUT")
+	// Regions Management Routes
+	router.HandleFunc(api+"/users/{userId}/regions", regionsHandler.GetVisitedRegions).Methods("GET")
 	router.Handle(api+"/metrics", promhttp.Handler())
 
 	return router

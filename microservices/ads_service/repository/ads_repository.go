@@ -506,11 +506,6 @@ func (r *adRepository) DeletePlace(ctx context.Context, adId string, userId stri
 		return errors.New("error deleting place")
 	}
 
-	if err := r.db.Where("\"adId\" = ?", adId).Delete(&domain.Request{}).Error; err != nil {
-		logger.DBLogger.Error("Error deleting place", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
-		return errors.New("error deleting place")
-	}
-
 	if err := r.db.Delete(&ad).Error; err != nil {
 		logger.DBLogger.Error("Error deleting place", zap.String("adId", adId), zap.String("request_id", requestID), zap.Error(err))
 		return errors.New("error deleting place")

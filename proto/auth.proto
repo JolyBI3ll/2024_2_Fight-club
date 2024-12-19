@@ -12,6 +12,8 @@ service Auth {
   rpc GetAllUsers (Empty) returns (AllUsersResponse);
   rpc GetSessionData (GetSessionDataRequest) returns (SessionDataResponse);
   rpc RefreshCsrfToken (RefreshCsrfTokenRequest) returns (RefreshCsrfTokenResponse);
+  rpc UpdateUserRegions (UpdateUserRegionsRequest) returns (UpdateResponse);
+  rpc DeleteUserRegions (DeleteUserRegionsRequest) returns (UpdateResponse);
 }
 
 message RefreshCsrfTokenRequest {
@@ -114,5 +116,19 @@ message SessionDataResponse {
 
 message RefreshCsrfTokenResponse{
   string csrf_token = 1;
+}
+
+message DeleteUserRegionsRequest {
+  string Region = 1;
+  string authHeader = 2;
+  string session_id = 3;
+}
+
+message UpdateUserRegionsRequest {
+  string Region = 1;
+  google.protobuf.Timestamp StartVisitDate = 2;
+  google.protobuf.Timestamp EndVisitDate = 3;
+  string authHeader = 4;
+  string session_id = 5;
 }
 

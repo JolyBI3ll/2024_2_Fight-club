@@ -213,3 +213,92 @@ func (r *authRepository) GetUserByEmail(ctx context.Context, email string) (*dom
 	logger.DBLogger.Info("Successfully fetched user by email", zap.String("request_id", requestID), zap.String("email", email))
 	return &user, nil
 }
+
+func (r *authRepository) UpdateUserRegion(ctx context.Context, region domain.UpdateUserRegion, userID string) error {
+	start := time.Now()
+	requestID := middleware.GetRequestID(ctx)
+	logger.DBLogger.Info("UpdateUserRegions called",
+		zap.String("request_id", requestID),
+		zap.String("userID", userID),
+	)
+
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("UpdateUserRegions", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("UpdateUserRegions", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("UpdateUserRegions").Observe(duration)
+	}()
+
+	var visitedRegion domain.VisitedRegions
+	visitedRegion.Name = region.RegionName
+	startVisitDate, parseErr := time.Parse("2006-01-02", region.StartVisitedDate)
+	if parseErr != nil {
+		logger.DBLogger.Error("Invalid date format", zap.String("request_id", requestID), zap.Error(parseErr))
+		return parseErr
+	}
+	visitedRegion.StartVisitDate = startVisitDate
+	endVisitDate, parseErr := time.Parse("2006-01-02", region.EndVisitedDate)
+	if parseErr != nil {
+		logger.DBLogger.Error("Invalid date format", zap.String("request_id", requestID), zap.Error(parseErr))
+		return parseErr
+	}
+	visitedRegion.EndVisitDate = endVisitDate
+	visitedRegion.UserID = userID
+	err = r.db.WithContext(ctx).Create(&visitedRegion).Error
+	if err != nil {
+		logger.DBLogger.Error("Failed to insert visited regions into database",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		return err
+	}
+
+	logger.DBLogger.Info("Successfully updated user regions",
+		zap.String("request_id", requestID),
+		zap.String("userID", userID),
+	)
+
+	return nil
+}
+
+func (r *authRepository) DeleteUserRegion(ctx context.Context, regionName string, userID string) error {
+	start := time.Now()
+	requestID := middleware.GetRequestID(ctx)
+	logger.DBLogger.Info("DeleteUserRegion called",
+		zap.String("request_id", requestID),
+		zap.String("userID", userID),
+		zap.String("regionName", regionName),
+	)
+
+	var err error
+	defer func() {
+		if err != nil {
+			metrics.RepoErrorsTotal.WithLabelValues("DeleteUserRegion", "error", err.Error()).Inc()
+		} else {
+			metrics.RepoRequestTotal.WithLabelValues("DeleteUserRegion", "success").Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.RepoRequestDuration.WithLabelValues("DeleteUserRegion").Observe(duration)
+	}()
+
+	err = r.db.WithContext(ctx).Where("name = ? AND \"userId\" = ?", regionName, userID).Delete(&domain.VisitedRegions{}).Error
+	if err != nil {
+		logger.DBLogger.Error("Failed to delete region from database",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		return err
+	}
+
+	logger.DBLogger.Info("Successfully deleted user region from database",
+		zap.String("request_id", requestID),
+		zap.String("userID", userID),
+		zap.String("regionName", regionName),
+	)
+
+	return nil
+}

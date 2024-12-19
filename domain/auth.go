@@ -29,6 +29,13 @@ type AuthResponse struct {
 	User      AuthData `json:"user"`
 }
 
+//easyjson:json
+type UpdateUserRegion struct {
+	RegionName       string `json:"regionName"`
+	StartVisitedDate string `json:"startVisitedDate"`
+	EndVisitedDate   string `json:"endVisitedDate"`
+}
+
 type AuthData struct {
 	Id       string `json:"id"`
 	Username string `json:"username"`
@@ -81,4 +88,6 @@ type AuthRepository interface {
 	GetUserById(ctx context.Context, userID string) (*User, error)
 	GetUserByName(ctx context.Context, username string) (*User, error)
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
+	UpdateUserRegion(ctx context.Context, region UpdateUserRegion, userId string) error
+	DeleteUserRegion(ctx context.Context, regionName string, userId string) error
 }

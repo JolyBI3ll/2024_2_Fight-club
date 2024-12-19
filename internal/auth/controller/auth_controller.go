@@ -793,6 +793,206 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
+func (h *AuthHandler) UpdateUserRegion(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
+	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
+
+	logger.AccessLogger.Info("Received UpdateUserRegions request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
+
+	var region domain.UpdateUserRegion
+	if err = easyjson.UnmarshalFromReader(r.Body, &region); err != nil {
+		logger.AccessLogger.Error("Failed to decode request body",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	authHeader := r.Header.Get("X-CSRF-Token")
+	startVisitTime, err := time.Parse("2006-01-02", region.StartVisitedDate)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to parse start visit date",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	endVisitTime, err := time.Parse("2006-01-02", region.EndVisitedDate)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to parse end visit date",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	grpcRegion := &gen.UpdateUserRegionsRequest{
+		Region:         region.RegionName,
+		StartVisitDate: timestamppb.New(startVisitTime),
+		EndVisitDate:   timestamppb.New(endVisitTime),
+		AuthHeader:     authHeader,
+		SessionId:      sessionID,
+	}
+
+	_, err = h.client.UpdateUserRegions(ctx, grpcRegion)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to update user regions",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	UpdateUserRegionsResponse := domain.ResponseMessage{
+		Message: "Successfully update user regions",
+	}
+	if _, err = easyjson.MarshalToWriter(UpdateUserRegionsResponse, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode update response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed LoginUser request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
+}
+
+func (h *AuthHandler) DeleteUserRegion(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
+	defer cancel()
+
+	var err error
+	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
+
+	logger.AccessLogger.Info("Received DeleteUserRegion request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
+
+	regionName := mux.Vars(r)["regionName"]
+
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		err = errors.New("failed to get session id from request cookie")
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	authHeader := r.Header.Get("X-CSRF-Token")
+	if authHeader == "" {
+		logger.AccessLogger.Error("Missing X-CSRF-Token header",
+			zap.String("request_id", requestID))
+		err = errors.New("missing X-CSRF-Token header")
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	grpcRequest := &gen.DeleteUserRegionsRequest{
+		Region:     regionName,
+		AuthHeader: authHeader,
+		SessionId:  sessionID,
+	}
+
+	_, err = h.client.DeleteUserRegions(ctx, grpcRequest)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to delete user region via gRPC",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	deleteResponse := domain.ResponseMessage{
+		Message: "Successfully deleted user region",
+	}
+	if _, err = easyjson.MarshalToWriter(deleteResponse, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode delete response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed DeleteUserRegion request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
+}
+
 func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID string) int {
 	logger.AccessLogger.Error("Handling error",
 		zap.String("request_id", requestID),

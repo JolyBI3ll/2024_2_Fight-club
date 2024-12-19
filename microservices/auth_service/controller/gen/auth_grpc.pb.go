@@ -19,14 +19,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Auth_RegisterUser_FullMethodName     = "/auth.Auth/RegisterUser"
-	Auth_LoginUser_FullMethodName        = "/auth.Auth/LoginUser"
-	Auth_LogoutUser_FullMethodName       = "/auth.Auth/LogoutUser"
-	Auth_PutUser_FullMethodName          = "/auth.Auth/PutUser"
-	Auth_GetUserById_FullMethodName      = "/auth.Auth/GetUserById"
-	Auth_GetAllUsers_FullMethodName      = "/auth.Auth/GetAllUsers"
-	Auth_GetSessionData_FullMethodName   = "/auth.Auth/GetSessionData"
-	Auth_RefreshCsrfToken_FullMethodName = "/auth.Auth/RefreshCsrfToken"
+	Auth_RegisterUser_FullMethodName      = "/auth.Auth/RegisterUser"
+	Auth_LoginUser_FullMethodName         = "/auth.Auth/LoginUser"
+	Auth_LogoutUser_FullMethodName        = "/auth.Auth/LogoutUser"
+	Auth_PutUser_FullMethodName           = "/auth.Auth/PutUser"
+	Auth_GetUserById_FullMethodName       = "/auth.Auth/GetUserById"
+	Auth_GetAllUsers_FullMethodName       = "/auth.Auth/GetAllUsers"
+	Auth_GetSessionData_FullMethodName    = "/auth.Auth/GetSessionData"
+	Auth_RefreshCsrfToken_FullMethodName  = "/auth.Auth/RefreshCsrfToken"
+	Auth_UpdateUserRegions_FullMethodName = "/auth.Auth/UpdateUserRegions"
+	Auth_DeleteUserRegions_FullMethodName = "/auth.Auth/DeleteUserRegions"
 )
 
 // AuthClient is the client API for Auth service.
@@ -41,6 +43,8 @@ type AuthClient interface {
 	GetAllUsers(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*AllUsersResponse, error)
 	GetSessionData(ctx context.Context, in *GetSessionDataRequest, opts ...grpc.CallOption) (*SessionDataResponse, error)
 	RefreshCsrfToken(ctx context.Context, in *RefreshCsrfTokenRequest, opts ...grpc.CallOption) (*RefreshCsrfTokenResponse, error)
+	UpdateUserRegions(ctx context.Context, in *UpdateUserRegionsRequest, opts ...grpc.CallOption) (*UpdateResponse, error)
+	DeleteUserRegions(ctx context.Context, in *DeleteUserRegionsRequest, opts ...grpc.CallOption) (*UpdateResponse, error)
 }
 
 type authClient struct {
@@ -131,6 +135,26 @@ func (c *authClient) RefreshCsrfToken(ctx context.Context, in *RefreshCsrfTokenR
 	return out, nil
 }
 
+func (c *authClient) UpdateUserRegions(ctx context.Context, in *UpdateUserRegionsRequest, opts ...grpc.CallOption) (*UpdateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateResponse)
+	err := c.cc.Invoke(ctx, Auth_UpdateUserRegions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) DeleteUserRegions(ctx context.Context, in *DeleteUserRegionsRequest, opts ...grpc.CallOption) (*UpdateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateResponse)
+	err := c.cc.Invoke(ctx, Auth_DeleteUserRegions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServer is the server API for Auth service.
 // All implementations must embed UnimplementedAuthServer
 // for forward compatibility.
@@ -143,6 +167,8 @@ type AuthServer interface {
 	GetAllUsers(context.Context, *Empty) (*AllUsersResponse, error)
 	GetSessionData(context.Context, *GetSessionDataRequest) (*SessionDataResponse, error)
 	RefreshCsrfToken(context.Context, *RefreshCsrfTokenRequest) (*RefreshCsrfTokenResponse, error)
+	UpdateUserRegions(context.Context, *UpdateUserRegionsRequest) (*UpdateResponse, error)
+	DeleteUserRegions(context.Context, *DeleteUserRegionsRequest) (*UpdateResponse, error)
 	mustEmbedUnimplementedAuthServer()
 }
 
@@ -176,6 +202,12 @@ func (UnimplementedAuthServer) GetSessionData(context.Context, *GetSessionDataRe
 }
 func (UnimplementedAuthServer) RefreshCsrfToken(context.Context, *RefreshCsrfTokenRequest) (*RefreshCsrfTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RefreshCsrfToken not implemented")
+}
+func (UnimplementedAuthServer) UpdateUserRegions(context.Context, *UpdateUserRegionsRequest) (*UpdateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateUserRegions not implemented")
+}
+func (UnimplementedAuthServer) DeleteUserRegions(context.Context, *DeleteUserRegionsRequest) (*UpdateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserRegions not implemented")
 }
 func (UnimplementedAuthServer) mustEmbedUnimplementedAuthServer() {}
 func (UnimplementedAuthServer) testEmbeddedByValue()              {}
@@ -342,6 +374,42 @@ func _Auth_RefreshCsrfToken_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Auth_UpdateUserRegions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateUserRegionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).UpdateUserRegions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Auth_UpdateUserRegions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).UpdateUserRegions(ctx, req.(*UpdateUserRegionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_DeleteUserRegions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteUserRegionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).DeleteUserRegions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Auth_DeleteUserRegions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).DeleteUserRegions(ctx, req.(*DeleteUserRegionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Auth_ServiceDesc is the grpc.ServiceDesc for Auth service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -380,6 +448,14 @@ var Auth_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RefreshCsrfToken",
 			Handler:    _Auth_RefreshCsrfToken_Handler,
+		},
+		{
+			MethodName: "UpdateUserRegions",
+			Handler:    _Auth_UpdateUserRegions_Handler,
+		},
+		{
+			MethodName: "DeleteUserRegions",
+			Handler:    _Auth_DeleteUserRegions_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

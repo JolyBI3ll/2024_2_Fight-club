@@ -319,6 +319,109 @@ func (h *GrpcAuthHandler) GetSessionData(ctx context.Context, in *gen.GetSession
 	}, nil
 }
 
+func (h *GrpcAuthHandler) UpdateUserRegions(ctx context.Context, in *gen.UpdateUserRegionsRequest) (*gen.UpdateResponse, error) {
+	requestID := middleware.GetRequestID(ctx)
+	sanitizer := bluemonday.UGCPolicy()
+	logger.AccessLogger.Info("Received UpdateUserRegions request in microservice",
+		zap.String("request_id", requestID))
+
+	if in.AuthHeader == "" {
+		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
+			zap.String("request_id", requestID),
+			zap.Error(errors.New("missing X-CSRF-Token header")),
+		)
+		return nil, errors.New("missing X-CSRF-Token header")
+	}
+
+	tokenString := in.AuthHeader[len("Bearer "):]
+	_, err := h.jwtToken.Validate(tokenString, in.SessionId)
+	if err != nil {
+		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+		return nil, errors.New("invalid JWT token")
+	}
+
+	userID, err := h.sessionService.GetUserID(ctx, in.SessionId)
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to get user ID from session",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		return nil, errors.New("failed to get user ID")
+	}
+
+	var domainRegions domain.UpdateUserRegion
+	domainRegions.RegionName = sanitizer.Sanitize(in.Region)
+	startVisitedDate := ""
+	if in.StartVisitDate != nil {
+		startVisitedDate = in.StartVisitDate.AsTime().Format("2006-01-02")
+	}
+	domainRegions.StartVisitedDate = startVisitedDate
+	endVisitedDate := ""
+	if in.EndVisitDate != nil {
+		endVisitedDate = in.EndVisitDate.AsTime().Format("2006-01-02")
+	}
+	domainRegions.EndVisitedDate = endVisitedDate
+
+	err = h.usecase.UpdateUserRegions(ctx, domainRegions, userID)
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to put user",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		return nil, err
+	}
+	return &gen.UpdateResponse{
+		Response: "Success",
+	}, nil
+}
+
+func (h *GrpcAuthHandler) DeleteUserRegions(ctx context.Context, in *gen.DeleteUserRegionsRequest) (*gen.UpdateResponse, error) {
+	requestID := middleware.GetRequestID(ctx)
+	logger.AccessLogger.Info("Received DeleteUserRegion request in microservice",
+		zap.String("request_id", requestID))
+
+	if in.AuthHeader == "" {
+		logger.AccessLogger.Warn("Failed to X-CSRF-Token header",
+			zap.String("request_id", requestID),
+			zap.Error(errors.New("missing X-CSRF-Token header")),
+		)
+		return nil, errors.New("missing X-CSRF-Token header")
+	}
+
+	tokenString := in.AuthHeader[len("Bearer "):]
+	_, err := h.jwtToken.Validate(tokenString, in.SessionId)
+	if err != nil {
+		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+		return nil, errors.New("invalid JWT token")
+	}
+
+	userID, err := h.sessionService.GetUserID(ctx, in.SessionId)
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to get user ID from session",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		return nil, errors.New("failed to get user ID")
+	}
+
+	err = h.usecase.DeleteUserRegion(ctx, in.Region, userID)
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to put user",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		return nil, err
+	}
+
+	logger.AccessLogger.Info("Successfully deleted user region",
+		zap.String("request_id", requestID),
+		zap.String("userId", userID),
+		zap.String("region", in.Region),
+	)
+
+	return &gen.UpdateResponse{
+		Response: "Region successfully deleted",
+	}, nil
+}
+
 func (h *GrpcAuthHandler) RefreshCsrfToken(ctx context.Context, in *gen.RefreshCsrfTokenRequest) (*gen.RefreshCsrfTokenResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	logger.AccessLogger.Info("Received RefreshCsrfToken request in microservice",
