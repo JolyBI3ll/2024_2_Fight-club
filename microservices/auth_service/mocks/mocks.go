@@ -52,11 +52,13 @@ func (m *MockServiceSession) GetSessionData(ctx context.Context, sessionID strin
 }
 
 type MockAuthUseCase struct {
-	MockRegisterUser func(ctx context.Context, creds *domain.User) error
-	MockLoginUser    func(ctx context.Context, creds *domain.User) (*domain.User, error)
-	MockPutUser      func(ctx context.Context, creds *domain.User, userID string, avatar []byte) error
-	MockGetAllUser   func(ctx context.Context) ([]domain.User, error)
-	MockGetUserById  func(ctx context.Context, userID string) (*domain.User, error)
+	MockRegisterUser      func(ctx context.Context, creds *domain.User) error
+	MockLoginUser         func(ctx context.Context, creds *domain.User) (*domain.User, error)
+	MockPutUser           func(ctx context.Context, creds *domain.User, userID string, avatar []byte) error
+	MockGetAllUser        func(ctx context.Context) ([]domain.User, error)
+	MockGetUserById       func(ctx context.Context, userID string) (*domain.User, error)
+	MockUpdateUserRegions func(ctx context.Context, regions domain.UpdateUserRegion, userId string) error
+	MockDeleteUserRegion  func(ctx context.Context, regionName string, userID string) error
 }
 
 func (m *MockAuthUseCase) RegisterUser(ctx context.Context, creds *domain.User) error {
@@ -75,18 +77,28 @@ func (m *MockAuthUseCase) GetAllUser(ctx context.Context) ([]domain.User, error)
 	return m.MockGetAllUser(ctx)
 }
 
+func (m *MockAuthUseCase) UpdateUserRegions(ctx context.Context, regions domain.UpdateUserRegion, userId string) error {
+	return m.MockUpdateUserRegions(ctx, regions, userId)
+}
+
+func (m *MockAuthUseCase) DeleteUserRegion(ctx context.Context, regionName string, userID string) error {
+	return m.MockDeleteUserRegion(ctx, regionName, userID)
+}
+
 func (m *MockAuthUseCase) GetUserById(ctx context.Context, userID string) (*domain.User, error) {
 	return m.MockGetUserById(ctx, userID)
 }
 
 type MockAuthRepository struct {
-	GetUserByNameFunc  func(ctx context.Context, username string) (*domain.User, error)
-	CreateUserFunc     func(ctx context.Context, user *domain.User) error
-	SaveUserFunc       func(ctx context.Context, user *domain.User) error
-	PutUserFunc        func(ctx context.Context, user *domain.User, userID string) error
-	GetAllUserFunc     func(ctx context.Context) ([]domain.User, error)
-	GetUserByIdFunc    func(ctx context.Context, userID string) (*domain.User, error)
-	MockGetUserByEmail func(ctx context.Context, email string) (*domain.User, error)
+	GetUserByNameFunc    func(ctx context.Context, username string) (*domain.User, error)
+	CreateUserFunc       func(ctx context.Context, user *domain.User) error
+	SaveUserFunc         func(ctx context.Context, user *domain.User) error
+	PutUserFunc          func(ctx context.Context, user *domain.User, userID string) error
+	GetAllUserFunc       func(ctx context.Context) ([]domain.User, error)
+	GetUserByIdFunc      func(ctx context.Context, userID string) (*domain.User, error)
+	MockGetUserByEmail   func(ctx context.Context, email string) (*domain.User, error)
+	MockUpdateUserRegion func(ctx context.Context, region domain.UpdateUserRegion, userId string) error
+	MockDeleteUserRegion func(ctx context.Context, regionName string, userId string) error
 }
 
 func (m *MockAuthRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
@@ -115,6 +127,14 @@ func (m *MockAuthRepository) GetAllUser(ctx context.Context) ([]domain.User, err
 
 func (m *MockAuthRepository) GetUserById(ctx context.Context, userID string) (*domain.User, error) {
 	return m.GetUserByIdFunc(ctx, userID)
+}
+
+func (m *MockAuthRepository) UpdateUserRegion(ctx context.Context, region domain.UpdateUserRegion, userId string) error {
+	return m.MockUpdateUserRegion(ctx, region, userId)
+}
+
+func (m *MockAuthRepository) DeleteUserRegion(ctx context.Context, regionName string, userId string) error {
+	return m.MockDeleteUserRegion(ctx, regionName, userId)
 }
 
 type MockMinioService struct {
@@ -165,4 +185,14 @@ func (m *MockGrpcClient) GetSessionData(ctx context.Context, in *gen.GetSessionD
 func (m *MockGrpcClient) RefreshCsrfToken(ctx context.Context, in *gen.RefreshCsrfTokenRequest, opts ...grpc.CallOption) (*gen.RefreshCsrfTokenResponse, error) {
 	args := m.Called(ctx, in, opts)
 	return args.Get(0).(*gen.RefreshCsrfTokenResponse), args.Error(1)
+}
+
+func (m *MockGrpcClient) UpdateUserRegions(ctx context.Context, in *gen.UpdateUserRegionsRequest, opts ...grpc.CallOption) (*gen.UpdateResponse, error) {
+	args := m.Called(ctx, in, opts)
+	return args.Get(0).(*gen.UpdateResponse), args.Error(1)
+}
+
+func (m *MockGrpcClient) DeleteUserRegions(ctx context.Context, in *gen.DeleteUserRegionsRequest, opts ...grpc.CallOption) (*gen.UpdateResponse, error) {
+	args := m.Called(ctx, in, opts)
+	return args.Get(0).(*gen.UpdateResponse), args.Error(1)
 }
