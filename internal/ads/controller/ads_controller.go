@@ -1094,7 +1094,7 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 		Error: err.Error(),
 	}
 	switch err.Error() {
-	case "ad not found", "ad date not found", "image not found":
+	case "ad not found", "ad date not found", "image not found", "error fetching all places":
 		statusCode = http.StatusNotFound
 	case "ad already exists", "roomsNumber out of range", "not owner of ad":
 		statusCode = http.StatusConflict
@@ -1110,7 +1110,7 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 		"failed to read file", "failed to encode response", "invalid rating value",
 		"cant access other user favorites":
 		statusCode = http.StatusBadRequest
-	case "error fetching all places", "error fetching images for ad", "error fetching user",
+	case "error fetching images for ad", "error fetching user",
 		"error finding user", "error finding city", "error creating place", "error creating date",
 		"error saving place", "error updating place", "error updating date",
 		"error updating views count", "error deleting place", "get places error",
