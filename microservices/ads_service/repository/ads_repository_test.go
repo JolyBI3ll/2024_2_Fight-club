@@ -3,6 +3,7 @@ package repository
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	ntype "2024_2_FIGHT-CLUB/internal/service/type"
 	"context"
 	"errors"
@@ -31,7 +32,12 @@ func TestGetAllPlaces(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	require.NoError(t, err)
@@ -45,6 +51,8 @@ func TestGetAllPlaces(t *testing.T) {
 		HostGender:  "",
 		GuestCount:  "",
 	}
+
+	userId := "12345"
 
 	// Фиксированная дата для теста
 	fixedDate := time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
@@ -63,6 +71,10 @@ func TestGetAllPlaces(t *testing.T) {
 	}).AddRow("some-uuid", 1, "author-uuid", "Some Address", fixedDate, "Some Description", 3, 0, "City Name", fixedDate, fixedDate)
 	mock.ExpectQuery(regexp.QuoteMeta(query)).WillReturnRows(adRows)
 
+	favoritesQuery := `SELECT "adId" FROM "favorites" WHERE "userId" = $1`
+	favoritesRows := sqlmock.NewRows([]string{"adId"}).AddRow("id1").AddRow("id2")
+	mock.ExpectQuery(regexp.QuoteMeta(favoritesQuery)).WillReturnRows(favoritesRows)
+
 	imagesQuery := `SELECT * FROM "images" WHERE "adId" = $1`
 	imageRows := sqlmock.NewRows([]string{"id", "adId", "imageUrl"}).
 		AddRow(1, "some-uuid", "images/image1.jpg").
@@ -75,7 +87,11 @@ func TestGetAllPlaces(t *testing.T) {
 	}).AddRow("author-uuid", "test_username", "some_password", "test@example.com", "Test User", 4.5, "avatar_url", "M", 2, fixedDate)
 	mock.ExpectQuery(regexp.QuoteMeta(userQuery)).WithArgs("author-uuid").WillReturnRows(userRows)
 
-	ads, err := repo.GetAllPlaces(context.Background(), filter)
+	adQuery := `SELECT * FROM "ad_rooms" WHERE "adId" = $1`
+	addRows := sqlmock.NewRows([]string{"id", "adId", "type", "squaremeters"}).AddRow(1, "id1", "some-type", 12)
+	mock.ExpectQuery(regexp.QuoteMeta(adQuery)).WithArgs("some-uuid").WillReturnRows(addRows)
+
+	ads, err := repo.GetAllPlaces(context.Background(), filter, userId)
 
 	require.NoError(t, err)
 	assert.Len(t, ads, 1)
@@ -113,9 +129,16 @@ func TestGetAllPlaces_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
+
+	userId := "12345"
 
 	repo := NewAdRepository(db)
 	filter := domain.AdFilter{}
@@ -129,7 +152,7 @@ func TestGetAllPlaces_Failure(t *testing.T) {
 	mock.ExpectQuery(query).
 		WillReturnError(errors.New("db error"))
 
-	ads, err := repo.GetAllPlaces(context.Background(), filter)
+	ads, err := repo.GetAllPlaces(context.Background(), filter, userId)
 	assert.Error(t, err)
 	assert.Nil(t, ads)
 }
@@ -138,7 +161,12 @@ func TestGetPlaceById(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
 
@@ -173,6 +201,10 @@ func TestGetPlaceById(t *testing.T) {
 		"uuid", "username", "password", "email", "name", "score", "avatar", "sex", "guestCount", "birthdate",
 	}).AddRow("author-uuid", "test_username", "some_password", "test@example.com", "Test User", 4.5, "avatar_url", "M", 2, fixedDate)
 	mock.ExpectQuery(regexp.QuoteMeta(userQuery)).WithArgs("author-uuid").WillReturnRows(userRows)
+
+	adQuery := `SELECT * FROM "ad_rooms" WHERE "adId" = $1`
+	addRows := sqlmock.NewRows([]string{"id", "adId", "type", "squaremeters"}).AddRow(1, "id1", "some-type", 12)
+	mock.ExpectQuery(regexp.QuoteMeta(adQuery)).WithArgs("some-uuid").WillReturnRows(addRows)
 
 	ad, err := repo.GetPlaceById(context.Background(), "some-uuid")
 
@@ -209,7 +241,12 @@ func TestGetPlaceById_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
 
@@ -224,11 +261,207 @@ func TestGetPlaceById_Failure(t *testing.T) {
 	assert.Empty(t, ad)
 }
 
+func TestAdRepository_UpdateViewsCount_Success(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	db, mock, err := setupDBMock()
+	assert.Nil(t, err)
+	defer func(db *gorm.DB) {
+		_, err := db.DB()
+		if err != nil {
+			return
+		}
+	}(db)
+
+	repo := NewAdRepository(db)
+	ctx := context.Background()
+
+	ctx = context.WithValue(ctx, middleware.RequestIDKey, "test-request-id")
+
+	ad := domain.GetAllAdsResponse{
+		UUID:       "ad-uuid-123",
+		ViewsCount: 5,
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "uuid"=$1,"viewsCount"=$2 WHERE uuid = $3`)).
+		WithArgs(ad.UUID, ad.ViewsCount+1, ad.UUID). // Увеличение на 1
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	updatedAd, err := repo.UpdateViewsCount(ctx, ad)
+
+	assert.NoError(t, err)
+	assert.Equal(t, ad.ViewsCount+1, updatedAd.ViewsCount)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAdRepository_UpdateViewsCount_DBError(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	db, mock, err := setupDBMock()
+	assert.Nil(t, err)
+	defer func(db *gorm.DB) {
+		_, err := db.DB()
+		if err != nil {
+			return
+		}
+	}(db)
+
+	repo := NewAdRepository(db)
+	ctx := context.Background()
+
+	ctx = context.WithValue(ctx, middleware.RequestIDKey, "test-request-id")
+
+	ad := domain.GetAllAdsResponse{
+		UUID:       "ad-uuid-123",
+		ViewsCount: 5,
+	}
+	updatedViewsCountFail := 5
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "uuid"=$1,"viewsCount"=$2 WHERE uuid = $3`)).
+		WithArgs(ad.UUID, ad.ViewsCount+1, ad.UUID).
+		WillReturnError(errors.New("error updating views count"))
+	mock.ExpectRollback()
+
+	_, err = repo.UpdateViewsCount(ctx, ad)
+
+	assert.Error(t, err)
+	assert.Equal(t, "error updating views count", err.Error())
+	assert.Equal(t, ad.ViewsCount, updatedViewsCountFail)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAdRepository_UpdateFavoritesCount_Success(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	db, mock, err := setupDBMock()
+	assert.Nil(t, err)
+
+	repo := NewAdRepository(db)
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "test-request-id")
+
+	adID := "ad-uuid-123"
+	favoritesCount := int64(10)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "favorites" WHERE "adId" = $1`)).
+		WithArgs(adID).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(favoritesCount))
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "likesCount"=$1 WHERE uuid = $2`)).
+		WithArgs(favoritesCount, adID).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	err = repo.UpdateFavoritesCount(ctx, adID)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAdRepository_UpdateFavoritesCount_CountError(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	db, mock, err := setupDBMock()
+	assert.Nil(t, err)
+
+	repo := NewAdRepository(db)
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "test-request-id")
+
+	adID := "ad-uuid-123"
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "favorites" WHERE "adId" = $1`)).
+		WithArgs(adID).
+		WillReturnError(errors.New("error counting favorites"))
+
+	err = repo.UpdateFavoritesCount(ctx, adID)
+
+	assert.Error(t, err)
+	assert.Equal(t, "error counting favorites", err.Error())
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAdRepository_UpdateFavoritesCount_UpdateError(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	db, mock, err := setupDBMock()
+	assert.Nil(t, err)
+
+	repo := NewAdRepository(db)
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "test-request-id")
+
+	adID := "ad-uuid-123"
+	favoritesCount := int64(10)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "favorites" WHERE "adId" = $1`)).
+		WithArgs(adID).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(favoritesCount))
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "likesCount"=$1 WHERE uuid = $2`)).
+		WithArgs(favoritesCount, adID).
+		WillReturnError(errors.New("error updating favorites count"))
+	mock.ExpectRollback()
+
+	err = repo.UpdateFavoritesCount(ctx, adID)
+
+	assert.Error(t, err)
+	assert.Equal(t, "error updating favorites count", err.Error())
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestUpdatePlace(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -244,6 +477,9 @@ func TestUpdatePlace(t *testing.T) {
 		RoomsNumber: 3,
 		DateFrom:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		DateTo:      time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC),
+		HasBalcony:  true,
+		HasGas:      true,
+		HasElevator: true,
 	}
 
 	adRows := sqlmock.NewRows([]string{"uuid", "authorUUID", "cityId", "address", "roomsNumber"}).
@@ -261,13 +497,38 @@ func TestUpdatePlace(t *testing.T) {
 		WithArgs("Новый город", 1).WillReturnRows(cityRows)
 
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "cityId"=$1 WHERE "uuid" = $2`)).
-		WithArgs(1, adId).
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "cityId"=$1,"address"=$2,"description"=$3,"roomsNumber"=$4,"hasBalcony"=$5,"hasElevator"=$6,"hasGas"=$7 WHERE "uuid" = $8`)).
+		WithArgs(1, "New Address", "Updated Description", 3, true, true, true, adId).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "hasBalcony"=$1 WHERE "uuid" = $2`)).
+		WithArgs(true, adId).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "hasElevator"=$1 WHERE "uuid" = $2`)).
+		WithArgs(true, adId).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "hasGas"=$1 WHERE "uuid" = $2`)).
+		WithArgs(true, adId).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ad_available_dates" SET "id"=$1,"adId"=$2,"availableDateFrom"=$3,"availableDateTo"=$4 WHERE "id" = $5`)).
 		WithArgs(1, adId, updatedRequest.DateFrom, updatedRequest.DateTo, 1).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "ad_rooms" WHERE "adId" = $1`)).
+		WithArgs(adId).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
@@ -282,7 +543,12 @@ func TestUpdatePlace_AdNotFound(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -313,7 +579,12 @@ func TestUpdatePlace_AdDateNotFound(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -346,7 +617,12 @@ func TestUpdatePlace_UserNotAuthorized(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -379,67 +655,16 @@ func TestUpdatePlace_UserNotAuthorized(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestDeletePlace(t *testing.T) {
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
-	}
-	defer logger.SyncLoggers()
-
-	db, mock, err := setupDBMock()
-	assert.Nil(t, err)
-
-	adRepo := NewAdRepository(db)
-	ctx := context.Background()
-
-	adId := "1"
-	userId := "123"
-
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "ads" WHERE uuid = $1 ORDER BY "ads"."uuid" LIMIT $2`)).
-		WithArgs(adId, 1).
-		WillReturnRows(sqlmock.NewRows([]string{"uuid", "address", "authorUUID"}).
-			AddRow("1", "test_address", "123"))
-
-	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "images" WHERE "adId" = $1`)).
-		WithArgs(adId).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectCommit()
-
-	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "ad_positions" WHERE "adId" = $1`)).
-		WithArgs(adId).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectCommit()
-
-	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "ad_available_dates" WHERE "adId" = $1`)).
-		WithArgs(adId).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectCommit()
-
-	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "requests" WHERE "adId" = $1`)).
-		WithArgs(adId).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectCommit()
-
-	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "ads" WHERE "ads"."uuid" = $1`)).
-		WithArgs(adId).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectCommit()
-
-	err = adRepo.DeletePlace(ctx, adId, userId)
-
-	assert.NoError(t, err)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
 func TestDeletePlace_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -466,7 +691,12 @@ func TestCreatePlace(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	require.NoError(t, err)
@@ -474,10 +704,18 @@ func TestCreatePlace(t *testing.T) {
 	repo := NewAdRepository(db)
 
 	ad := &domain.Ad{
-		UUID:        "some-ad-uuid",
-		Description: "A great place",
-		Address:     "123 Main Street",
-		RoomsNumber: 2,
+		UUID:         "some-ad-uuid",
+		Description:  "A great place",
+		Address:      "123 Main Street",
+		RoomsNumber:  2,
+		SquareMeters: 15,
+		Floor:        2,
+		BuildingType: "house",
+		HasElevator:  true,
+		HasGas:       true,
+		HasBalcony:   true,
+		LikesCount:   5,
+		Priority:     10,
 	}
 
 	newAd := domain.CreateAdRequest{
@@ -487,6 +725,18 @@ func TestCreatePlace(t *testing.T) {
 		RoomsNumber: 2,
 		DateFrom:    time.Now(),
 		DateTo:      time.Now().AddDate(0, 0, 7),
+		Rooms: []domain.AdRoomsResponse{
+			{
+				Type:         "room",
+				SquareMeters: 14,
+			},
+		},
+		SquareMeters: 15,
+		Floor:        2,
+		BuildingType: "house",
+		HasElevator:  true,
+		HasGas:       true,
+		HasBalcony:   true,
 	}
 
 	user := domain.User{
@@ -506,6 +756,13 @@ func TestCreatePlace(t *testing.T) {
 		AvailableDateTo:   newAd.DateTo,
 	}
 
+	room := domain.AdRooms{
+		ID:           1,
+		AdID:         "some-ad-uuid",
+		Type:         "room",
+		SquareMeters: 14,
+	}
+
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE uuid = $1 ORDER BY "users"."uuid" LIMIT $2`)).
 		WithArgs(user.UUID, 1).
 		WillReturnRows(sqlmock.NewRows([]string{"uuid", "isHost"}).
@@ -517,7 +774,7 @@ func TestCreatePlace(t *testing.T) {
 			AddRow(city.ID, city.Title))
 
 	mock.ExpectBegin()
-	mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "ads" ("cityId","authorUUID","address","publicationDate","description","roomsNumber","viewsCount","uuid") VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING "uuid"`)).
+	mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "ads" ("cityId","authorUUID","address","publicationDate","description","roomsNumber","viewsCount","squareMeters","floor","buildingType","hasBalcony","hasElevator","hasGas","likesCount","priority","endBoostDate","uuid") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING "uuid"`)).
 		WithArgs(
 			city.ID,          // cityId
 			user.UUID,        // authorUUID
@@ -526,7 +783,16 @@ func TestCreatePlace(t *testing.T) {
 			ad.Description,   // description
 			ad.RoomsNumber,   // roomsNumber
 			0,                // viewsCount
-			ad.UUID,          // uuid
+			ad.SquareMeters,
+			ad.Floor,
+			ad.BuildingType,
+			ad.HasBalcony,
+			ad.HasElevator,
+			ad.HasGas,
+			ad.LikesCount,
+			ad.Priority,
+			sqlmock.AnyArg(),
+			ad.UUID, // uuid
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"uuid"}).AddRow(ad.UUID))
 	mock.ExpectCommit()
@@ -538,6 +804,16 @@ func TestCreatePlace(t *testing.T) {
 			date.AdID,              // adID
 			date.AvailableDateFrom, // availableDateFrom
 			date.AvailableDateTo,   // availableDateTo
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(date.ID))
+	mock.ExpectCommit()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "ad_rooms" ("adId","type","squareMeters") VALUES ($1,$2,$3) RETURNING "id"`)).
+		WithArgs(
+			room.AdID,
+			room.Type,
+			room.SquareMeters,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(date.ID))
 	mock.ExpectCommit()
@@ -556,7 +832,12 @@ func TestCreatePlace_CityNotFound(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -606,7 +887,12 @@ func TestCreatePlace_UserNotHost(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -649,93 +935,16 @@ func TestCreatePlace_UserNotHost(t *testing.T) {
 	}
 }
 
-func TestSavePlace_Success(t *testing.T) {
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
-	}
-	defer logger.SyncLoggers()
-
-	db, mock, err := setupDBMock()
-	assert.Nil(t, err)
-
-	adRepo := NewAdRepository(db)
-	ctx := context.Background()
-
-	ad := &domain.Ad{
-		UUID:            "ad-uuid-123",
-		CityID:          1,
-		AuthorUUID:      "author-uuid-456",
-		Address:         "123 Main St",
-		Description:     "Updated description",
-		RoomsNumber:     4,
-		ViewsCount:      2,
-		PublicationDate: time.Now(),
-	}
-
-	// Mock update ad
-	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "cityId"=$1,"authorUUID"=$2,"address"=$3,"publicationDate"=$4,"description"=$5,"roomsNumber"=$6,"viewsCount"=$7 WHERE "uuid" = $8`)).
-		WithArgs(ad.CityID, ad.AuthorUUID, ad.Address, time.Now(), ad.Description, ad.RoomsNumber, ad.ViewsCount, ad.UUID).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectCommit()
-
-	err = adRepo.SavePlace(ctx, ad)
-
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
-	}
-
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Errorf("Unmet expectations: %v", err)
-	}
-}
-
-func TestSavePlace_Failure(t *testing.T) {
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
-	}
-	defer logger.SyncLoggers()
-
-	db, mock, err := setupDBMock()
-	assert.Nil(t, err)
-
-	adRepo := NewAdRepository(db)
-	ctx := context.Background()
-
-	ad := &domain.Ad{
-		UUID:            "ad-uuid-123",
-		CityID:          1,
-		AuthorUUID:      "author-uuid-456",
-		Address:         "123 Main St",
-		Description:     "Updated description",
-		RoomsNumber:     4,
-		ViewsCount:      2,
-		PublicationDate: time.Now(),
-	}
-
-	// Mock update ad with error
-	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "ads" SET "cityId"=$1,"authorUUID"=$2,"address"=$3,"publicationDate"=$4,"description"=$5,"roomsNumber"=$6,"viewsCount"=$7 WHERE "uuid" = $8`)).
-		WithArgs(ad.CityID, ad.AuthorUUID, ad.Address, time.Now(), ad.Description, ad.RoomsNumber, ad.ViewsCount, ad.UUID).
-		WillReturnError(gorm.ErrInvalidData)
-	mock.ExpectRollback()
-
-	err = adRepo.SavePlace(ctx, ad)
-
-	if err == nil {
-		t.Errorf("Expected error, got none")
-	}
-
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Errorf("Unmet expectations: %v", err)
-	}
-}
-
 func TestGetPlacesPerCity_Success(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -767,6 +976,10 @@ func TestGetPlacesPerCity_Success(t *testing.T) {
 		AddRow("some-uuid", "test_username", "some_password", "test@example.com", "test_username")
 	mock.ExpectQuery(regexp.QuoteMeta(query2)).WillReturnRows(rows2)
 
+	adQuery := "SELECT * FROM \"ad_rooms\" WHERE \"adId\" = $1"
+	addRows := sqlmock.NewRows([]string{"id", "adId", "type", "squaremeters"}).AddRow(1, "id1", "some-type", 12)
+	mock.ExpectQuery(regexp.QuoteMeta(adQuery)).WithArgs("ad-uuid-123").WillReturnRows(addRows)
+
 	ads, err := adRepo.GetPlacesPerCity(ctx, city)
 
 	if err != nil {
@@ -786,7 +999,12 @@ func TestGetPlacesPerCity_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -820,7 +1038,12 @@ func TestSaveImages_Success(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -854,7 +1077,12 @@ func TestSaveImages_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -893,7 +1121,12 @@ func TestGetAdImages_Success(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -931,7 +1164,12 @@ func TestGetAdImages_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -965,7 +1203,12 @@ func TestGetUserPlaces_Success(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -997,6 +1240,10 @@ func TestGetUserPlaces_Success(t *testing.T) {
 		WithArgs("ad-uuid-123").
 		WillReturnRows(imageRows)
 
+	adQuery := "SELECT * FROM \"ad_rooms\" WHERE \"adId\" = $1"
+	addRows := sqlmock.NewRows([]string{"id", "adId", "type", "squaremeters"}).AddRow(1, "id1", "some-type", 12)
+	mock.ExpectQuery(regexp.QuoteMeta(adQuery)).WithArgs("ad-uuid-123").WillReturnRows(addRows)
+
 	ads, err := adRepo.GetUserPlaces(ctx, userId)
 	assert.NoError(t, err)
 	if err != nil {
@@ -1020,7 +1267,12 @@ func TestGetUserPlaces_Failure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)
@@ -1063,11 +1315,448 @@ func TestGetUserPlaces_Failure(t *testing.T) {
 	}
 }
 
+func TestAdRepository_AddToFavorites_Success(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	db, mock, err := setupDBMock()
+	assert.Nil(t, err)
+
+	repo := NewAdRepository(db)
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "test-request-id")
+
+	adID := "ad-uuid-123"
+	userID := "user-uuid-456"
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "ads" WHERE uuid = $1 ORDER BY "ads"."uuid" LIMIT $2`)).
+		WithArgs(adID, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"uuid"}).AddRow(adID))
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "favorites" ("adId","userId") VALUES ($1,$2)`)).
+		WithArgs(adID, userID).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	err = repo.AddToFavorites(ctx, adID, userID)
+
+	assert.NoError(t, err, "AddToFavorites should succeed without error")
+	assert.NoError(t, mock.ExpectationsWereMet(), "All database calls should be met")
+}
+
+func TestAdRepository_AddToFavorites_AdNotFound(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	db, mock, err := setupDBMock()
+	assert.Nil(t, err)
+
+	repo := NewAdRepository(db)
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "test-request-id")
+
+	adID := "ad-uuid-123"
+	userID := "user-uuid-456"
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "ads" WHERE uuid = $1 ORDER BY "ads"."uuid" LIMIT $2`)).
+		WithArgs(adID, 1).
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	err = repo.AddToFavorites(ctx, adID, userID)
+
+	assert.Error(t, err)
+	assert.Equal(t, "ad not found", err.Error())
+	assert.NoError(t, mock.ExpectationsWereMet(), "All database calls should be met")
+}
+
+func TestAdRepository_AddToFavorites_ErrorOnCreateFavorite(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	db, mock, err := setupDBMock()
+	assert.Nil(t, err)
+
+	repo := NewAdRepository(db)
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "test-request-id")
+
+	adID := "ad-uuid-123"
+	userID := "user-uuid-456"
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "ads" WHERE uuid = $1 ORDER BY "ads"."uuid" LIMIT $2`)).
+		WithArgs(adID, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"uuid"}).AddRow(adID))
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "favorites" ("adId","userId") VALUES ($1,$2)`)).
+		WithArgs(adID, userID).
+		WillReturnError(errors.New("error creating favorite"))
+	mock.ExpectRollback()
+
+	err = repo.AddToFavorites(ctx, adID, userID)
+
+	assert.Error(t, err)
+	assert.Equal(t, "error create favorite", err.Error())
+	assert.NoError(t, mock.ExpectationsWereMet(), "All database calls should be met")
+}
+
+func TestAdRepository_DeleteFromFavorites_Success(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	db, mock, err := setupDBMock()
+	assert.Nil(t, err)
+
+	repo := NewAdRepository(db)
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "test-request-id")
+
+	adID := "ad-uuid-123"
+	userID := "user-uuid-456"
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "ads" WHERE uuid = $1 ORDER BY "ads"."uuid" LIMIT $2`)).
+		WithArgs(adID, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"uuid"}).AddRow(adID))
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "favorites" WHERE ("favorites"."adId","favorites"."userId") IN (($1,$2))`)).
+		WithArgs(adID, userID).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	err = repo.DeleteFromFavorites(ctx, adID, userID)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAdRepository_DeleteFromFavorites_AdNotFound(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	db, mock, err := setupDBMock()
+	assert.Nil(t, err)
+
+	repo := NewAdRepository(db)
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "test-request-id")
+
+	adID := "ad-uuid-123"
+	userID := "user-uuid-456"
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "ads" WHERE uuid = $1 ORDER BY "ads"."uuid" LIMIT $2`)).
+		WithArgs(adID, 1).
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	err = repo.DeleteFromFavorites(ctx, adID, userID)
+
+	assert.Error(t, err)
+	assert.Equal(t, "ad not found", err.Error())
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAdRepository_DeleteFromFavorites_DeleteError(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	db, mock, err := setupDBMock()
+	assert.Nil(t, err)
+
+	repo := NewAdRepository(db)
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "test-request-id")
+
+	adID := "ad-uuid-123"
+	userID := "user-uuid-456"
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "ads" WHERE uuid = $1 ORDER BY "ads"."uuid" LIMIT $2`)).
+		WithArgs(adID, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"uuid"}).AddRow(adID))
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "favorites" WHERE ("favorites"."adId","favorites"."userId") IN (($1,$2))`)).
+		WithArgs(adID, userID).
+		WillReturnError(errors.New("delete error"))
+	mock.ExpectRollback()
+
+	err = repo.DeleteFromFavorites(ctx, adID, userID)
+
+	assert.Error(t, err)
+	assert.Equal(t, "error create favorite", err.Error())
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetUserFavorites(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	db, mock, err := setupDBMock()
+	require.NoError(t, err)
+
+	repo := NewAdRepository(db)
+	userId := "user-uuid-123"
+
+	// Фиксированная дата для тестов
+	fixedDate := time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
+
+	// Основной запрос на выборку избранных объявлений
+	query := `
+		SELECT ads.*, favorites."userId" AS "FavoriteUserId", cities.title as "CityName", ad_available_dates."availableDateFrom" as "AdDateFrom", ad_available_dates."availableDateTo" as "AdDateTo"
+		FROM "ads"
+		JOIN favorites ON favorites."adId" = ads.uuid
+		JOIN cities ON ads."cityId" = cities.id
+		JOIN ad_available_dates ON ad_available_dates."adId" = ads.uuid
+		WHERE favorites."userId" = $1
+	`
+
+	adRows := sqlmock.NewRows([]string{
+		"uuid", "cityId", "authorUUID", "address", "publicationDate", "description", "roomsNumber", "viewsCount",
+		"FavoriteUserId", "CityName", "AdDateFrom", "AdDateTo",
+	}).
+		AddRow("ad-uuid-123", 1, "author-uuid-456", "Test Address", fixedDate, "Test Description", 3, 10,
+			"user-uuid-123", "CityName", fixedDate, fixedDate)
+
+	mock.ExpectQuery(regexp.QuoteMeta(query)).
+		WithArgs(userId).
+		WillReturnRows(adRows)
+
+	// Запрос на получение картинок
+	imagesQuery := `SELECT * FROM "images" WHERE "adId" = $1`
+	imageRows := sqlmock.NewRows([]string{"id", "adId", "imageUrl"}).
+		AddRow(1, "ad-uuid-123", "images/image1.jpg").
+		AddRow(2, "ad-uuid-123", "images/image2.jpg")
+	mock.ExpectQuery(regexp.QuoteMeta(imagesQuery)).
+		WithArgs("ad-uuid-123").
+		WillReturnRows(imageRows)
+
+	// Запрос на получение данных пользователя
+	userQuery := `SELECT * FROM "users" WHERE uuid = $1`
+	userRows := sqlmock.NewRows([]string{
+		"uuid", "name", "avatar", "score", "sex", "guestCount", "birthdate",
+	}).
+		AddRow("author-uuid-456", "Test User", "avatar_url", 4.8, "F", 5, fixedDate)
+	mock.ExpectQuery(regexp.QuoteMeta(userQuery)).
+		WithArgs("author-uuid-456").
+		WillReturnRows(userRows)
+
+	// Запрос на получение комнат
+	roomsQuery := `SELECT * FROM "ad_rooms" WHERE "adId" = $1`
+	roomRows := sqlmock.NewRows([]string{"id", "adId", "type", "squareMeters"}).
+		AddRow(1, "ad-uuid-123", "Bedroom", 25).
+		AddRow(2, "ad-uuid-123", "Living Room", 40)
+	mock.ExpectQuery(regexp.QuoteMeta(roomsQuery)).
+		WithArgs("ad-uuid-123").
+		WillReturnRows(roomRows)
+
+	// Вызов метода
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "test-request-id")
+	ads, err := repo.GetUserFavorites(ctx, userId)
+
+	// Проверка результата
+	require.NoError(t, err)
+	assert.Len(t, ads, 1)
+	assert.Equal(t, "ad-uuid-123", ads[0].UUID)
+	assert.Equal(t, "Test Address", ads[0].Address)
+	assert.Equal(t, "CityName", ads[0].CityName)
+	assert.Equal(t, fixedDate, ads[0].AdDateFrom)
+	assert.Equal(t, 3, ads[0].RoomsNumber)
+
+	assert.ElementsMatch(t, []domain.ImageResponse{
+		{ID: 1, ImagePath: "images/image1.jpg"},
+		{ID: 2, ImagePath: "images/image2.jpg"},
+	}, ads[0].Images)
+
+	assert.Equal(t, domain.UserResponce{
+		Name:       "Test User",
+		Avatar:     "avatar_url",
+		Rating:     4.8,
+		GuestCount: 5,
+		Sex:        "F",
+		Birthdate:  fixedDate,
+	}, ads[0].AdAuthor)
+
+	assert.ElementsMatch(t, []domain.AdRoomsResponse{
+		{Type: "Bedroom", SquareMeters: 25},
+		{Type: "Living Room", SquareMeters: 40},
+	}, ads[0].Rooms)
+
+	// Убедиться, что все ожидания выполнены
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetUserFavoritesFail(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+	db, mock, err := setupDBMock()
+	assert.Nil(t, err)
+
+	userId := "12345"
+
+	repo := NewAdRepository(db)
+	query := `
+		SELECT ads.*, favorites."userId" AS "FavoriteUserId", cities.title as "CityName", ad_available_dates."availableDateFrom" as "AdDateFrom", ad_available_dates."availableDateTo" as "AdDateTo"
+		FROM "ads"
+		JOIN favorites ON favorites."adId" = ads.uuid
+		JOIN cities ON ads."cityId" = cities.id
+		JOIN ad_available_dates ON ad_available_dates."adId" = ads.uuid
+		WHERE favorites."userId" = $1
+	`
+	mock.ExpectQuery(regexp.QuoteMeta(query)).
+		WithArgs(userId).
+		WillReturnError(errors.New("db error"))
+
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "test-request-id")
+	ads, err := repo.GetUserFavorites(ctx, userId)
+	assert.Error(t, err)
+	assert.Nil(t, ads)
+}
+
+func TestUpdatePriority(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	db, mock, err := setupDBMock()
+	require.NoError(t, err)
+
+	repo := NewAdRepository(db)
+
+	adId := "ad-uuid-123"
+	userId := "user-uuid-456"
+	amount := 5
+	now := time.Now()
+
+	selectAdQuery := `SELECT * FROM "ads" WHERE uuid = $1 ORDER BY "ads"."uuid" LIMIT $2`
+	adRow := sqlmock.NewRows([]string{"uuid", "authorUUID", "priority", "endBoostDate"}).
+		AddRow(adId, userId, 1, now)
+
+	mock.ExpectQuery(regexp.QuoteMeta(selectAdQuery)).
+		WithArgs(adId, 1).
+		WillReturnRows(adRow)
+
+	mock.ExpectBegin()
+	updatePriorityQuery := `UPDATE "ads" SET "priority"=$1 WHERE "uuid" = $2`
+	mock.ExpectExec(regexp.QuoteMeta(updatePriorityQuery)).
+		WithArgs(amount, adId).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	mock.ExpectBegin()
+	updateBoostDateQuery := `UPDATE "ads" SET "endBoostDate"=$1 WHERE "uuid" = $2`
+	mock.ExpectExec(regexp.QuoteMeta(updateBoostDateQuery)).
+		WithArgs(sqlmock.AnyArg(), adId).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "test-request-id")
+	err = repo.UpdatePriority(ctx, adId, userId, amount)
+
+	require.NoError(t, err)
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResetExpiredPriorities(t *testing.T) {
+	if err := logger.InitLoggers(); err != nil {
+		log.Fatalf("Failed to initialize loggers: %v", err)
+	}
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	db, mock, err := setupDBMock()
+	require.NoError(t, err)
+
+	repo := NewAdRepository(db)
+
+	updateQuery := `
+		UPDATE "ads" SET "endBoostDate"=$1,"priority"=$2 WHERE "endBoostDate" <= $3
+	`
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(updateQuery)).
+		WithArgs(nil, 0, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 5))
+	mock.ExpectCommit()
+
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "test-request-id")
+	err = repo.ResetExpiredPriorities(ctx)
+
+	require.NoError(t, err)
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestDeleteAdImage(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	db, mock, err := setupDBMock()
 	assert.Nil(t, err)

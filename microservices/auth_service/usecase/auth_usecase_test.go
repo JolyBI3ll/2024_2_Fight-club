@@ -52,7 +52,12 @@ func TestRegisterUser(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	mockAuthRepo := &mocks.MockAuthRepository{}
 	mockMinioService := &mocks.MockMinioService{}
@@ -253,7 +258,12 @@ func TestLoginUser(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	mockAuthRepo := &mocks.MockAuthRepository{}
 
 	uc := NewAuthUseCase(mockAuthRepo, nil)
@@ -439,7 +449,12 @@ func TestPutUser(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	mockAuthRepo := &mocks.MockAuthRepository{}
 	mockMinioService := &mocks.MockMinioService{}
@@ -530,7 +545,7 @@ func TestPutUser(t *testing.T) {
 
 		err := uc.PutUser(ctx, creds, userID, invalidAvatar)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid size, type or resolution of image")
+		assert.Contains(t, err.Error(), "image resolution exceeds maximum allowed size of 2000 x 2000")
 	})
 
 	// Тест-кейс 6: Ошибка загрузки аватара
@@ -633,7 +648,12 @@ func TestGetUserById(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
 	mockAuthRepo := &mocks.MockAuthRepository{}
 	uc := NewAuthUseCase(mockAuthRepo, nil)

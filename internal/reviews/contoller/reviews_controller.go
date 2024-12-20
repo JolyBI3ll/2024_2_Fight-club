@@ -7,9 +7,9 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
-	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
+	"github.com/mailru/easyjson"
 	"github.com/microcosm-cc/bluemonday"
 	"go.uber.org/zap"
 	"net/http"
@@ -54,8 +54,6 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
-
 	logger.AccessLogger.Info("Received CreateReview request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
@@ -80,7 +78,8 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("missing X-CSRF-Token header")),
 		)
-		statusCode = rh.handleError(w, errors.New("missing X-CSRF-Token header"), requestID)
+		err = errors.New("missing X-CSRF-Token header")
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -100,8 +99,7 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var review domain.Review
-
-	if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
+	if err := easyjson.UnmarshalFromReader(r.Body, &review); err != nil {
 		logger.AccessLogger.Warn("Failed to unmarshal review", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = rh.handleError(w, err, requestID)
 		return
@@ -119,11 +117,11 @@ func (rh *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body := map[string]interface{}{
-		"review": review,
-	}
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
+	body := domain.ReviewBody{
+		Review: review,
+	}
+	if _, err = easyjson.MarshalToWriter(&body, w); err != nil {
 		logger.AccessLogger.Warn("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = rh.handleError(w, err, requestID)
 		return
@@ -162,7 +160,6 @@ func (rh *ReviewHandler) GetUserReviews(w http.ResponseWriter, r *http.Request) 
 	}()
 	userId := mux.Vars(r)["userId"]
 	sanitizer := bluemonday.UGCPolicy()
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 	userId = sanitizer.Sanitize(userId)
 
 	logger.AccessLogger.Info("Received GetUserReviews request",
@@ -174,7 +171,7 @@ func (rh *ReviewHandler) GetUserReviews(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	var reviews []domain.UserReviews
+	var reviews domain.UserReviewsList
 
 	reviews, err = rh.usecase.GetUserReviews(ctx, userId)
 	if err != nil {
@@ -184,7 +181,7 @@ func (rh *ReviewHandler) GetUserReviews(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(reviews); err != nil {
+	if _, err = easyjson.MarshalToWriter(&reviews, w); err != nil {
 		logger.AccessLogger.Warn("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = rh.handleError(w, err, requestID)
 		return
@@ -201,7 +198,6 @@ func (rh *ReviewHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestID := middleware.GetRequestID(r.Context())
 	ctx, cancel := middleware.WithTimeout(r.Context())
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 	defer cancel()
 	var err error
 	statusCode := http.StatusOK
@@ -246,7 +242,8 @@ func (rh *ReviewHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("missing X-CSRF-Token header")),
 		)
-		statusCode = rh.handleError(w, errors.New("missing X-CSRF-Token header"), requestID)
+		err = errors.New("missing X-CSRF-Token header")
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -274,7 +271,8 @@ func (rh *ReviewHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode("response: deleted successfully"); err != nil {
+	response := domain.ResponseMessage{Message: "deleted successfully"}
+	if _, err = easyjson.MarshalToWriter(&response, w); err != nil {
 		logger.AccessLogger.Warn("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = rh.handleError(w, err, requestID)
 		return
@@ -310,7 +308,6 @@ func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 	sanitizer := bluemonday.UGCPolicy()
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
 
 	hostId := mux.Vars(r)["hostId"]
 	hostId = sanitizer.Sanitize(hostId)
@@ -337,7 +334,8 @@ func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("missing X-CSRF-Token header")),
 		)
-		statusCode = rh.handleError(w, errors.New("missing X-CSRF-Token header"), requestID)
+		err = errors.New("missing X-CSRF-Token header")
+		statusCode = rh.handleError(w, err, requestID)
 		return
 	}
 
@@ -357,7 +355,7 @@ func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var updatedReview domain.Review
-	if err := json.NewDecoder(r.Body).Decode(&updatedReview); err != nil {
+	if err := easyjson.UnmarshalFromReader(r.Body, &updatedReview); err != nil {
 		logger.AccessLogger.Warn("Failed to unmarshal review", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = rh.handleError(w, err, requestID)
 		return
@@ -376,8 +374,9 @@ func (rh *ReviewHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode("response: updated successfully"); err != nil {
+	w.WriteHeader(http.StatusOK)
+	response := domain.ResponseMessage{Message: "updated successfully"}
+	if _, err = easyjson.MarshalToWriter(&response, w); err != nil {
 		logger.AccessLogger.Warn("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))
 		statusCode = rh.handleError(w, err, requestID)
 		return
@@ -396,28 +395,28 @@ func (rh *ReviewHandler) handleError(w http.ResponseWriter, err error, requestID
 		zap.String("request_id", requestID),
 		zap.Error(err),
 	)
+
 	var statusCode int
-	w.Header().Set("Content-Type", "application/json")
-	errorResponse := map[string]string{"error": err.Error()}
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	errorResponse := domain.ErrorResponse{
+		Error: err.Error(),
+	}
 
 	switch err.Error() {
 	case "input contains invalid characters",
 		"score out of range",
 		"input exceeds character limit":
 
-		w.WriteHeader(http.StatusBadRequest)
 		statusCode = http.StatusBadRequest
 
 	case "host and user are the same",
 		"review already exist":
-		w.WriteHeader(http.StatusConflict)
 		statusCode = http.StatusConflict
 
 	case "user not found",
 		"review not found",
 		"session not found",
 		"no reviews found":
-		w.WriteHeader(http.StatusNotFound)
 		statusCode = http.StatusNotFound
 
 	case "token invalid",
@@ -425,7 +424,6 @@ func (rh *ReviewHandler) handleError(w http.ResponseWriter, err error, requestID
 		"bad sign method",
 		"missing X-CSRF-Token header",
 		"invalid JWT token":
-		w.WriteHeader(http.StatusUnauthorized)
 		statusCode = http.StatusUnauthorized
 
 	case "failed to generate session id",
@@ -441,20 +439,20 @@ func (rh *ReviewHandler) handleError(w http.ResponseWriter, err error, requestID
 		"error updating host score",
 		"error fetching reviews",
 		"error fetching user by ID":
-		w.WriteHeader(http.StatusInternalServerError)
 		statusCode = http.StatusInternalServerError
 
 	default:
-		w.WriteHeader(http.StatusInternalServerError)
 		statusCode = http.StatusInternalServerError
 	}
 
-	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
+	w.WriteHeader(statusCode)
+	if _, jsonErr := easyjson.MarshalToWriter(&errorResponse, w); jsonErr != nil {
 		logger.AccessLogger.Error("Failed to encode error response",
 			zap.String("request_id", requestID),
 			zap.Error(jsonErr),
 		)
 		http.Error(w, jsonErr.Error(), http.StatusInternalServerError)
 	}
+
 	return statusCode
 }

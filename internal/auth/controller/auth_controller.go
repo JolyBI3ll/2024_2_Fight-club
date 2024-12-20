@@ -6,31 +6,34 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/metrics"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	"2024_2_FIGHT-CLUB/internal/service/utils"
 	"2024_2_FIGHT-CLUB/microservices/auth_service/controller/gen"
-	"encoding/json"
 	"errors"
-	"github.com/gorilla/mux"
-	"go.uber.org/zap"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
-	"math"
 	"mime/multipart"
 	"net/http"
 	"time"
+
+	"github.com/gorilla/mux"
+	"github.com/mailru/easyjson"
+	"go.uber.org/zap"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type AuthHandler struct {
 	client         gen.AuthClient
 	sessionService session.InterfaceSession
 	jwtToken       middleware.JwtTokenService
+	utils          utils.UtilsInterface
 }
 
-func NewAuthHandler(client gen.AuthClient, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService) *AuthHandler {
+func NewAuthHandler(client gen.AuthClient, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService, utils utils.UtilsInterface) *AuthHandler {
 	return &AuthHandler{
 		client:         client,
 		sessionService: sessionService,
 		jwtToken:       jwtToken,
+		utils:          utils,
 	}
 }
 
@@ -64,7 +67,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	)
 
 	var creds domain.User
-	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+	if err = easyjson.UnmarshalFromReader(r.Body, &creds); err != nil {
 		logger.AccessLogger.Error("Failed to decode request body",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -99,6 +102,8 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "session_id",
 		Value:    userSession,
 		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
@@ -106,21 +111,22 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "csrf_token",
 		Value:    jwtToken,
 		Path:     "/",
+		HttpOnly: false,
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	body := map[string]interface{}{
-		"session_id": userSession,
-		"user": gen.User{
-			Id:       response.User.Id,
-			Username: response.User.Username,
-			Email:    response.User.Email,
-		},
+	body, err := h.utils.ConvertAuthResponseProtoToGo(response, userSession)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to convert auth response",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
 	}
-
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
+	if _, err = easyjson.MarshalToWriter(body, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -128,6 +134,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		statusCode = h.handleError(w, err, requestID)
 		return
 	}
+
 	duration := time.Since(start).Seconds()
 	logger.AccessLogger.Info("Completed RegisterUser request",
 		zap.String("request_id", requestID),
@@ -166,7 +173,7 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	)
 
 	var creds domain.User
-	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+	if err = easyjson.UnmarshalFromReader(r.Body, &creds); err != nil {
 		logger.AccessLogger.Error("Failed to decode request body",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -181,7 +188,8 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 			zap.String("request_id", requestID),
 			zap.Error(errors.New("csrf_token already exists")),
 		)
-		statusCode = h.handleError(w, errors.New("csrf_token already exists"), requestID)
+		err = errors.New("csrf_token already exists")
+		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
@@ -208,6 +216,8 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "session_id",
 		Value:    userSession,
 		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
@@ -215,21 +225,22 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "csrf_token",
 		Value:    jwtToken,
 		Path:     "/",
+		HttpOnly: false,
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	body := map[string]interface{}{
-		"session_id": userSession,
-		"user": map[string]interface{}{
-			"id":       response.User.Id,
-			"username": response.User.Username,
-			"email":    response.User.Email,
-		},
+	body, err := h.utils.ConvertAuthResponseProtoToGo(response, userSession)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to convert auth response",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
+	if _, err = easyjson.MarshalToWriter(body, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -285,7 +296,7 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 	}
 	authHeader := r.Header.Get("X-CSRF-Token")
 
-	response, err := h.client.LogoutUser(ctx, &gen.LogoutRequest{
+	_, err = h.client.LogoutUser(ctx, &gen.LogoutRequest{
 		AuthHeader: authHeader,
 		SessionId:  sessionID,
 	})
@@ -315,17 +326,19 @@ func (h *AuthHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 		Name:     "csrf_token",
 		Value:    "",
 		Path:     "/",
-		HttpOnly: true,
+		HttpOnly: false,
 		Secure:   true,
 		Expires:  time.Unix(0, 0),
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	logoutResponse := map[string]string{"response": response.Response}
-	if err := json.NewEncoder(w).Encode(logoutResponse); err != nil {
-		logger.AccessLogger.Error("Failed to encode logout response",
+	logoutResponse := domain.ResponseMessage{
+		Message: "Successfully logged out",
+	}
+	if _, err = easyjson.MarshalToWriter(logoutResponse, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
@@ -388,7 +401,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 	metadata := r.FormValue("metadata")
 
 	var creds domain.User
-	if err := json.Unmarshal([]byte(metadata), &creds); err != nil {
+	if err = creds.UnmarshalJSON([]byte(metadata)); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		logger.AccessLogger.Warn("Failed to parse metadata",
 			zap.String("request_id", requestID),
@@ -421,7 +434,7 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	response, err := h.client.PutUser(ctx, &gen.PutUserRequest{
+	_, err = h.client.PutUser(ctx, &gen.PutUserRequest{
 		Creds: &gen.Metadata{
 			Uuid:       creds.UUID,
 			Username:   creds.Username,
@@ -451,9 +464,12 @@ func (h *AuthHandler) PutUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response.Response); err != nil {
+	PutUserResponse := domain.ResponseMessage{
+		Message: "Successfully update user data",
+	}
+	if _, err = easyjson.MarshalToWriter(PutUserResponse, w); err != nil {
 		logger.AccessLogger.Error("Failed to encode update response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
@@ -485,13 +501,14 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		clientIP = forwarded
 	}
 	defer func() {
+		sanitizedPath := metrics.SanitizeUserIdPath(r.URL.Path)
 		if statusCode == http.StatusOK {
-			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
 		} else {
-			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
 		}
 		duration := time.Since(start).Seconds()
-		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)
 	}()
 
 	logger.AccessLogger.Info("Received GetUserById request",
@@ -514,23 +531,18 @@ func (h *AuthHandler) GetUserById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := &domain.UserDataResponse{
-		Uuid:       user.User.Uuid,
-		Username:   user.User.Username,
-		Email:      user.User.Email,
-		Name:       user.User.Name,
-		Score:      math.Round(float64(user.User.Score)*10) / 10,
-		Avatar:     user.User.Avatar,
-		Sex:        user.User.Sex,
-		GuestCount: int(user.User.GuestCount),
-		Birthdate:  (user.User.Birthdate).AsTime(),
-		IsHost:     user.User.IsHost,
+	response, err := h.utils.ConvertUserResponseProtoToGo(user.User)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to convert user response",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		logger.AccessLogger.Error("Failed to encode user data",
+	if _, err = easyjson.MarshalToWriter(response, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode getUserById response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
@@ -588,28 +600,21 @@ func (h *AuthHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var body []*domain.UserDataResponse
-	for _, user := range users.Users {
-		body = append(body, &domain.UserDataResponse{
-			Uuid:       user.Uuid,
-			Username:   user.Username,
-			Email:      user.Email,
-			Name:       user.Name,
-			Score:      math.Round(float64(user.Score)*10) / 10,
-			Avatar:     user.Avatar,
-			Sex:        user.Sex,
-			GuestCount: int(user.GuestCount),
-			Birthdate:  (user.Birthdate).AsTime(),
-			IsHost:     user.IsHost,
-		})
+	body, err := h.utils.ConvertUsersProtoToGo(users)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to convert users proto",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
 	}
-	response := map[string]interface{}{
-		"users": body,
+	response := domain.GetAllUsersResponse{
+		Users: body,
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		logger.AccessLogger.Error("Failed to encode users response",
+	if _, err = easyjson.MarshalToWriter(response, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode getAllUsers response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
@@ -678,10 +683,18 @@ func (h *AuthHandler) GetSessionData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	response, err := h.utils.ConvertSessionDataProtoToGo(sessionData)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to convert session data",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		h.handleError(w, err, requestID)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(sessionData); err != nil {
-		logger.AccessLogger.Error("Failed to encode session data",
+	if _, err = easyjson.MarshalToWriter(response, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode GetSessionData response",
 			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
@@ -720,8 +733,6 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
 	}()
 
-	ctx = middleware.WithLogger(ctx, logger.AccessLogger)
-
 	logger.AccessLogger.Info("Received RefreshCsrfToken request",
 		zap.String("request_id", requestID),
 		zap.String("method", r.Method),
@@ -755,21 +766,227 @@ func (h *AuthHandler) RefreshCsrfToken(w http.ResponseWriter, r *http.Request) {
 		Name:     "csrf_token",
 		Value:    newCsrfToken.CsrfToken,
 		Path:     "/",
+		HttpOnly: false,
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(w).Encode(map[string]string{"csrf_token": newCsrfToken.CsrfToken})
-	if err != nil {
-		logger.AccessLogger.Error("Failed to encode CSRF token",
+	response := domain.CSRFTokenResponse{
+		Token: newCsrfToken.CsrfToken,
+	}
+	if _, err = easyjson.MarshalToWriter(response, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode getUserById response",
 			zap.String("request_id", requestID),
-			zap.Error(err))
+			zap.Error(err),
+		)
 		statusCode = h.handleError(w, err, requestID)
 		return
 	}
 
 	duration := time.Since(start)
 	logger.AccessLogger.Info("Completed RefreshCsrfToken request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
+}
+
+func (h *AuthHandler) UpdateUserRegion(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
+	defer cancel()
+	var err error
+	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
+
+	logger.AccessLogger.Info("Received UpdateUserRegions request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
+
+	var region domain.UpdateUserRegion
+	if err = easyjson.UnmarshalFromReader(r.Body, &region); err != nil {
+		logger.AccessLogger.Error("Failed to decode request body",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	authHeader := r.Header.Get("X-CSRF-Token")
+	startVisitTime, err := time.Parse("2006-01-02", region.StartVisitedDate)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to parse start visit date",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	endVisitTime, err := time.Parse("2006-01-02", region.EndVisitedDate)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to parse end visit date",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	grpcRegion := &gen.UpdateUserRegionsRequest{
+		Region:         region.RegionName,
+		StartVisitDate: timestamppb.New(startVisitTime),
+		EndVisitDate:   timestamppb.New(endVisitTime),
+		AuthHeader:     authHeader,
+		SessionId:      sessionID,
+	}
+
+	_, err = h.client.UpdateUserRegions(ctx, grpcRegion)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to update user regions",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	UpdateUserRegionsResponse := domain.ResponseMessage{
+		Message: "Successfully update user regions",
+	}
+	if _, err = easyjson.MarshalToWriter(UpdateUserRegionsResponse, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode update response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed LoginUser request",
+		zap.String("request_id", requestID),
+		zap.Duration("duration", duration),
+		zap.Int("status", http.StatusOK),
+	)
+}
+
+func (h *AuthHandler) DeleteUserRegion(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestID := middleware.GetRequestID(r.Context())
+	ctx, cancel := middleware.WithTimeout(r.Context())
+	defer cancel()
+
+	var err error
+	statusCode := http.StatusOK
+	clientIP := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
+	} else if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		clientIP = forwarded
+	}
+	defer func() {
+		if statusCode == http.StatusOK {
+			metrics.HttpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), clientIP).Inc()
+		} else {
+			metrics.HttpErrorsTotal.WithLabelValues(r.Method, r.URL.Path, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+		}
+		duration := time.Since(start).Seconds()
+		metrics.HttpRequestDuration.WithLabelValues(r.Method, r.URL.Path, clientIP).Observe(duration)
+	}()
+
+	logger.AccessLogger.Info("Received DeleteUserRegion request",
+		zap.String("request_id", requestID),
+		zap.String("method", r.Method),
+		zap.String("url", r.URL.String()),
+	)
+
+	regionName := mux.Vars(r)["regionName"]
+
+	sessionID, err := session.GetSessionId(r)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to get session ID",
+			zap.String("request_id", requestID),
+			zap.Error(err))
+		err = errors.New("failed to get session id from request cookie")
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	authHeader := r.Header.Get("X-CSRF-Token")
+	if authHeader == "" {
+		logger.AccessLogger.Error("Missing X-CSRF-Token header",
+			zap.String("request_id", requestID))
+		err = errors.New("missing X-CSRF-Token header")
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	grpcRequest := &gen.DeleteUserRegionsRequest{
+		Region:     regionName,
+		AuthHeader: authHeader,
+		SessionId:  sessionID,
+	}
+
+	_, err = h.client.DeleteUserRegions(ctx, grpcRequest)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to delete user region via gRPC",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		st, ok := status.FromError(err)
+		if ok {
+			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	deleteResponse := domain.ResponseMessage{
+		Message: "Successfully deleted user region",
+	}
+	if _, err = easyjson.MarshalToWriter(deleteResponse, w); err != nil {
+		logger.AccessLogger.Error("Failed to encode delete response",
+			zap.String("request_id", requestID),
+			zap.Error(err),
+		)
+		statusCode = h.handleError(w, err, requestID)
+		return
+	}
+
+	duration := time.Since(start)
+	logger.AccessLogger.Info("Completed DeleteUserRegion request",
 		zap.String("request_id", requestID),
 		zap.Duration("duration", duration),
 		zap.Int("status", http.StatusOK),
@@ -783,35 +1000,41 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 	)
 
 	w.Header().Set("Content-Type", "application/json")
-	errorResponse := map[string]string{"error": err.Error()}
+	errorResponse := domain.ErrorResponse{
+		Error: err.Error(),
+	}
 	var statusCode int
 	switch err.Error() {
 	case "username, password, and email are required",
 		"username and password are required",
 		"invalid credentials",
 		"csrf_token already exists",
-		"Input contains invalid characters",
-		"Input exceeds character limit",
-		"Invalid size, type or resolution of image",
+		"input contains invalid characters",
+		"input exceeds character limit",
+		"invalid size, type or resolution of image",
 		"invalid metadata JSON",
 		"missing X-CSRF-Token header",
 		"invalid JWT token",
 		"invalid type for id in session data",
-		"invalid type for avatar in session data":
-		w.WriteHeader(http.StatusBadRequest)
+		"invalid type for avatar in session data",
+		"token invalid",
+		"token expired",
+		"file type is not allowed, please use (png, jpg, jpeg) types",
+		"unsupported image format",
+		"image resolution exceeds maximum allowed size of 2000 x 2000":
 		statusCode = http.StatusBadRequest
 
 	case "user already exists",
 		"email already exists",
 		"session already exists",
-		"already logged in":
-		w.WriteHeader(http.StatusConflict)
+		"already logged in",
+		"username or email already exists":
 		statusCode = http.StatusConflict
 
 	case "no active session",
 		"session not found",
-		"user ID not found in session":
-		w.WriteHeader(http.StatusUnauthorized)
+		"user ID not found in session",
+		"failed to get session id from request cookie":
 		statusCode = http.StatusUnauthorized
 
 	case "user not found",
@@ -819,7 +1042,6 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 		"error fetching user by name",
 		"error fetching user by email",
 		"there is none user in db":
-		w.WriteHeader(http.StatusNotFound)
 		statusCode = http.StatusNotFound
 
 	case "error creating user",
@@ -837,20 +1059,17 @@ func (h *AuthHandler) handleError(w http.ResponseWriter, err error, requestID st
 		"failed to get session data",
 		"failed to refresh csrf token",
 		"error generating random bytes for session ID",
-		"failed to get session id from request cookie",
 		"token parse error",
-		"token invalid",
-		"token expired",
-		"bad sign method":
-		w.WriteHeader(http.StatusInternalServerError)
+		"bad sign method",
+		"could not decode image":
 		statusCode = http.StatusInternalServerError
 
 	default:
-		w.WriteHeader(http.StatusInternalServerError)
 		statusCode = http.StatusInternalServerError
 	}
 
-	if jsonErr := json.NewEncoder(w).Encode(errorResponse); jsonErr != nil {
+	w.WriteHeader(statusCode)
+	if _, jsonErr := easyjson.MarshalToWriter(&errorResponse, w); jsonErr != nil {
 		logger.AccessLogger.Error("Failed to encode error response",
 			zap.String("request_id", requestID),
 			zap.Error(jsonErr),

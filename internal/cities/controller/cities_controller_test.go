@@ -3,155 +3,361 @@ package controller
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
+	"2024_2_FIGHT-CLUB/internal/service/utils"
+	"2024_2_FIGHT-CLUB/microservices/city_service/controller/gen"
 	"2024_2_FIGHT-CLUB/microservices/city_service/mocks"
-	"context"
-	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
-	"log"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"io"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 )
 
-func TestGetCitiesSuccess(t *testing.T) {
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
-	}
-	defer logger.SyncLoggers()
-	mockUseCase := &mocks.MockCitiesUseCase{
-		MockGetCities: func(ctx context.Context) ([]domain.City, error) {
-			return []domain.City{
-				{ID: 1, Title: "Moscow", EnTitle: "moscow", Description: "A large city in Russia."},
-			}, nil
+func TestCityHandler_GetCities_Success(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	// Моки
+	mockClient := new(mocks.MockGrpcClient)
+	mockUtils := &utils.MockUtils{}
+
+	mockResponse := &gen.GetCitiesResponse{
+		Cities: []*gen.City{
+			{
+				Id:          1,
+				Title:       "Москва",
+				Entitle:     "Moscow",
+				Description: "Some Desc",
+				Image:       "test_image",
+			},
+			{
+				Id:          2,
+				Title:       "Волгоград",
+				Entitle:     "Volgograd",
+				Description: "Some Desc",
+				Image:       "test_image",
+			},
 		},
 	}
 
-	handler := NewCityHandler(mockUseCase)
-
-	req, err := http.NewRequest("GET", "/api/cities", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rr := httptest.NewRecorder()
-	handler.GetCities(rr, req)
-
-	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("expected status code %v, got %v", http.StatusOK, status)
-	}
-
-	expectedCities := []domain.City{
-		{ID: 1, Title: "Moscow", EnTitle: "moscow", Description: "A large city in Russia."},
-	}
-	var responseData map[string][]domain.City
-	if err := json.Unmarshal(rr.Body.Bytes(), &responseData); err != nil {
-		t.Fatalf("failed to unmarshal response: %v", err)
-	}
-	if !reflect.DeepEqual(responseData["cities"], expectedCities) {
-		t.Errorf("expected body %v, got %v", expectedCities, responseData["cities"])
-	}
-}
-
-func TestGetCitiesFailure(t *testing.T) {
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
-	}
-	defer logger.SyncLoggers()
-	mockUseCase := &mocks.MockCitiesUseCase{
-		MockGetCities: func(ctx context.Context) ([]domain.City, error) {
-			return nil, errors.New("failed to retrieve cities")
+	mockPayload := domain.AllCitiesResponse{
+		Cities: []*domain.City{
+			{
+				ID:          1,
+				Title:       "Москва",
+				EnTitle:     "Moscow",
+				Description: "Some Desc",
+				Image:       "test_image",
+			},
+			{
+				ID:          2,
+				Title:       "Волгоград",
+				EnTitle:     "Volgograd",
+				Description: "Some Desc",
+				Image:       "test_image",
+			},
 		},
 	}
 
-	handler := NewCityHandler(mockUseCase)
+	// Настройка моков
+	mockClient.On("GetCities", mock.Anything, mock.Anything, mock.Anything).Return(mockResponse, nil)
+	mockUtils.On("ConvertAllCitiesProtoToGo", mockResponse).Return(mockPayload, nil)
 
-	req, err := http.NewRequest("GET", "/api/cities", nil)
-	if err != nil {
-		t.Fatal(err)
+	cityHandler := CityHandler{
+		client: mockClient,
+		utils:  mockUtils,
 	}
 
-	rr := httptest.NewRecorder()
-	handler.GetCities(rr, req)
+	req := httptest.NewRequest(http.MethodGet, "/cities", nil)
+	req.Header.Set("X-Real-IP", "127.0.0.1")
+	w := httptest.NewRecorder()
 
-	if status := rr.Code; status != http.StatusInternalServerError {
-		t.Errorf("expected status code %v, got %v", http.StatusInternalServerError, status)
-	}
+	// Вызов метода
+	cityHandler.GetCities(w, req)
 
-	expectedError := map[string]string{"error": "failed to retrieve cities"}
-	var actualError map[string]string
-	if err := json.Unmarshal(rr.Body.Bytes(), &actualError); err != nil {
-		t.Fatalf("failed to unmarshal response: %v", err)
-	}
+	// Проверка
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
 
-	if !reflect.DeepEqual(actualError, expectedError) {
-		t.Errorf("expected body %v, got %v", expectedError, actualError)
-	}
+	body, _ := io.ReadAll(result.Body)
+	expectedResponse := `{"cities":[{"description":"Some Desc", "enTitle":"Moscow", "id":1, "image":"test_image", "title":"Москва"},{"description":"Some Desc", "enTitle":"Volgograd", "id":2, "image":"test_image", "title":"Волгоград"}]}`
+	assert.Equal(t, http.StatusOK, result.StatusCode)
+	assert.JSONEq(t, expectedResponse, string(body))
+
+	mockClient.AssertExpectations(t)
+	mockUtils.AssertExpectations(t)
 }
 
-func TestGetOneCitySuccess(t *testing.T) {
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
+func TestCityHandler_GetCities_GrpcError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	mockUtils := &utils.MockUtils{}
+
+	grpcErr := status.Error(codes.Internal, "gRPC error")
+
+	// Настройка мока
+	mockClient.On("GetCities", mock.Anything, &gen.GetCitiesRequest{}, mock.Anything).Return(&gen.GetCitiesResponse{}, grpcErr)
+
+	cityHandler := CityHandler{
+		client: mockClient,
+		utils:  mockUtils,
 	}
-	defer logger.SyncLoggers()
-	mockCity := domain.City{
+
+	req := httptest.NewRequest(http.MethodGet, "/cities", nil)
+	w := httptest.NewRecorder()
+
+	// Вызов метода
+	cityHandler.GetCities(w, req)
+
+	// Проверка
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+
+	mockClient.AssertExpectations(t)
+}
+
+func TestCityHandler_GetCities_ConversionError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	mockUtils := &utils.MockUtils{}
+
+	mockResponse := &gen.GetCitiesResponse{
+		Cities: []*gen.City{
+			{
+				Id:          1,
+				Title:       "Москва",
+				Entitle:     "Moscow",
+				Description: "Some Desc",
+				Image:       "test_image",
+			},
+			{
+				Id:          2,
+				Title:       "Волгоград",
+				Entitle:     "Volgograd",
+				Description: "Some Desc",
+				Image:       "test_image",
+			},
+		},
+	}
+
+	conversionErr := errors.New("conversion error")
+
+	// Настройка моков
+	mockClient.On("GetCities", mock.Anything, &gen.GetCitiesRequest{}, mock.Anything).Return(mockResponse, nil)
+	mockUtils.On("ConvertAllCitiesProtoToGo", mockResponse).Return(nil, conversionErr)
+
+	cityHandler := CityHandler{
+		client: mockClient,
+		utils:  mockUtils,
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/cities", nil)
+	w := httptest.NewRecorder()
+
+	// Вызов метода
+	cityHandler.GetCities(w, req)
+
+	// Проверка
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+
+	mockClient.AssertExpectations(t)
+	mockUtils.AssertExpectations(t)
+}
+
+func TestCityHandler_GetOneCity_Success(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	// Моки
+	mockClient := new(mocks.MockGrpcClient)
+	mockUtils := new(utils.MockUtils)
+
+	mockCityResponse := &gen.GetOneCityResponse{
+		City: &gen.City{
+			Id:          1,
+			Title:       "Москва",
+			Entitle:     "Moscow",
+			Description: "Some Desc",
+			Image:       "test_image",
+		},
+	}
+
+	mockClient.On("GetOneCity", mock.Anything, mock.Anything, mock.Anything).Return(mockCityResponse, nil)
+	mockUtils.On("ConvertOneCityProtoToGo", mockCityResponse.City).Return(domain.City{
 		ID:          1,
-		Title:       "Test City",
-		EnTitle:     "test-city",
-		Description: "This is a test city",
-		Image:       "image.jpg",
+		Title:       "Москва",
+		EnTitle:     "Moscow",
+		Description: "Some Desc",
+		Image:       "test_image",
+	}, nil)
+
+	// Инициализация обработчика
+	cityHandler := CityHandler{
+		client: mockClient,
+		utils:  mockUtils,
 	}
 
-	mockUseCase := &mocks.MockCitiesUseCase{
-		MockGetOneCity: func(ctx context.Context, cityEnName string) (domain.City, error) {
-			return mockCity, nil
-		},
-	}
+	// HTTP-запрос
+	req := httptest.NewRequest(http.MethodGet, "/city/test_city", nil)
+	req = mux.SetURLVars(req, map[string]string{"city": "test_city"})
+	w := httptest.NewRecorder()
 
-	handler := NewCityHandler(mockUseCase)
+	// Вызов метода
+	cityHandler.GetOneCity(w, req)
 
-	req, err := http.NewRequest("GET", "/api/cities/test-city", nil)
-	assert.NoError(t, err)
+	// Проверка
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
 
-	req = mux.SetURLVars(req, map[string]string{"city": "test-city"})
-	rr := httptest.NewRecorder()
-
-	handler.GetOneCity(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-
-	var responseBody map[string]interface{}
-	err = json.NewDecoder(rr.Body).Decode(&responseBody)
-	assert.NoError(t, err)
-	assert.Equal(t, mockCity.Title, responseBody["city"].(map[string]interface{})["title"])
+	assert.Equal(t, http.StatusOK, result.StatusCode)
+	mockClient.AssertExpectations(t)
+	mockUtils.AssertExpectations(t)
 }
 
-// TestGetOneCityFailure tests the failure scenario of GetOneCity handler.
-func TestGetOneCityFailure(t *testing.T) {
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
+func TestCityHandler_GetOneCity_GrpcError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	// Моки
+	mockClient := new(mocks.MockGrpcClient)
+	grpcErr := status.Error(codes.Internal, "gRPC error")
+
+	mockClient.On("GetOneCity", mock.Anything, mock.Anything, mock.Anything).Return(&gen.GetOneCityResponse{}, grpcErr)
+
+	// Инициализация обработчика
+	cityHandler := CityHandler{
+		client: mockClient,
 	}
-	defer logger.SyncLoggers()
-	mockUseCase := &mocks.MockCitiesUseCase{
-		MockGetOneCity: func(ctx context.Context, cityEnName string) (domain.City, error) {
-			return domain.City{}, errors.New("city not found")
+
+	req := httptest.NewRequest(http.MethodGet, "/city/test_city", nil)
+	req = mux.SetURLVars(req, map[string]string{"city": "test_city"})
+	w := httptest.NewRecorder()
+
+	// Вызов метода
+	cityHandler.GetOneCity(w, req)
+
+	// Проверка
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+	mockClient.AssertExpectations(t)
+}
+
+func TestCityHandler_GetOneCity_ConversionError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	// Моки
+	mockClient := new(mocks.MockGrpcClient)
+	mockUtils := new(utils.MockUtils)
+
+	mockCityResponse := &gen.GetOneCityResponse{
+		City: &gen.City{
+			Id:          1,
+			Title:       "Москва",
+			Entitle:     "Moscow",
+			Description: "Some Desc",
+			Image:       "test_image",
 		},
 	}
 
-	handler := NewCityHandler(mockUseCase)
+	mockClient.On("GetOneCity", mock.Anything, mock.Anything, mock.Anything).Return(mockCityResponse, nil)
+	mockUtils.On("ConvertOneCityProtoToGo", mockCityResponse.City).Return(nil, errors.New("conversion error"))
 
-	req, err := http.NewRequest("GET", "/api/cities/test-city", nil)
-	assert.NoError(t, err)
+	// Инициализация обработчика
+	cityHandler := CityHandler{
+		client: mockClient,
+		utils:  mockUtils,
+	}
 
-	req = mux.SetURLVars(req, map[string]string{"city": "test-city"})
-	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/city/test_city", nil)
+	req = mux.SetURLVars(req, map[string]string{"city": "test_city"})
+	w := httptest.NewRecorder()
 
-	handler.GetOneCity(rr, req)
+	// Вызов метода
+	cityHandler.GetOneCity(w, req)
 
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	// Проверка
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
 
-	var responseBody map[string]interface{}
-	err = json.NewDecoder(rr.Body).Decode(&responseBody)
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+	mockClient.AssertExpectations(t)
+	mockUtils.AssertExpectations(t)
 }

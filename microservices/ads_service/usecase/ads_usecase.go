@@ -12,13 +12,14 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"time"
 
 	"context"
 	"errors"
 )
 
 type AdUseCase interface {
-	GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error)
+	GetAllPlaces(ctx context.Context, filter domain.AdFilter, userId string) ([]domain.GetAllAdsResponse, error)
 	GetOnePlace(ctx context.Context, adId string, isAuthorized bool) (domain.GetAllAdsResponse, error)
 	CreatePlace(ctx context.Context, place *domain.Ad, fileHeader [][]byte, newPlace domain.CreateAdRequest, userId string) error
 	UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, fileHeader [][]byte, updatedPlace domain.UpdateAdRequest) error
@@ -29,6 +30,8 @@ type AdUseCase interface {
 	AddToFavorites(ctx context.Context, adId string, userId string) error
 	DeleteFromFavorites(ctx context.Context, adId string, userId string) error
 	GetUserFavorites(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error)
+	UpdatePriority(ctx context.Context, adId string, userId string, amount int) error
+	StartPriorityResetWorker(ctx context.Context, tickerInterval time.Duration)
 }
 
 type adUseCase struct {
@@ -43,8 +46,8 @@ func NewAdUseCase(adRepository domain.AdRepository, minioService images.MinioSer
 	}
 }
 
-func (uc *adUseCase) GetAllPlaces(ctx context.Context, filter domain.AdFilter) ([]domain.GetAllAdsResponse, error) {
-	ads, err := uc.adRepository.GetAllPlaces(ctx, filter)
+func (uc *adUseCase) GetAllPlaces(ctx context.Context, filter domain.AdFilter, userId string) ([]domain.GetAllAdsResponse, error) {
+	ads, err := uc.adRepository.GetAllPlaces(ctx, filter, userId)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +84,7 @@ func (uc *adUseCase) GetOnePlace(ctx context.Context, adId string, isAuthorized 
 }
 
 func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, files [][]byte, newPlace domain.CreateAdRequest, userId string) error {
-	const maxLen = 255
+	const maxLen = 1000
 	requestID := middleware.GetRequestID(ctx)
 
 	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s\-!?&;#()/$*^%+=|]*$`)
@@ -100,17 +103,14 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, files []
 	const minRooms, maxRooms = 1, 100
 	if newPlace.RoomsNumber < minRooms || newPlace.RoomsNumber > maxRooms {
 		logger.AccessLogger.Warn("RoomsNumber out of range", zap.String("request_id", requestID))
-		return errors.New("RoomsNumber out of range")
+		return errors.New("roomsNumber out of range")
 	}
 
 	if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
 		logger.AccessLogger.Warn("Invalid image", zap.String("request_id", requestID), zap.Error(err))
-		return errors.New("invalid size, type or resolution of image")
+		return err
 	}
 
-	place.Description = newPlace.Description
-	place.Address = newPlace.Address
-	place.RoomsNumber = newPlace.RoomsNumber
 	err := uc.adRepository.CreatePlace(ctx, place, newPlace, userId)
 	if err != nil {
 		return err
@@ -142,12 +142,12 @@ func (uc *adUseCase) CreatePlace(ctx context.Context, place *domain.Ad, files []
 
 func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId string, userId string, files [][]byte, updatedPlace domain.UpdateAdRequest) error {
 	requestID := middleware.GetRequestID(ctx)
-	const maxLen = 255
+	const maxLen = 1000
 
 	if len(files) > 0 {
 		if err := validation.ValidateImages(files, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
 			logger.AccessLogger.Warn("Invalid image", zap.String("request_id", requestID), zap.Error(err))
-			return errors.New("invalid size, type or resolution of image")
+			return err
 		}
 	}
 
@@ -178,16 +178,14 @@ func (uc *adUseCase) UpdatePlace(ctx context.Context, place *domain.Ad, adId str
 	const minRooms, maxRooms = 1, 100
 	if updatedPlace.RoomsNumber < minRooms || updatedPlace.RoomsNumber > maxRooms {
 		logger.AccessLogger.Warn("RoomsNumber out of range", zap.String("request_id", requestID))
-		return errors.New("RoomsNumber out of range")
+		return errors.New("roomsNumber out of range")
 	}
 
 	_, err := uc.adRepository.GetPlaceById(ctx, adId)
 	if err != nil {
 		return err
 	}
-	place.Description = updatedPlace.Description
-	place.Address = updatedPlace.Address
-	place.RoomsNumber = updatedPlace.RoomsNumber
+
 	var newUploadedPaths ntype.StringArray
 
 	for _, file := range files {
@@ -327,59 +325,68 @@ func (uc *adUseCase) DeleteAdImage(ctx context.Context, adId string, imageId str
 func (uc *adUseCase) AddToFavorites(ctx context.Context, adId string, userId string) error {
 	requestID := middleware.GetRequestID(ctx)
 	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
-	if !validCharPattern.MatchString(adId) {
-		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		return errors.New("input contains invalid characters")
-	}
 
 	if len(adId) > maxLen {
 		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
 		return errors.New("input exceeds character limit")
+	}
+
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(adId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("input contains invalid characters")
 	}
 
 	err := uc.adRepository.AddToFavorites(ctx, adId, userId)
 	if err != nil {
 		return err
 	}
-
+	err = uc.adRepository.UpdateFavoritesCount(ctx, adId)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 func (uc *adUseCase) DeleteFromFavorites(ctx context.Context, adId string, userId string) error {
 	requestID := middleware.GetRequestID(ctx)
 	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
-	if !validCharPattern.MatchString(adId) {
-		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		return errors.New("input contains invalid characters")
-	}
 
 	if len(adId) > maxLen {
 		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
 		return errors.New("input exceeds character limit")
 	}
 
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(adId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("input contains invalid characters")
+	}
+
 	err := uc.adRepository.DeleteFromFavorites(ctx, adId, userId)
 	if err != nil {
 		return err
 	}
-
+	err = uc.adRepository.UpdateFavoritesCount(ctx, adId)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 func (uc *adUseCase) GetUserFavorites(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	const maxLen = 255
-	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
-	if !validCharPattern.MatchString(userId) {
-		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
-		return nil, errors.New("input contains invalid characters")
-	}
 
 	if len(userId) > maxLen {
 		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
 		return nil, errors.New("input exceeds character limit")
+	}
+
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(userId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return nil, errors.New("input contains invalid characters")
 	}
 
 	places, err := uc.adRepository.GetUserFavorites(ctx, userId)
@@ -388,4 +395,46 @@ func (uc *adUseCase) GetUserFavorites(ctx context.Context, userId string) ([]dom
 	}
 
 	return places, nil
+}
+
+func (uc *adUseCase) UpdatePriority(ctx context.Context, adId string, userId string, amount int) error {
+	requestID := middleware.GetRequestID(ctx)
+	const maxLen = 255
+
+	if len(adId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return errors.New("input exceeds character limit")
+	}
+
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(adId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("input contains invalid characters")
+	}
+
+	err := uc.adRepository.UpdatePriority(ctx, adId, userId, amount)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (uc *adUseCase) StartPriorityResetWorker(ctx context.Context, tickerInterval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(tickerInterval) // Интервал передаётся извне
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				logger.AccessLogger.Info("Priority reset worker stopped")
+				return
+			case <-ticker.C:
+				logger.AccessLogger.Info("Priority reset worker started")
+				if err := uc.adRepository.ResetExpiredPriorities(ctx); err != nil {
+					logger.AccessLogger.Error("Failed to reset expired priorities", zap.Error(err))
+				}
+			}
+		}
+	}()
 }

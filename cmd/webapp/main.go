@@ -7,6 +7,9 @@ import (
 	chatRepository "2024_2_FIGHT-CLUB/internal/chat/repository"
 	chatUseCase "2024_2_FIGHT-CLUB/internal/chat/usecase"
 	cityHttpDelivery "2024_2_FIGHT-CLUB/internal/cities/controller"
+	regionsContoller "2024_2_FIGHT-CLUB/internal/regions/controller"
+	regionsRepository "2024_2_FIGHT-CLUB/internal/regions/repository"
+	regionsUsecase "2024_2_FIGHT-CLUB/internal/regions/usecase"
 	reviewContoller "2024_2_FIGHT-CLUB/internal/reviews/contoller"
 	reviewRepository "2024_2_FIGHT-CLUB/internal/reviews/repository"
 	reviewUsecase "2024_2_FIGHT-CLUB/internal/reviews/usecase"
@@ -15,12 +18,14 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/router"
 	"2024_2_FIGHT-CLUB/internal/service/session"
+	"2024_2_FIGHT-CLUB/internal/service/utils"
 	generatedAds "2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
 	generatedAuth "2024_2_FIGHT-CLUB/microservices/auth_service/controller/gen"
 	generatedCity "2024_2_FIGHT-CLUB/microservices/city_service/controller/gen"
 	"fmt"
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"net/http"
 	"os"
@@ -53,7 +58,7 @@ func main() {
 	if authAdress == "" {
 		log.Fatalf("AUTH_SERVICE_ADDRESS is not set")
 	}
-	authConn, err := grpc.NewClient(authAdress, grpc.WithInsecure()) // Укажите адрес AuthService
+	authConn, err := grpc.NewClient(authAdress, grpc.WithTransportCredentials(insecure.NewCredentials())) // Укажите адрес AuthService
 	if err != nil {
 		log.Fatalf("Failed to connect to AuthService: %v", err)
 	}
@@ -63,7 +68,7 @@ func main() {
 	if adsAdress == "" {
 		log.Fatalf("ADS_SERVICE_ADDRESS is not set")
 	}
-	adsConn, err := grpc.NewClient(adsAdress, grpc.WithInsecure())
+	adsConn, err := grpc.NewClient(adsAdress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Failed to connect to AdsService: %v", err)
 	}
@@ -73,22 +78,23 @@ func main() {
 	if cityAdress == "" {
 		log.Fatalf("CITY_SERVICE_ADDRESS is not set")
 	}
-	cityConn, err := grpc.NewClient(cityAdress, grpc.WithInsecure())
+	cityConn, err := grpc.NewClient(cityAdress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Failed to connect to AdsService: %v", err)
 	}
 	defer cityConn.Close()
 
 	sessionService := session.NewSessionService(redisStore)
-
+	utilsService := utils.NewUtilsInterface()
 	authClient := generatedAuth.NewAuthClient(authConn)
-	authHandler := authHttpDelivery.NewAuthHandler(authClient, sessionService, jwtToken)
+	authHandler := authHttpDelivery.NewAuthHandler(authClient, sessionService, jwtToken, utilsService)
 
 	adsClient := generatedAds.NewAdsClient(adsConn)
-	adsHandler := adHttpDelivery.NewAdHandler(adsClient, sessionService, jwtToken)
+
+	adsHandler := adHttpDelivery.NewAdHandler(adsClient, sessionService, jwtToken, utilsService)
 
 	cityClient := generatedCity.NewCityServiceClient(cityConn)
-	cityHandler := cityHttpDelivery.NewCityHandler(cityClient)
+	cityHandler := cityHttpDelivery.NewCityHandler(cityClient, utilsService)
 
 	chatsRepository := chatRepository.NewChatRepository(db)
 	chatsUseCase := chatUseCase.NewChatService(chatsRepository)
@@ -98,10 +104,14 @@ func main() {
 	reviewsUsecase := reviewUsecase.NewReviewUsecase(reviewsRepository)
 	reviewsHandler := reviewContoller.NewReviewHandler(reviewsUsecase, sessionService, jwtToken)
 
-	mainRouter := router.SetUpRoutes(authHandler, adsHandler, cityHandler, chatsHandler, reviewsHandler)
+	regionRepository := regionsRepository.NewRegionRepository(db)
+	regionUsecase := regionsUsecase.NewRegionUsecase(regionRepository)
+	regionHandler := regionsContoller.NewRegionHandler(regionUsecase, sessionService, jwtToken)
+
+	mainRouter := router.SetUpRoutes(authHandler, adsHandler, cityHandler, chatsHandler, reviewsHandler, regionHandler)
 	mainRouter.Use(middleware.RequestIDMiddleware)
 	mainRouter.Use(middleware.RateLimitMiddleware)
-	http.Handle("/", middleware.EnableCORS(mainRouter))
+	http.Handle("/", middleware.RecoverWrap(middleware.EnableCORS(mainRouter)))
 	if os.Getenv("HTTPS") == "TRUE" {
 		fmt.Printf("Starting HTTPS server on address %s\n", os.Getenv("BACKEND_URL"))
 		if err := http.ListenAndServeTLS(os.Getenv("BACKEND_URL"), "ssl/pootnick.crt", "ssl/pootnick.key", nil); err != nil {

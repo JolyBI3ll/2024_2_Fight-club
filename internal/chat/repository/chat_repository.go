@@ -99,8 +99,7 @@ func (cr *Repo) GetMessages(ctx context.Context, userID1 string, userID2 string,
 	err = cr.db.
 		Where("(\"senderId\" = ? AND \"receiverId\" = ?) OR (\"senderId\" = ? AND \"receiverId\" = ?)", userID1, userID2, userID2, userID1).
 		Where("\"createdAt\" < ?", lastSentTime).
-		Order("\"createdAt\" DESC").
-		Limit(20).
+		Order("\"createdAt\" ASC").
 		Find(&messages).Error
 
 	if err != nil {

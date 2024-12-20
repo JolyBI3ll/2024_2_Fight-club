@@ -1,17 +1,18 @@
 package session
 
 import (
+	"2024_2_FIGHT-CLUB/domain"
 	"context"
-	"encoding/json"
 	"errors"
+	"github.com/mailru/easyjson"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 )
 
 type RedisInterface interface {
-	Get(ctx context.Context, sessionID string) (map[string]interface{}, error)
-	Set(ctx context.Context, sessionID string, data map[string]interface{}, ttl time.Duration) error
+	Get(ctx context.Context, sessionID string) (domain.SessionData, error)
+	Set(ctx context.Context, sessionID string, data domain.SessionData, ttl time.Duration) error
 	Delete(ctx context.Context, sessionID string) error
 }
 
@@ -23,25 +24,25 @@ func NewRedisSessionStore(client *redis.Client) *RedisSessionStore {
 	return &RedisSessionStore{client: client}
 }
 
-func (r *RedisSessionStore) Get(ctx context.Context, sessionID string) (map[string]interface{}, error) {
+func (r *RedisSessionStore) Get(ctx context.Context, sessionID string) (domain.SessionData, error) {
 	data, err := r.client.Get(ctx, sessionID).Result()
 	if errors.Is(err, redis.Nil) {
-		return nil, errors.New("session not found")
+		return domain.SessionData{}, errors.New("session not found")
 	}
 	if err != nil {
-		return nil, err
+		return domain.SessionData{}, err
 	}
 
-	var sessionData map[string]interface{}
-	if err := json.Unmarshal([]byte(data), &sessionData); err != nil {
-		return nil, err
+	var sessionData domain.SessionData
+	if err := easyjson.Unmarshal([]byte(data), &sessionData); err != nil {
+		return domain.SessionData{}, err
 	}
 
 	return sessionData, nil
 }
 
-func (r *RedisSessionStore) Set(ctx context.Context, sessionID string, data map[string]interface{}, ttl time.Duration) error {
-	jsonData, err := json.Marshal(data)
+func (r *RedisSessionStore) Set(ctx context.Context, sessionID string, data domain.SessionData, ttl time.Duration) error {
+	jsonData, err := easyjson.Marshal(data)
 	if err != nil {
 		return err
 	}

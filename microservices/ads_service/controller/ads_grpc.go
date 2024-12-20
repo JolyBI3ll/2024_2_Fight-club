@@ -106,7 +106,12 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequ
 		DateTo:      dateTo,
 	}
 
-	places, err := adh.usecase.GetAllPlaces(ctx, filter)
+	userID, err := adh.sessionService.GetUserID(ctx, in.SessionId)
+	if err != nil {
+		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
+	}
+
+	places, err := adh.usecase.GetAllPlaces(ctx, filter, userID)
 	if err != nil {
 		logger.AccessLogger.Error("Failed to get places",
 			zap.Error(err),
@@ -123,19 +128,30 @@ func (adh *GrpcAdHandler) GetAllPlaces(ctx context.Context, in *gen.AdFilterRequ
 			PublicationDate: place.PublicationDate.Format(layout),
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
-			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
+			ViewsCount:      int32(place.ViewsCount),
+			SquareMeters:    int32(place.SquareMeters),
+			Floor:           int32(place.Floor),
+			BuildingType:    place.BuildingType,
+			HasBalcony:      place.HasBalcony,
+			HasElevator:     place.HasElevator,
+			HasGas:          place.HasGas,
+			LikesCount:      int32(place.LikesCount),
+			Priority:        int32(place.Priority),
+			EndBoostDate:    place.EndBoostDate.Format(layout),
 			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
+			IsFavorite:      place.IsFavorite,
 			AdAuthor: &gen.UserResponse{
-				Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
+				Rating:     float32(place.AdAuthor.Rating),
 				Avatar:     place.AdAuthor.Avatar,
 				Name:       place.AdAuthor.Name,
-				GuestCount: int32Ptr(int32(place.AdAuthor.GuestCount)),
+				GuestCount: int32(place.AdAuthor.GuestCount),
 				Sex:        place.AdAuthor.Sex,
 				BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 			},
 			Images: convertImagesToGRPC(place.Images),
+			Rooms:  middleware.ConvertRoomsToGRPC(place.Rooms),
 		}
 		responseList.Housing = append(responseList.Housing, ad)
 	}
@@ -171,19 +187,30 @@ func (adh *GrpcAdHandler) GetOnePlace(ctx context.Context, in *gen.GetPlaceByIdR
 		PublicationDate: place.PublicationDate.Format(layout),
 		Description:     place.Description,
 		RoomsNumber:     int32(place.RoomsNumber),
-		ViewsCount:      int32Ptr(int32(place.ViewsCount)),
+		ViewsCount:      int32(place.ViewsCount),
+		SquareMeters:    int32(place.SquareMeters),
+		Floor:           int32(place.Floor),
+		BuildingType:    place.BuildingType,
+		HasBalcony:      place.HasBalcony,
+		HasElevator:     place.HasElevator,
+		HasGas:          place.HasGas,
+		LikesCount:      int32(place.LikesCount),
+		Priority:        int32(place.Priority),
+		EndBoostDate:    place.EndBoostDate.Format(layout),
 		CityName:        place.CityName,
 		AdDateFrom:      place.AdDateFrom.Format(layout),
 		AdDateTo:        place.AdDateTo.Format(layout),
+		IsFavorite:      place.IsFavorite,
 		AdAuthor: &gen.UserResponse{
-			Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
+			Rating:     float32(place.AdAuthor.Rating),
 			Avatar:     place.AdAuthor.Avatar,
 			Name:       place.AdAuthor.Name,
-			GuestCount: int32Ptr(int32(place.AdAuthor.GuestCount)),
+			GuestCount: int32(place.AdAuthor.GuestCount),
 			Sex:        place.AdAuthor.Sex,
 			BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 		},
 		Images: convertImagesToGRPC(place.Images),
+		Rooms:  middleware.ConvertRoomsToGRPC(place.Rooms),
 	}, nil
 }
 
@@ -206,6 +233,7 @@ func (adh *GrpcAdHandler) CreatePlace(ctx context.Context, in *gen.CreateAdReque
 	in.CityName = sanitizer.Sanitize(in.CityName)
 	in.Description = sanitizer.Sanitize(in.Description)
 	in.Address = sanitizer.Sanitize(in.Address)
+	in.BuildingType = sanitizer.Sanitize(in.BuildingType)
 
 	tokenString := in.AuthHeader[len("Bearer "):]
 	_, err := adh.jwtToken.Validate(tokenString, in.SessionID)
@@ -222,12 +250,19 @@ func (adh *GrpcAdHandler) CreatePlace(ctx context.Context, in *gen.CreateAdReque
 
 	var place domain.Ad
 	newPlace := domain.CreateAdRequest{
-		CityName:    in.CityName,
-		Description: in.Description,
-		Address:     in.Address,
-		RoomsNumber: int(in.RoomsNumber),
-		DateFrom:    (in.DateFrom).AsTime(),
-		DateTo:      (in.DateTo).AsTime(),
+		CityName:     in.CityName,
+		Description:  in.Description,
+		Address:      in.Address,
+		RoomsNumber:  int(in.RoomsNumber),
+		DateFrom:     (in.DateFrom).AsTime(),
+		DateTo:       (in.DateTo).AsTime(),
+		Rooms:        middleware.ConvertGRPCToRooms(in.Rooms),
+		SquareMeters: int(in.SquareMeters),
+		Floor:        int(in.Floor),
+		BuildingType: in.BuildingType,
+		HasBalcony:   in.HasBalcony,
+		HasElevator:  in.HasElevator,
+		HasGas:       in.HasGas,
 	}
 	place.AuthorUUID = userID
 
@@ -260,6 +295,7 @@ func (adh *GrpcAdHandler) UpdatePlace(ctx context.Context, in *gen.UpdateAdReque
 	in.Description = sanitizer.Sanitize(in.Description)
 	in.Address = sanitizer.Sanitize(in.Address)
 	in.CityName = sanitizer.Sanitize(in.CityName)
+	in.BuildingType = sanitizer.Sanitize(in.BuildingType)
 
 	if in.AuthHeader == "" {
 		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
@@ -282,12 +318,19 @@ func (adh *GrpcAdHandler) UpdatePlace(ctx context.Context, in *gen.UpdateAdReque
 		return nil, errors.New("no active session")
 	}
 	updatedPlace := domain.UpdateAdRequest{
-		CityName:    in.CityName,
-		Description: in.Description,
-		Address:     in.Address,
-		RoomsNumber: int(in.RoomsNumber),
-		DateFrom:    (in.DateFrom).AsTime(),
-		DateTo:      (in.DateTo).AsTime(),
+		CityName:     in.CityName,
+		Description:  in.Description,
+		Address:      in.Address,
+		RoomsNumber:  int(in.RoomsNumber),
+		DateFrom:     (in.DateFrom).AsTime(),
+		DateTo:       (in.DateTo).AsTime(),
+		Rooms:        middleware.ConvertGRPCToRooms(in.Rooms),
+		SquareMeters: int(in.SquareMeters),
+		Floor:        int(in.Floor),
+		BuildingType: in.BuildingType,
+		HasBalcony:   in.HasBalcony,
+		HasElevator:  in.HasElevator,
+		HasGas:       in.HasGas,
 	}
 	var place domain.Ad
 	err = adh.usecase.UpdatePlace(ctx, &place, in.AdId, userID, in.Images, updatedPlace)
@@ -359,19 +402,30 @@ func (adh *GrpcAdHandler) GetPlacesPerCity(ctx context.Context, in *gen.GetPlace
 			PublicationDate: place.PublicationDate.Format(layout),
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
-			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
+			ViewsCount:      int32(place.ViewsCount),
+			SquareMeters:    int32(place.SquareMeters),
+			Floor:           int32(place.Floor),
+			BuildingType:    place.BuildingType,
+			HasBalcony:      place.HasBalcony,
+			HasElevator:     place.HasElevator,
+			HasGas:          place.HasGas,
+			LikesCount:      int32(place.LikesCount),
+			Priority:        int32(place.Priority),
+			EndBoostDate:    place.EndBoostDate.Format(layout),
 			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
+			IsFavorite:      place.IsFavorite,
 			AdAuthor: &gen.UserResponse{
-				Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
+				Rating:     float32(place.AdAuthor.Rating),
 				Avatar:     place.AdAuthor.Avatar,
 				Name:       place.AdAuthor.Name,
-				GuestCount: int32Ptr(int32(place.AdAuthor.GuestCount)),
+				GuestCount: int32(place.AdAuthor.GuestCount),
 				Sex:        place.AdAuthor.Sex,
 				BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 			},
 			Images: convertImagesToGRPC(place.Images),
+			Rooms:  middleware.ConvertRoomsToGRPC(place.Rooms),
 		}
 		responseList.Housing = append(responseList.Housing, ad)
 	}
@@ -401,19 +455,29 @@ func (adh *GrpcAdHandler) GetUserPlaces(ctx context.Context, in *gen.GetUserPlac
 			PublicationDate: place.PublicationDate.Format(layout),
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
-			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
+			ViewsCount:      int32(place.ViewsCount),
+			SquareMeters:    int32(place.SquareMeters),
+			Floor:           int32(place.Floor),
+			BuildingType:    place.BuildingType,
+			HasBalcony:      place.HasBalcony,
+			HasElevator:     place.HasElevator,
+			HasGas:          place.HasGas,
+			LikesCount:      int32(place.LikesCount),
+			Priority:        int32(place.Priority),
+			EndBoostDate:    place.EndBoostDate.Format(layout),
 			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
 			AdAuthor: &gen.UserResponse{
-				Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
+				Rating:     float32(place.AdAuthor.Rating),
 				Avatar:     place.AdAuthor.Avatar,
 				Name:       place.AdAuthor.Name,
-				GuestCount: int32Ptr(int32(place.AdAuthor.GuestCount)),
+				GuestCount: int32(place.AdAuthor.GuestCount),
 				Sex:        place.AdAuthor.Sex,
 				BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 			},
 			Images: convertImagesToGRPC(place.Images),
+			Rooms:  middleware.ConvertRoomsToGRPC(place.Rooms),
 		}
 		responseList.Housing = append(responseList.Housing, ad)
 	}
@@ -544,21 +608,6 @@ func (adh *GrpcAdHandler) GetUserFavorites(ctx context.Context, in *gen.GetUserF
 	layout := "2006-01-02"
 	in.UserId = sanitizer.Sanitize(in.UserId)
 
-	if in.AuthHeader == "" {
-		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
-			zap.String("request_id", requestID),
-			zap.Error(errors.New("missing X-CSRF-Token header")),
-		)
-		return nil, errors.New("missing X-CSRF-Token header")
-	}
-
-	tokenString := in.AuthHeader[len("Bearer "):]
-	_, err := adh.jwtToken.Validate(tokenString, in.SessionID)
-	if err != nil {
-		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
-		return nil, errors.New("invalid JWT token")
-	}
-
 	userID, err := adh.sessionService.GetUserID(ctx, in.SessionID)
 	if err != nil {
 		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
@@ -583,19 +632,29 @@ func (adh *GrpcAdHandler) GetUserFavorites(ctx context.Context, in *gen.GetUserF
 			PublicationDate: place.PublicationDate.Format(layout),
 			Description:     place.Description,
 			RoomsNumber:     int32(place.RoomsNumber),
-			ViewsCount:      int32Ptr(int32(place.ViewsCount)),
+			ViewsCount:      int32(place.ViewsCount),
+			SquareMeters:    int32(place.SquareMeters),
+			Floor:           int32(place.Floor),
+			BuildingType:    place.BuildingType,
+			HasBalcony:      place.HasBalcony,
+			HasElevator:     place.HasElevator,
+			HasGas:          place.HasGas,
+			LikesCount:      int32(place.LikesCount),
+			Priority:        int32(place.Priority),
+			EndBoostDate:    place.EndBoostDate.Format(layout),
 			CityName:        place.CityName,
 			AdDateFrom:      place.AdDateFrom.Format(layout),
 			AdDateTo:        place.AdDateTo.Format(layout),
 			AdAuthor: &gen.UserResponse{
-				Rating:     float32Ptr(float32(place.AdAuthor.Rating)),
+				Rating:     float32(place.AdAuthor.Rating),
 				Avatar:     place.AdAuthor.Avatar,
 				Name:       place.AdAuthor.Name,
-				GuestCount: int32Ptr(int32(place.AdAuthor.GuestCount)),
+				GuestCount: int32(place.AdAuthor.GuestCount),
 				Sex:        place.AdAuthor.Sex,
 				BirthDate:  place.AdAuthor.Birthdate.Format(layout),
 			},
 			Images: convertImagesToGRPC(place.Images),
+			Rooms:  middleware.ConvertRoomsToGRPC(place.Rooms),
 		}
 		responseList.Housing = append(responseList.Housing, ad)
 	}
@@ -604,12 +663,51 @@ func (adh *GrpcAdHandler) GetUserFavorites(ctx context.Context, in *gen.GetUserF
 	return &responseList, nil
 }
 
-func float32Ptr(f float32) *float32 {
-	return &f
-}
+func (adh *GrpcAdHandler) UpdatePriority(ctx context.Context, in *gen.UpdatePriorityRequest) (*gen.AdResponse, error) {
+	requestID := middleware.GetRequestID(ctx)
+	sanitizer := bluemonday.UGCPolicy()
+	logger.AccessLogger.Info("Received UpdatePriority request in microservice",
+		zap.String("request_id", requestID),
+	)
+	in.AdId = sanitizer.Sanitize(in.AdId)
+	in.Amount = sanitizer.Sanitize(in.Amount)
 
-func int32Ptr(i int32) *int32 {
-	return &i
+	var amountInt int
+	if in.Amount != "" {
+		var err error
+		amountInt, err = strconv.Atoi(in.Amount)
+		if err != nil {
+			logger.AccessLogger.Error("Failed to parse amount as int", zap.String("request_id", requestID), zap.Error(err))
+			return nil, errors.New("amount is not int")
+		}
+	}
+
+	if in.AuthHeader == "" {
+		logger.AccessLogger.Warn("Missing X-CSRF-Token header",
+			zap.String("request_id", requestID),
+			zap.Error(errors.New("missing X-CSRF-Token header")),
+		)
+		return nil, errors.New("missing X-CSRF-Token header")
+	}
+
+	tokenString := in.AuthHeader[len("Bearer "):]
+	_, err := adh.jwtToken.Validate(tokenString, in.SessionID)
+	if err != nil {
+		logger.AccessLogger.Warn("Invalid JWT token", zap.String("request_id", requestID), zap.Error(err))
+		return nil, errors.New("invalid JWT token")
+	}
+
+	userId, err := adh.sessionService.GetUserID(ctx, in.SessionID)
+	if err != nil {
+		logger.AccessLogger.Warn("No active session", zap.String("request_id", requestID))
+		return nil, errors.New("no active session")
+	}
+	err = adh.usecase.UpdatePriority(ctx, in.AdId, userId, amountInt)
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to update ad priority", zap.String("request_id", requestID), zap.Error(err))
+		return nil, err
+	}
+	return &gen.AdResponse{Response: "Successfully update ad priority"}, nil
 }
 
 func convertImagesToGRPC(images []domain.ImageResponse) []*gen.ImageResponse {

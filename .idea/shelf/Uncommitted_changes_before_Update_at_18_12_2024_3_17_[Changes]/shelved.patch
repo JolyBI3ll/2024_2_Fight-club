@@ -1,0 +1,1647 @@
+Index: internal/ads/controller/ads_controller_test.go
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>package controller\r\n\r\nimport (\r\n\t\"2024_2_FIGHT-CLUB/internal/service/logger\"\r\n\t\"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen\"\r\n\t\"2024_2_FIGHT-CLUB/microservices/ads_service/mocks\"\r\n\t\"errors\"\r\n\t\"github.com/stretchr/testify/assert\"\r\n\t\"github.com/stretchr/testify/mock\"\r\n\t\"github.com/stretchr/testify/require\"\r\n\t\"google.golang.org/grpc/codes\"\r\n\t\"google.golang.org/grpc/status\"\r\n\t\"io\"\r\n\t\"net/http\"\r\n\t\"net/http/httptest\"\r\n\t\"testing\"\r\n)\r\n\r\nfunc TestAdHandler_GetAllPlaces_Success(t *testing.T) {\r\n\t// Инициализация логгера\r\n\trequire.NoError(t, logger.InitLoggers())\r\n\tdefer func() {\r\n\t\terr := logger.SyncLoggers()\r\n\t\tif err != nil {\r\n\t\t\treturn\r\n\t\t}\r\n\t}()\r\n\r\n\tmockGrpcClient := new(mocks.MockGrpcClient)\r\n\ttestResponse := &gen.GetAllAdsResponseList{}\r\n\tmockGrpcClient.On(\"GetAllPlaces\", mock.Anything, mock.Anything, mock.Anything).Return(testResponse, nil)\r\n\r\n\tadHandler := &AdHandler{\r\n\t\tclient: mockGrpcClient,\r\n\t}\r\n\r\n\treq := httptest.NewRequest(http.MethodGet, \"/housing?location=test\", nil)\r\n\treq.Header.Set(\"X-Real-IP\", \"127.0.0.1\")\r\n\tw := httptest.NewRecorder()\r\n\r\n\tadHandler.GetAllPlaces(w, req)\r\n\r\n\tresult := w.Result()\r\n\tdefer func(Body io.ReadCloser) {\r\n\t\terr := Body.Close()\r\n\t\tif err != nil {\r\n\t\t\treturn\r\n\t\t}\r\n\t}(result.Body)\r\n\r\n\tassert.Equal(t, http.StatusOK, result.StatusCode)\r\n\tmockGrpcClient.AssertExpectations(t)\r\n}\r\n\r\nfunc TestAdHandler_GetAllPlaces_Error(t *testing.T) {\r\n\trequire.NoError(t, logger.InitLoggers())\r\n\tdefer func() {\r\n\t\terr := logger.SyncLoggers()\r\n\t\tif err != nil {\r\n\t\t\treturn\r\n\t\t}\r\n\t}()\r\n\tgrpcErr := status.Error(codes.Internal, \"Simulated gRPC Error\")\r\n\r\n\tmockGrpcClient := new(mocks.MockGrpcClient)\r\n\tmockGrpcClient.On(\"GetAllPlaces\", mock.Anything, mock.Anything, mock.Anything).\r\n\t\tReturn((*gen.GetAllAdsResponseList)(nil), grpcErr)\r\n\r\n\tadHandler := &AdHandler{\r\n\t\tclient: mockGrpcClient,\r\n\t}\r\n\r\n\treq := httptest.NewRequest(http.MethodGet, \"/housing\", nil)\r\n\treq.Header.Set(\"X-Real-IP\", \"127.0.0.1\")\r\n\tw := httptest.NewRecorder()\r\n\r\n\tadHandler.GetAllPlaces(w, req)\r\n\r\n\tresult := w.Result()\r\n\tdefer func(Body io.ReadCloser) {\r\n\t\terr := Body.Close()\r\n\t\tif err != nil {\r\n\t\t\treturn\r\n\t\t}\r\n\t}(result.Body)\r\n\r\n\tassert.Equal(t, http.StatusInternalServerError, result.StatusCode)\r\n\tmockGrpcClient.AssertExpectations(t)\r\n}\r\n\r\nfunc TestAdHandler_GetAllPlaces_ConvertError(t *testing.T) {\r\n\trequire.NoError(t, logger.InitLoggers())\r\n\tdefer func() {\r\n\t\terr := logger.SyncLoggers()\r\n\t\tif err != nil {\r\n\t\t\treturn\r\n\t\t}\r\n\t}()\r\n\tresponse := &gen.GetAllAdsResponseList{}\r\n\tmockGrpcClient := new(mocks.MockGrpcClient)\r\n\tmockGrpcClient.On(\"GetAllPlaces\", mock.Anything, mock.Anything, mock.Anything).\r\n\t\tReturn(response, nil)\r\n\r\n\tutilsMock := &mocks.MockUtils{}\r\n\tutilsMock.On(\"ConvertGetAllAdsResponseProtoToGo\", response).\r\n\t\tReturn(nil, errors.New(\"conversion error\"))\r\n\r\n\tadHandler := &AdHandler{\r\n\t\tclient: mockGrpcClient,\r\n\t\tutils:  utilsMock,\r\n\t}\r\n\r\n\treq := httptest.NewRequest(http.MethodGet, \"/housing\", nil)\r\n\tw := httptest.NewRecorder()\r\n\r\n\t// Выполнение метода\r\n\tadHandler.GetAllPlaces(w, req)\r\n\r\n\t// Проверка результата\r\n\tresult := w.Result()\r\n\tdefer func(Body io.ReadCloser) {\r\n\t\terr := Body.Close()\r\n\t\tif err != nil {\r\n\t\t\treturn\r\n\t\t}\r\n\t}(result.Body)\r\n\r\n\tassert.Equal(t, http.StatusInternalServerError, result.StatusCode)\r\n\tmockGrpcClient.AssertExpectations(t)\r\n\tutilsMock.AssertExpectations(t)\r\n}\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/internal/ads/controller/ads_controller_test.go b/internal/ads/controller/ads_controller_test.go
+--- a/internal/ads/controller/ads_controller_test.go	(revision f68dbe94cca631281d0d1496863bdf9efcda8dd8)
++++ b/internal/ads/controller/ads_controller_test.go	(date 1734480849971)
+@@ -1,16 +1,23 @@
+ package controller
+ 
+ import (
++	"2024_2_FIGHT-CLUB/domain"
+ 	"2024_2_FIGHT-CLUB/internal/service/logger"
++	"2024_2_FIGHT-CLUB/internal/service/utils"
+ 	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
+ 	"2024_2_FIGHT-CLUB/microservices/ads_service/mocks"
++	"bytes"
++	"context"
++	"encoding/json"
+ 	"errors"
++	"github.com/gorilla/mux"
+ 	"github.com/stretchr/testify/assert"
+ 	"github.com/stretchr/testify/mock"
+ 	"github.com/stretchr/testify/require"
+ 	"google.golang.org/grpc/codes"
+ 	"google.golang.org/grpc/status"
+ 	"io"
++	"mime/multipart"
+ 	"net/http"
+ 	"net/http/httptest"
+ 	"testing"
+@@ -29,9 +36,14 @@
+ 	mockGrpcClient := new(mocks.MockGrpcClient)
+ 	testResponse := &gen.GetAllAdsResponseList{}
+ 	mockGrpcClient.On("GetAllPlaces", mock.Anything, mock.Anything, mock.Anything).Return(testResponse, nil)
++	response := &gen.GetAllAdsResponseList{}
++	utilsMock := &utils.MockUtils{}
++	utilsMock.On("ConvertGetAllAdsResponseProtoToGo", response).
++		Return(nil, nil)
+ 
+ 	adHandler := &AdHandler{
+ 		client: mockGrpcClient,
++		utils:  utilsMock,
+ 	}
+ 
+ 	req := httptest.NewRequest(http.MethodGet, "/housing?location=test", nil)
+@@ -101,7 +113,7 @@
+ 	mockGrpcClient.On("GetAllPlaces", mock.Anything, mock.Anything, mock.Anything).
+ 		Return(response, nil)
+ 
+-	utilsMock := &mocks.MockUtils{}
++	utilsMock := &utils.MockUtils{}
+ 	utilsMock.On("ConvertGetAllAdsResponseProtoToGo", response).
+ 		Return(nil, errors.New("conversion error"))
+ 
+@@ -129,3 +141,1533 @@
+ 	mockGrpcClient.AssertExpectations(t)
+ 	utilsMock.AssertExpectations(t)
+ }
++
++func TestAdHandler_GetOnePlace_Success(t *testing.T) {
++	// Инициализация логгера
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		require.NoError(t, logger.SyncLoggers())
++	}()
++
++	mockGrpcClient := new(mocks.MockGrpcClient)
++	mockSessionService := &mocks.MockServiceSession{}
++	mockUtils := new(utils.MockUtils)
++
++	testResponse := &gen.GetAllAdsResponse{}
++	mockGrpcClient.On("GetOnePlace", mock.Anything, mock.Anything, mock.Anything).Return(testResponse, nil)
++
++	convertedResponse := &domain.GetAllAdsResponse{}
++	mockUtils.On("ConvertAdProtoToGo", testResponse).Return(convertedResponse, nil)
++
++	mockSessionService.MockGetUserID = func(ctx context.Context, sessionID string) (string, error) {
++		return "123", nil
++	}
++
++	adHandler := &AdHandler{
++		client:         mockGrpcClient,
++		sessionService: mockSessionService,
++		utils:          mockUtils,
++	}
++
++	req := httptest.NewRequest(http.MethodGet, "/housing/123", nil)
++	req = mux.SetURLVars(req, map[string]string{"adId": "123"})
++	req.Header.Set("X-Real-IP", "127.0.0.1")
++	w := httptest.NewRecorder()
++
++	adHandler.GetOnePlace(w, req)
++
++	result := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(result.Body)
++
++	assert.Equal(t, http.StatusOK, result.StatusCode)
++	mockGrpcClient.AssertExpectations(t)
++	mockUtils.AssertExpectations(t)
++}
++
++func TestAdHandler_GetOnePlace_GrpcError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockGrpcClient := new(mocks.MockGrpcClient)
++	mockSessionService := &mocks.MockServiceSession{}
++
++	grpcErr := status.Error(codes.Internal, "Simulated gRPC Error")
++	mockGrpcClient.On("GetOnePlace", mock.Anything, mock.Anything, mock.Anything).Return((*gen.GetAllAdsResponse)(nil), grpcErr)
++
++	mockSessionService.MockGetUserID = func(ctx context.Context, sessionID string) (string, error) {
++		return "123", nil
++	}
++
++	adHandler := &AdHandler{
++		client:         mockGrpcClient,
++		sessionService: mockSessionService,
++	}
++
++	req := httptest.NewRequest(http.MethodGet, "/housing/123", nil)
++	req = mux.SetURLVars(req, map[string]string{"adId": "123"})
++	req.Header.Set("X-Real-IP", "127.0.0.1")
++	w := httptest.NewRecorder()
++
++	adHandler.GetOnePlace(w, req)
++
++	result := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(result.Body)
++
++	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
++	mockGrpcClient.AssertExpectations(t)
++}
++
++func TestAdHandler_GetOnePlace_ConvertError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockGrpcClient := new(mocks.MockGrpcClient)
++	mockSessionService := &mocks.MockServiceSession{}
++	mockUtils := new(utils.MockUtils)
++
++	testResponse := &gen.GetAllAdsResponse{}
++	mockGrpcClient.On("GetOnePlace", mock.Anything, mock.Anything, mock.Anything).Return(testResponse, nil)
++
++	mockUtils.On("ConvertAdProtoToGo", testResponse).Return(nil, errors.New("conversion error"))
++
++	mockSessionService.MockGetUserID = func(ctx context.Context, sessionID string) (string, error) {
++		return "123", nil
++	}
++
++	adHandler := &AdHandler{
++		client:         mockGrpcClient,
++		sessionService: mockSessionService,
++		utils:          mockUtils,
++	}
++
++	req := httptest.NewRequest(http.MethodGet, "/housing/123", nil)
++	req = mux.SetURLVars(req, map[string]string{"adId": "123"})
++	req.Header.Set("X-Real-IP", "127.0.0.1")
++	w := httptest.NewRecorder()
++
++	adHandler.GetOnePlace(w, req)
++
++	result := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(result.Body)
++
++	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
++	mockGrpcClient.AssertExpectations(t)
++	mockUtils.AssertExpectations(t)
++}
++
++func TestAdHandler_CreatePlace_Success(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{
++		client: mockClient,
++	}
++
++	// Создаем multipart запрос с метаданными и файлами
++	body := new(bytes.Buffer)
++	writer := multipart.NewWriter(body)
++
++	// Добавляем JSON metadata
++	metadata := `{
++		"CityName": "TestCity",
++		"Description": "Test Description",
++		"Address": "Test Address",
++		"RoomsNumber": 2,
++		"SquareMeters": 60,
++		"Floor": 3,
++		"BuildingType": "Apartment",
++		"HasBalcony": true
++	}`
++	_ = writer.WriteField("metadata", metadata)
++
++	part, _ := writer.CreateFormFile("images", "image1.jpg")
++	_, err := part.Write([]byte("mock image data"))
++	if err != nil {
++		return
++	}
++
++	err = writer.Close()
++	if err != nil {
++		return
++	}
++
++	req := httptest.NewRequest("POST", "/housing", body)
++	req.Header.Set("Content-Type", writer.FormDataContentType())
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.Header.Set("X-Real-IP", "127.0.0.1")
++	req.AddCookie(&http.Cookie{
++		Name:  "session_id",
++		Value: "test-session-id",
++	})
++
++	w := httptest.NewRecorder()
++
++	mockClient.On("CreatePlace", mock.Anything, mock.Anything, mock.Anything).Return(&gen.Ad{}, nil)
++
++	handler.CreatePlace(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusCreated, resp.StatusCode)
++	bodyResponse, _ := io.ReadAll(resp.Body)
++	require.Contains(t, string(bodyResponse), "Successfully created ad")
++
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_CreatePlace_FailedToReadFile(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{
++		client: mockClient,
++	}
++
++	body := new(bytes.Buffer)
++	writer := multipart.NewWriter(body)
++	_, err := writer.CreateFormFile("images", "image1.jpg")
++	if err != nil {
++		return
++	}
++
++	err = writer.Close()
++	if err != nil {
++		return
++	}
++
++	req := httptest.NewRequest("POST", "/ads/create", body)
++	req.Header.Set("Content-Type", writer.FormDataContentType())
++	req.AddCookie(&http.Cookie{
++		Name:  "session_id",
++		Value: "test-session-id",
++	})
++
++	w := httptest.NewRecorder()
++
++	// Выполнение метода
++	handler.CreatePlace(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
++}
++
++func TestAdHandler_CreatePlace_CreatePlaceFailure(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{
++		client: mockClient,
++	}
++
++	// Создаем multipart запрос с метаданными и файлами
++	body := new(bytes.Buffer)
++	writer := multipart.NewWriter(body)
++	_ = writer.WriteField("metadata", `{"CityName":"TestCity"}`)
++	part, _ := writer.CreateFormFile("images", "image1.jpg")
++	_, err := part.Write([]byte("mock image data"))
++	if err != nil {
++		return
++	}
++	err = writer.Close()
++	if err != nil {
++		return
++	}
++
++	req := httptest.NewRequest("POST", "/ads/create", body)
++	req.Header.Set("Content-Type", writer.FormDataContentType())
++	req.AddCookie(&http.Cookie{
++		Name:  "session_id",
++		Value: "test-session-id",
++	})
++
++	w := httptest.NewRecorder()
++	grpcErr := status.Error(codes.Internal, "Simulated gRPC Error")
++	mockClient.On("CreatePlace", mock.Anything, mock.Anything, mock.Anything).Return(&gen.Ad{}, grpcErr)
++
++	handler.CreatePlace(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_CreatePlace_NoCookie(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{
++		client: mockClient,
++	}
++
++	// Создаем multipart запрос с метаданными и файлами
++	body := new(bytes.Buffer)
++	writer := multipart.NewWriter(body)
++	_ = writer.WriteField("metadata", `{"CityName":"TestCity"}`)
++	part, _ := writer.CreateFormFile("images", "image1.jpg")
++	_, err := part.Write([]byte("mock image data"))
++	if err != nil {
++		return
++	}
++	err = writer.Close()
++	if err != nil {
++		return
++	}
++
++	req := httptest.NewRequest("POST", "/ads/create", body)
++	req.Header.Set("Content-Type", writer.FormDataContentType())
++
++	w := httptest.NewRecorder()
++
++	handler.CreatePlace(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_UpdatePlace_Success(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++
++	body := new(bytes.Buffer)
++	writer := multipart.NewWriter(body)
++
++	metadata := `{
++		"CityName": "TestCity",
++		"Description": "Updated Description",
++		"Address": "Test Address",
++		"RoomsNumber": 3,
++		"SquareMeters": 70,
++		"Floor": 4,
++		"BuildingType": "Apartment",
++		"HasBalcony": false
++	}`
++
++	_ = writer.WriteField("metadata", metadata)
++
++	part, _ := writer.CreateFormFile("images", "image1.jpg")
++	_, err := part.Write([]byte("mock image data"))
++	require.NoError(t, err)
++
++	err = writer.Close()
++	require.NoError(t, err)
++
++	req := httptest.NewRequest("PUT", "/housing/123", body)
++	req.Header.Set("Content-Type", writer.FormDataContentType())
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.Header.Set("X-Real-IP", "127.0.0.1")
++	req.AddCookie(&http.Cookie{Name: "session_id", Value: "test-session-id"})
++
++	w := httptest.NewRecorder()
++
++	mockClient.On("UpdatePlace", mock.Anything, mock.Anything, mock.Anything).Return(&gen.AdResponse{}, nil)
++
++	handler.UpdatePlace(w, req)
++
++	resp := w.Result()
++	defer resp.Body.Close()
++
++	require.Equal(t, http.StatusOK, resp.StatusCode)
++	bodyResponse, _ := io.ReadAll(resp.Body)
++	require.Contains(t, string(bodyResponse), "Successfully updated ad")
++
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_UpdatePlace_ParseMultipartError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	handler := &AdHandler{client: new(mocks.MockGrpcClient)}
++
++	req := httptest.NewRequest("PUT", "/housing/123", bytes.NewBufferString("invalid body"))
++	req.Header.Set("Content-Type", "multipart/form-data")
++
++	w := httptest.NewRecorder()
++
++	handler.UpdatePlace(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
++}
++
++func TestAdHandler_UpdatePlace_MetadataDecodeError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	handler := &AdHandler{client: new(mocks.MockGrpcClient)}
++
++	body := new(bytes.Buffer)
++	writer := multipart.NewWriter(body)
++	_ = writer.WriteField("metadata", "invalid json")
++
++	_ = writer.Close()
++
++	req := httptest.NewRequest("PUT", "/housing/123", body)
++	req.Header.Set("Content-Type", writer.FormDataContentType())
++	req.AddCookie(&http.Cookie{Name: "session_id", Value: "test-session-id"})
++
++	w := httptest.NewRecorder()
++
++	handler.UpdatePlace(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
++}
++
++func TestAdHandler_UpdatePlace_SessionIDError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	handler := &AdHandler{client: new(mocks.MockGrpcClient)}
++
++	body := new(bytes.Buffer)
++	writer := multipart.NewWriter(body)
++	_ = writer.WriteField("metadata", "{}")
++	_ = writer.Close()
++
++	req := httptest.NewRequest("PUT", "/housing/123", body)
++	req.Header.Set("Content-Type", writer.FormDataContentType())
++
++	w := httptest.NewRecorder()
++
++	handler.UpdatePlace(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
++}
++
++func TestAdHandler_UpdatePlace_GRPCError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++
++	body := new(bytes.Buffer)
++	writer := multipart.NewWriter(body)
++
++	metadata := `{"CityName": "TestCity"}`
++	_ = writer.WriteField("metadata", metadata)
++	_ = writer.Close()
++
++	req := httptest.NewRequest("PUT", "/housing/123", body)
++	req.Header.Set("Content-Type", writer.FormDataContentType())
++	req.AddCookie(&http.Cookie{Name: "session_id", Value: "test-session-id"})
++
++	w := httptest.NewRecorder()
++	grpcErr := status.Error(codes.Internal, "Simulated gRPC Error")
++	mockClient.On("UpdatePlace", mock.Anything, mock.Anything, mock.Anything).Return(&gen.AdResponse{}, grpcErr)
++
++	handler.UpdatePlace(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
++}
++
++func TestAdHandler_DeletePlace_Success(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++
++	req := httptest.NewRequest("DELETE", "/housing/123", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.AddCookie(&http.Cookie{Name: "session_id", Value: "test-session-id"})
++
++	w := httptest.NewRecorder()
++
++	mockClient.On("DeletePlace", mock.Anything, mock.Anything, mock.Anything).Return(&gen.DeleteResponse{}, nil)
++
++	handler.DeletePlace(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusOK, resp.StatusCode)
++	require.Contains(t, w.Body.String(), "Successfully deleted place")
++
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_DeletePlace_FailedToGetSessionID(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++
++	req := httptest.NewRequest("DELETE", "/housing/123", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++
++	w := httptest.NewRecorder()
++
++	handler.DeletePlace(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
++	require.Contains(t, w.Body.String(), "failed to get session id from request cookie")
++
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_DeletePlace_ClientError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++
++	req := httptest.NewRequest("DELETE", "/housing/123", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.AddCookie(&http.Cookie{Name: "session_id", Value: "test-session-id"})
++
++	w := httptest.NewRecorder()
++	grpcErr := status.Error(codes.Internal, "failed to delete place")
++	mockClient.On("DeletePlace", mock.Anything, mock.Anything, mock.Anything).Return(&gen.DeleteResponse{}, grpcErr)
++
++	handler.DeletePlace(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
++	require.Contains(t, w.Body.String(), "failed to delete place")
++
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_GetPlacesPerCity_Success(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	utilsMock := &utils.MockUtils{}
++	handler := &AdHandler{client: mockClient, utils: utilsMock}
++
++	req := httptest.NewRequest("GET", "/housing/city/TestCity", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++
++	w := httptest.NewRecorder()
++
++	mockClient.On("GetPlacesPerCity", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.GetAllAdsResponseList{}, nil)
++
++	utilsMock.On("ConvertGetAllAdsResponseProtoToGo", mock.Anything).
++		Return([]domain.GetAllAdsListResponse{}, nil)
++
++	handler.GetPlacesPerCity(w, req)
++
++	result := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(result.Body)
++
++	assert.Equal(t, http.StatusOK, result.StatusCode)
++
++	mockClient.AssertExpectations(t)
++	utilsMock.AssertExpectations(t)
++}
++
++func TestAdHandler_GetPlacesPerCity_GrpcError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++
++	req := httptest.NewRequest("GET", "/housing/city/TestCity", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++
++	w := httptest.NewRecorder()
++	grpcError := status.Error(codes.Internal, "failed to get place per city")
++	mockClient.On("GetPlacesPerCity", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.GetAllAdsResponseList{}, grpcError)
++
++	handler.GetPlacesPerCity(w, req)
++
++	result := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(result.Body)
++
++	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_GetPlacesPerCity_ConvertError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	utilsMock := &utils.MockUtils{}
++	handler := &AdHandler{client: mockClient, utils: utilsMock}
++
++	req := httptest.NewRequest("GET", "/housing/city/TestCity", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++
++	w := httptest.NewRecorder()
++
++	mockClient.On("GetPlacesPerCity", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.GetAllAdsResponseList{}, nil)
++
++	utilsMock.On("ConvertGetAllAdsResponseProtoToGo", mock.Anything).
++		Return([]domain.GetAllAdsListResponse{}, errors.New("conversion error"))
++
++	handler.GetPlacesPerCity(w, req)
++
++	result := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(result.Body)
++
++	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
++
++	mockClient.AssertExpectations(t)
++	utilsMock.AssertExpectations(t)
++}
++
++func TestAdHandler_GetUserPlaces_Success(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	mockUtils := &utils.MockUtils{}
++	handler := &AdHandler{client: mockClient, utils: mockUtils}
++
++	req := httptest.NewRequest("GET", "/housing/user/testUserId", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++
++	w := httptest.NewRecorder()
++
++	mockClient.On("GetUserPlaces", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.GetAllAdsResponseList{}, nil)
++
++	mockUtils.On("ConvertGetAllAdsResponseProtoToGo", mock.Anything).
++		Return([]domain.GetAllAdsListResponse{}, nil)
++
++	handler.GetUserPlaces(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusOK, resp.StatusCode)
++
++	mockClient.AssertExpectations(t)
++	mockUtils.AssertExpectations(t)
++}
++
++func TestAdHandler_GetUserPlaces_GrpcError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++
++	req := httptest.NewRequest("GET", "/housing/user/testUserId", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++
++	w := httptest.NewRecorder()
++	grpcError := status.Error(codes.Internal, "failed to get place per city")
++	mockClient.On("GetUserPlaces", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.GetAllAdsResponseList{}, grpcError)
++
++	handler.GetUserPlaces(w, req)
++
++	result := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(result.Body)
++
++	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
++
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_GetUserPlaces_ConvertError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	utilsMock := &utils.MockUtils{}
++	handler := &AdHandler{client: mockClient, utils: utilsMock}
++
++	req := httptest.NewRequest("GET", "/housing/user/testUserId", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++
++	w := httptest.NewRecorder()
++
++	mockClient.On("GetUserPlaces", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.GetAllAdsResponseList{}, nil)
++
++	utilsMock.On("ConvertGetAllAdsResponseProtoToGo", mock.Anything).
++		Return([]domain.GetAllAdsListResponse{}, errors.New("conversion error"))
++
++	handler.GetUserPlaces(w, req)
++
++	result := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(result.Body)
++
++	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
++
++	mockClient.AssertExpectations(t)
++	utilsMock.AssertExpectations(t)
++}
++
++func TestAdHandler_DeleteAdImage_Success(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++
++	handler := &AdHandler{client: mockClient}
++
++	req := httptest.NewRequest("DELETE", "/housing/{adId}/images/{imageId}", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.AddCookie(&http.Cookie{
++		Name:  "session_id",
++		Value: "test-session-id",
++	})
++
++	w := httptest.NewRecorder()
++
++	mockClient.On("DeleteAdImage", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.DeleteResponse{}, nil)
++
++	handler.DeleteAdImage(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusOK, resp.StatusCode)
++	require.Contains(t, w.Body.String(), "\"message\":\"Successfully deleted ad image\"")
++
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_DeleteAdImage_FailedToGetSessionID(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	handler := &AdHandler{}
++
++	req := httptest.NewRequest("DELETE", "/housing/{adId}/images/{imageId}", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++
++	w := httptest.NewRecorder()
++
++	handler.DeleteAdImage(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
++	require.Contains(t, w.Body.String(), "failed to get session id from request cookie")
++}
++
++func TestAdHandler_DeleteAdImage_GrpcError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++
++	handler := &AdHandler{client: mockClient}
++
++	req := httptest.NewRequest("DELETE", "/housing/{adId}/images/{imageId}", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.AddCookie(&http.Cookie{
++		Name:  "session_id",
++		Value: "test-session-id",
++	})
++
++	w := httptest.NewRecorder()
++	grpcError := status.Error(codes.Internal, "failed to get place per city")
++	mockClient.On("DeleteAdImage", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.DeleteResponse{}, grpcError)
++
++	handler.DeleteAdImage(w, req)
++
++	result := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(result.Body)
++
++	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
++	require.Contains(t, w.Body.String(), "\"error\":\"failed to get place per city\"")
++
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_AddToFavorites_Success(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++
++	req := httptest.NewRequest("POST", "/housing/{adId}/like", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.AddCookie(&http.Cookie{
++		Name:  "session_id",
++		Value: "test-session-id",
++	})
++
++	w := httptest.NewRecorder()
++
++	mockClient.On("AddToFavorites", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.AdResponse{}, nil)
++
++	handler.AddToFavorites(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusOK, resp.StatusCode)
++	require.Contains(t, w.Body.String(), "\"message\":\"Successfully added to favorites\"")
++
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_AddToFavorites_FailedToGetSessionID(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	handler := &AdHandler{}
++
++	req := httptest.NewRequest("POST", "/housing/{adId}/like", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++
++	w := httptest.NewRecorder()
++
++	handler.AddToFavorites(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
++	require.Contains(t, w.Body.String(), "failed to get session id from request cookie")
++
++}
++
++func TestAdHandler_AddToFavorites_GrpcError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++
++	req := httptest.NewRequest("POST", "/housing/{adId}/like", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.AddCookie(&http.Cookie{
++		Name:  "session_id",
++		Value: "test-session-id",
++	})
++
++	w := httptest.NewRecorder()
++	grpcError := status.Error(codes.Internal, "failed to add to favorites")
++	mockClient.On("AddToFavorites", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.AdResponse{}, grpcError)
++
++	handler.AddToFavorites(w, req)
++
++	result := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(result.Body)
++
++	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
++	require.Contains(t, w.Body.String(), "\"error\":\"failed to add to favorites\"")
++
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_DeleteFromFavorites_Success(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++
++	req := httptest.NewRequest("DELETE", "/housing/{adId}/dislike", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.AddCookie(&http.Cookie{
++		Name:  "session_id",
++		Value: "test-session-id",
++	})
++
++	w := httptest.NewRecorder()
++
++	mockClient.On("DeleteFromFavorites", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.AdResponse{}, nil)
++
++	handler.DeleteFromFavorites(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusOK, resp.StatusCode)
++	require.Contains(t, w.Body.String(), "\"message\":\"Successfully deleted from favorites\"")
++
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_DeleteFromFavorites_FailedToGetSessionID(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	handler := &AdHandler{}
++
++	req := httptest.NewRequest("POST", "/housing/{adId}/dislike", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++
++	w := httptest.NewRecorder()
++
++	handler.DeleteFromFavorites(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
++	require.Contains(t, w.Body.String(), "failed to get session id from request cookie")
++
++}
++
++func TestAdHandler_DeleteFromFavorites_GrpcError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++
++	req := httptest.NewRequest("POST", "/housing/{adId}/dislike", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.AddCookie(&http.Cookie{
++		Name:  "session_id",
++		Value: "test-session-id",
++	})
++
++	w := httptest.NewRecorder()
++	grpcError := status.Error(codes.Internal, "failed to delete ad from favorites")
++	mockClient.On("DeleteFromFavorites", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.AdResponse{}, grpcError)
++
++	handler.DeleteFromFavorites(w, req)
++
++	result := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(result.Body)
++
++	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
++	require.Contains(t, w.Body.String(), "\"error\":\"failed to delete ad from favorites\"")
++
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_GetUserFavorites_Success(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	mockUtils := &utils.MockUtils{}
++	handler := &AdHandler{client: mockClient, utils: mockUtils}
++
++	req := httptest.NewRequest("GET", "/users/{userId}/favorites", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.AddCookie(&http.Cookie{
++		Name:  "session_id",
++		Value: "test-session-id",
++	})
++
++	w := httptest.NewRecorder()
++
++	mockClient.On("GetUserFavorites", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.GetAllAdsResponseList{}, nil)
++
++	mockUtils.On("ConvertGetAllAdsResponseProtoToGo", mock.Anything).
++		Return([]domain.GetAllAdsListResponse{}, nil)
++
++	handler.GetUserFavorites(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusOK, resp.StatusCode)
++
++	mockClient.AssertExpectations(t)
++	mockUtils.AssertExpectations(t)
++}
++
++func TestAdHandler_GetUserFavorites_GrpcError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++
++	req := httptest.NewRequest("GET", "/users/{userId}/favorites", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.AddCookie(&http.Cookie{
++		Name:  "session_id",
++		Value: "test-session-id",
++	})
++
++	w := httptest.NewRecorder()
++	grpcError := status.Error(codes.Internal, "failed to user favorites")
++	mockClient.On("GetUserFavorites", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.GetAllAdsResponseList{}, grpcError)
++
++	handler.GetUserFavorites(w, req)
++
++	result := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(result.Body)
++
++	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
++
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_GetUserFavorites_ConvertError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	utilsMock := &utils.MockUtils{}
++	handler := &AdHandler{client: mockClient, utils: utilsMock}
++
++	req := httptest.NewRequest("GET", "/users/{userId}/favorites", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.AddCookie(&http.Cookie{
++		Name:  "session_id",
++		Value: "test-session-id",
++	})
++
++	w := httptest.NewRecorder()
++
++	mockClient.On("GetUserFavorites", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.GetAllAdsResponseList{}, nil)
++
++	utilsMock.On("ConvertGetAllAdsResponseProtoToGo", mock.Anything).
++		Return([]domain.GetAllAdsListResponse{}, errors.New("conversion error"))
++
++	handler.GetUserFavorites(w, req)
++
++	result := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(result.Body)
++
++	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
++
++	mockClient.AssertExpectations(t)
++	utilsMock.AssertExpectations(t)
++}
++
++func TestAdHandler_GetUserFavorites_FailedToGetSessionID(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	handler := &AdHandler{}
++
++	req := httptest.NewRequest("GET", "/users/{userId}/favorites", nil)
++	req.Header.Set("X-CSRF-Token", "test-token")
++
++	w := httptest.NewRecorder()
++
++	handler.GetUserFavorites(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
++	require.Contains(t, w.Body.String(), "failed to get session id from request cookie")
++}
++
++func TestAdHandler_UpdatePriorityWithPayment_Success(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++
++	card := domain.PaymentInfo{
++		DonationAmount: "100",
++	}
++	cardData, _ := json.Marshal(card)
++
++	req := httptest.NewRequest("POST", "/housing/{adId}/payment", bytes.NewReader(cardData))
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.AddCookie(&http.Cookie{
++		Name:  "session_id",
++		Value: "test-session-id",
++	})
++	w := httptest.NewRecorder()
++
++	mockClient.On("UpdatePriority", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.AdResponse{}, nil)
++
++	handler.UpdatePriorityWithPayment(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusOK, resp.StatusCode)
++	require.Contains(t, w.Body.String(), "\"message\":\"Successfully update ad priority\"")
++
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_UpdatePriorityWithPayment_DecodeError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++
++	req := httptest.NewRequest("POST", "/housing/{adId}/payment", bytes.NewReader([]byte("invalid json")))
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.AddCookie(&http.Cookie{
++		Name:  "session_id",
++		Value: "test-session-id",
++	})
++	w := httptest.NewRecorder()
++
++	handler.UpdatePriorityWithPayment(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
++
++	mockClient.AssertExpectations(t)
++}
++
++func TestAdHandler_UpdatePriorityWithPayment_FailedToGetSessionID(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++	card := domain.PaymentInfo{
++		DonationAmount: "100",
++	}
++	cardData, _ := json.Marshal(card)
++
++	req := httptest.NewRequest("POST", "/housing/{adId}/payment", bytes.NewReader(cardData))
++	req.Header.Set("X-CSRF-Token", "test-token")
++	w := httptest.NewRecorder()
++
++	handler.UpdatePriorityWithPayment(w, req)
++
++	resp := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(resp.Body)
++
++	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
++	require.Contains(t, w.Body.String(), "failed to get session id from request cookie")
++}
++
++func TestAdHandler_UpdatePriorityWithPayment_GrpcError(t *testing.T) {
++	require.NoError(t, logger.InitLoggers())
++	defer func() {
++		err := logger.SyncLoggers()
++		if err != nil {
++			return
++		}
++	}()
++
++	mockClient := new(mocks.MockGrpcClient)
++	handler := &AdHandler{client: mockClient}
++
++	card := domain.PaymentInfo{
++		DonationAmount: "100",
++	}
++	cardData, _ := json.Marshal(card)
++
++	req := httptest.NewRequest("POST", "/housing/{adId}/payment", bytes.NewReader(cardData))
++	req.Header.Set("X-CSRF-Token", "test-token")
++	req.AddCookie(&http.Cookie{
++		Name:  "session_id",
++		Value: "test-session-id",
++	})
++	w := httptest.NewRecorder()
++	grpcError := status.Error(codes.Internal, "failed to update ad priority")
++	mockClient.On("UpdatePriority", mock.Anything, mock.Anything, mock.Anything).
++		Return(&gen.AdResponse{}, grpcError)
++
++	handler.UpdatePriorityWithPayment(w, req)
++
++	result := w.Result()
++	defer func(Body io.ReadCloser) {
++		err := Body.Close()
++		if err != nil {
++			return
++		}
++	}(result.Body)
++
++	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
++
++	mockClient.AssertExpectations(t)
++}
+Index: internal/ads/controller/ads_controller.go
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>package controller\r\n\r\nimport (\r\n\t\"2024_2_FIGHT-CLUB/domain\"\r\n\t\"2024_2_FIGHT-CLUB/internal/service/logger\"\r\n\t\"2024_2_FIGHT-CLUB/internal/service/metrics\"\r\n\t\"2024_2_FIGHT-CLUB/internal/service/middleware\"\r\n\t\"2024_2_FIGHT-CLUB/internal/service/session\"\r\n\t\"2024_2_FIGHT-CLUB/internal/service/utils\"\r\n\t\"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen\"\r\n\t\"errors\"\r\n\t\"github.com/gorilla/mux\"\r\n\t\"github.com/mailru/easyjson\"\r\n\t\"go.uber.org/zap\"\r\n\t\"google.golang.org/grpc/status\"\r\n\t\"google.golang.org/protobuf/types/known/timestamppb\"\r\n\t\"io\"\r\n\t\"net/http\"\r\n\t\"time\"\r\n)\r\n\r\ntype AdHandler struct {\r\n\tclient         gen.AdsClient\r\n\tsessionService session.InterfaceSession\r\n\tjwtToken       middleware.JwtTokenService\r\n\tutils          utils.UtilsInterface\r\n}\r\n\r\nfunc NewAdHandler(client gen.AdsClient, sessionService session.InterfaceSession, jwtToken middleware.JwtTokenService, utils utils.UtilsInterface) *AdHandler {\r\n\treturn &AdHandler{\r\n\t\tclient:         client,\r\n\t\tsessionService: sessionService,\r\n\t\tjwtToken:       jwtToken,\r\n\t\tutils:          utils,\r\n\t}\r\n}\r\n\r\nfunc (h *AdHandler) GetAllPlaces(w http.ResponseWriter, r *http.Request) {\r\n\tstart := time.Now()\r\n\trequestID := middleware.GetRequestID(r.Context())\r\n\tctx, cancel := middleware.WithTimeout(r.Context())\r\n\tdefer cancel()\r\n\r\n\tstatusCode := http.StatusOK\r\n\tvar err error\r\n\r\n\tclientIP := r.RemoteAddr\r\n\tif realIP := r.Header.Get(\"X-Real-IP\"); realIP != \"\" {\r\n\t\tclientIP = realIP\r\n\t} else if forwarded := r.Header.Get(\"X-Forwarded-For\"); forwarded != \"\" {\r\n\t\tclientIP = forwarded\r\n\t}\r\n\tdefer func() {\r\n\t\tsanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)\r\n\t\tif statusCode == http.StatusOK {\r\n\t\t\tmetrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()\r\n\t\t} else {\r\n\t\t\tmetrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()\r\n\t\t}\r\n\t\tduration := time.Since(start).Seconds()\r\n\t\tmetrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)\r\n\t}()\r\n\r\n\tlogger.AccessLogger.Info(\"Received GetAllPlaces request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"method\", r.Method),\r\n\t\tzap.String(\"url\", r.URL.String()),\r\n\t\tzap.String(\"query\", r.URL.Query().Encode()),\r\n\t)\r\n\r\n\tsessionID, err := session.GetSessionId(r)\r\n\tif err != nil || sessionID == \"\" {\r\n\t\tlogger.AccessLogger.Warn(\"Failed to get session ID\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err))\r\n\t}\r\n\r\n\tqueryParams := r.URL.Query()\r\n\r\n\tresponse, err := h.client.GetAllPlaces(ctx, &gen.AdFilterRequest{\r\n\t\tLocation:    queryParams.Get(\"location\"),\r\n\t\tRating:      queryParams.Get(\"rating\"),\r\n\t\tNewThisWeek: queryParams.Get(\"new\"),\r\n\t\tHostGender:  queryParams.Get(\"gender\"),\r\n\t\tGuestCount:  queryParams.Get(\"guests\"),\r\n\t\tLimit:       queryParams.Get(\"limit\"),\r\n\t\tOffset:      queryParams.Get(\"offset\"),\r\n\t\tDateFrom:    queryParams.Get(\"dateFrom\"),\r\n\t\tDateTo:      queryParams.Get(\"dateTo\"),\r\n\t\tSessionId:   sessionID,\r\n\t})\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to GetAllPlaces\",\r\n\t\t\tzap.Error(err),\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.String(\"method\", r.Method))\r\n\t\tst, ok := status.FromError(err)\r\n\t\tif ok {\r\n\t\t\tstatusCode = h.handleError(w, errors.New(st.Message()), requestID)\r\n\t\t}\r\n\t\treturn\r\n\t}\r\n\tbody, err := h.utils.ConvertGetAllAdsResponseProtoToGo(response)\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to Convert From Proto to Go\",\r\n\t\t\tzap.Error(err),\r\n\t\t\tzap.String(\"request_id\", requestID))\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\tw.Header().Set(\"Content-Type\", \"application/json; charset=UTF-8\")\r\n\tw.WriteHeader(http.StatusOK)\r\n\tif _, err = easyjson.MarshalToWriter(body, w); err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to encode response\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err),\r\n\t\t)\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\tduration := time.Since(start)\r\n\tlogger.AccessLogger.Info(\"Completed GetAllPlaces request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.Duration(\"duration\", duration),\r\n\t\tzap.Int(\"status\", http.StatusOK),\r\n\t)\r\n}\r\n\r\nfunc (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {\r\n\tstart := time.Now()\r\n\trequestID := middleware.GetRequestID(r.Context())\r\n\tadId := mux.Vars(r)[\"adId\"]\r\n\tctx, cancel := middleware.WithTimeout(r.Context())\r\n\tdefer cancel()\r\n\r\n\tstatusCode := http.StatusOK\r\n\tvar err error\r\n\tclientIP := r.RemoteAddr\r\n\tif realIP := r.Header.Get(\"X-Real-IP\"); realIP != \"\" {\r\n\t\tclientIP = realIP\r\n\t} else if forwarded := r.Header.Get(\"X-Forwarded-For\"); forwarded != \"\" {\r\n\t\tclientIP = forwarded\r\n\t}\r\n\tdefer func() {\r\n\t\tsanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)\r\n\t\tif statusCode == http.StatusOK {\r\n\t\t\tmetrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()\r\n\t\t} else {\r\n\t\t\tmetrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()\r\n\t\t}\r\n\t\tduration := time.Since(start).Seconds()\r\n\t\tmetrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)\r\n\t}()\r\n\r\n\tlogger.AccessLogger.Info(\"Received GetOnePlace request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"adId\", adId),\r\n\t)\r\n\r\n\tisAuthorized := false\r\n\r\n\tsessionID, err := session.GetSessionId(r)\r\n\tif err != nil || sessionID == \"\" {\r\n\t\tlogger.AccessLogger.Warn(\"Failed to get session ID\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err))\r\n\t} else if _, err := h.sessionService.GetUserID(ctx, sessionID); err != nil {\r\n\t\tlogger.AccessLogger.Warn(\"Failed to validate session\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err))\r\n\t} else {\r\n\t\tisAuthorized = true\r\n\t}\r\n\r\n\tplace, err := h.client.GetOnePlace(ctx, &gen.GetPlaceByIdRequest{\r\n\t\tAdId:         adId,\r\n\t\tIsAuthorized: isAuthorized,\r\n\t})\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to GetOnePlace\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err))\r\n\t\tst, ok := status.FromError(err)\r\n\t\tif ok {\r\n\t\t\tstatusCode = h.handleError(w, errors.New(st.Message()), requestID)\r\n\t\t}\r\n\t\treturn\r\n\t}\r\n\r\n\tpayload, err := h.utils.ConvertAdProtoToGo(place)\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to Convert From Proto to Go\",\r\n\t\t\tzap.Error(err),\r\n\t\t\tzap.String(\"request_id\", requestID))\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\tresponse := domain.GetOneAdResponse{\r\n\t\tPlace: payload,\r\n\t}\r\n\tw.Header().Set(\"Content-Type\", \"application/json; charset=UTF-8\")\r\n\tw.WriteHeader(http.StatusOK)\r\n\tif _, err = easyjson.MarshalToWriter(response, w); err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to encode response\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err),\r\n\t\t)\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\tduration := time.Since(start)\r\n\tlogger.AccessLogger.Info(\"Completed GetOnePlace request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.Duration(\"duration\", duration),\r\n\t\tzap.Int(\"status\", http.StatusOK),\r\n\t)\r\n}\r\n\r\nfunc (h *AdHandler) CreatePlace(w http.ResponseWriter, r *http.Request) {\r\n\tstart := time.Now()\r\n\trequestID := middleware.GetRequestID(r.Context())\r\n\tctx, cancel := middleware.WithTimeout(r.Context())\r\n\tdefer cancel()\r\n\r\n\tstatusCode := http.StatusCreated\r\n\tvar err error\r\n\tclientIP := r.RemoteAddr\r\n\tif realIP := r.Header.Get(\"X-Real-IP\"); realIP != \"\" {\r\n\t\tclientIP = realIP\r\n\t} else if forwarded := r.Header.Get(\"X-Forwarded-For\"); forwarded != \"\" {\r\n\t\tclientIP = forwarded\r\n\t}\r\n\tdefer func() {\r\n\t\tsanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)\r\n\t\tif statusCode == http.StatusOK {\r\n\t\t\tmetrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()\r\n\t\t} else {\r\n\t\t\tmetrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()\r\n\t\t}\r\n\t\tduration := time.Since(start).Seconds()\r\n\t\tmetrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)\r\n\t}()\r\n\r\n\tlogger.AccessLogger.Info(\"Received CreatePlace request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t)\r\n\r\n\tsessionID, err := session.GetSessionId(r)\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to get session ID\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err))\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\tauthHeader := r.Header.Get(\"X-CSRF-Token\")\r\n\r\n\terr = r.ParseMultipartForm(10 << 20) // 10 MB\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to parse multipart form\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\tmetadata := r.FormValue(\"metadata\")\r\n\tvar newPlace domain.CreateAdRequest\r\n\tif err = newPlace.UnmarshalJSON([]byte(metadata)); err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to decode metadata\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\tfileHeaders := r.MultipartForm.File[\"images\"]\r\n\tif len(fileHeaders) == 0 {\r\n\t\tlogger.AccessLogger.Warn(\"No images\", zap.String(\"request_id\", requestID))\r\n\t\terr = errors.New(\"no images provided\")\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\t// Преобразование файлов в [][]byte\r\n\tfiles := make([][]byte, 0, len(fileHeaders))\r\n\tfor _, fileHeader := range fileHeaders {\r\n\t\tfile, err := fileHeader.Open()\r\n\t\tif err != nil {\r\n\t\t\tlogger.AccessLogger.Error(\"Failed to open file\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\t\tstatusCode = h.handleError(w, errors.New(\"failed to open file\"), requestID)\r\n\t\t\treturn\r\n\t\t}\r\n\t\tdefer file.Close()\r\n\r\n\t\tdata, err := io.ReadAll(file)\r\n\t\tif err != nil {\r\n\t\t\tlogger.AccessLogger.Error(\"Failed to read file\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\t\tstatusCode = h.handleError(w, errors.New(\"failed to read file\"), requestID)\r\n\t\t\treturn\r\n\t\t}\r\n\r\n\t\tfiles = append(files, data)\r\n\t}\r\n\r\n\t_, err = h.client.CreatePlace(ctx, &gen.CreateAdRequest{\r\n\t\tCityName:     newPlace.CityName,\r\n\t\tDescription:  newPlace.Description,\r\n\t\tAddress:      newPlace.Address,\r\n\t\tRoomsNumber:  int32(newPlace.RoomsNumber),\r\n\t\tDateFrom:     timestamppb.New(newPlace.DateFrom),\r\n\t\tDateTo:       timestamppb.New(newPlace.DateTo),\r\n\t\tImages:       files,\r\n\t\tAuthHeader:   authHeader,\r\n\t\tSessionID:    sessionID,\r\n\t\tSquareMeters: int32(newPlace.SquareMeters),\r\n\t\tFloor:        int32(newPlace.Floor),\r\n\t\tBuildingType: newPlace.BuildingType,\r\n\t\tHasBalcony:   newPlace.HasBalcony,\r\n\t\tHasElevator:  newPlace.HasElevator,\r\n\t\tHasGas:       newPlace.HasGas,\r\n\t\tRooms:        middleware.ConvertRoomsToGRPC(newPlace.Rooms),\r\n\t})\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to create place\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\tst, ok := status.FromError(err)\r\n\t\tif ok {\r\n\t\t\tstatusCode = h.handleError(w, errors.New(st.Message()), requestID)\r\n\t\t}\r\n\t\treturn\r\n\t}\r\n\r\n\tw.Header().Set(\"Content-Type\", \"application/json; charset=UTF-8\")\r\n\tw.WriteHeader(http.StatusOK)\r\n\tbody := domain.ResponseMessage{\r\n\t\tMessage: \"Successfully created ad\",\r\n\t}\r\n\tif _, err := easyjson.MarshalToWriter(body, w); err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to encode response\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\tstatusCode = h.handleError(w, errors.New(\"failed to encode response\"), requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\tduration := time.Since(start)\r\n\tlogger.AccessLogger.Info(\"Completed CreatePlace request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.Duration(\"duration\", duration),\r\n\t\tzap.Int(\"status\", http.StatusOK),\r\n\t)\r\n}\r\n\r\nfunc (h *AdHandler) UpdatePlace(w http.ResponseWriter, r *http.Request) {\r\n\tstart := time.Now()\r\n\trequestID := middleware.GetRequestID(r.Context())\r\n\tadId := mux.Vars(r)[\"adId\"]\r\n\tctx, cancel := middleware.WithTimeout(r.Context())\r\n\tdefer cancel()\r\n\r\n\tstatusCode := http.StatusOK\r\n\tvar err error\r\n\tclientIP := r.RemoteAddr\r\n\tif realIP := r.Header.Get(\"X-Real-IP\"); realIP != \"\" {\r\n\t\tclientIP = realIP\r\n\t} else if forwarded := r.Header.Get(\"X-Forwarded-For\"); forwarded != \"\" {\r\n\t\tclientIP = forwarded\r\n\t}\r\n\tdefer func() {\r\n\t\tsanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)\r\n\t\tif statusCode == http.StatusOK {\r\n\t\t\tmetrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()\r\n\t\t} else {\r\n\t\t\tmetrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()\r\n\t\t}\r\n\t\tduration := time.Since(start).Seconds()\r\n\t\tmetrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)\r\n\t}()\r\n\r\n\tlogger.AccessLogger.Info(\"Received UpdatePlace request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"adId\", adId),\r\n\t)\r\n\r\n\tauthHeader := r.Header.Get(\"X-CSRF-Token\")\r\n\r\n\terr = r.ParseMultipartForm(10 << 20) // 10 MB\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to parse multipart form\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\tstatusCode = h.handleError(w, errors.New(\"invalid multipart form\"), requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\tmetadata := r.FormValue(\"metadata\")\r\n\tvar updatedPlace domain.UpdateAdRequest\r\n\tif err = updatedPlace.UnmarshalJSON([]byte(metadata)); err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to decode metadata\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\tstatusCode = h.handleError(w, errors.New(\"invalid metadata JSON\"), requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\tfileHeaders := r.MultipartForm.File[\"images\"]\r\n\r\n\t// Преобразование `[]*multipart.FileHeader` в `[][]byte`\r\n\tfiles := make([][]byte, 0, len(fileHeaders))\r\n\tfor _, fileHeader := range fileHeaders {\r\n\t\tfile, err := fileHeader.Open()\r\n\t\tif err != nil {\r\n\t\t\tlogger.AccessLogger.Error(\"Failed to open file\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\t\tstatusCode = h.handleError(w, errors.New(\"failed to open file\"), requestID)\r\n\t\t\treturn\r\n\t\t}\r\n\t\tdefer file.Close()\r\n\r\n\t\t// Чтение содержимого файла в []byte\r\n\t\tdata, err := io.ReadAll(file)\r\n\t\tif err != nil {\r\n\t\t\tlogger.AccessLogger.Error(\"Failed to read file\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\t\tstatusCode = h.handleError(w, errors.New(\"failed to read file\"), requestID)\r\n\t\t\treturn\r\n\t\t}\r\n\t\tfiles = append(files, data)\r\n\t}\r\n\r\n\tsessionID, err := session.GetSessionId(r)\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to get session ID\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err))\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\t_, err = h.client.UpdatePlace(ctx, &gen.UpdateAdRequest{\r\n\t\tAdId:         adId,\r\n\t\tCityName:     updatedPlace.CityName,\r\n\t\tAddress:      updatedPlace.Address,\r\n\t\tDescription:  updatedPlace.Description,\r\n\t\tRoomsNumber:  int32(updatedPlace.RoomsNumber),\r\n\t\tSessionID:    sessionID,\r\n\t\tAuthHeader:   authHeader,\r\n\t\tImages:       files,\r\n\t\tDateFrom:     timestamppb.New(updatedPlace.DateFrom),\r\n\t\tDateTo:       timestamppb.New(updatedPlace.DateTo),\r\n\t\tSquareMeters: int32(updatedPlace.SquareMeters),\r\n\t\tFloor:        int32(updatedPlace.Floor),\r\n\t\tBuildingType: updatedPlace.BuildingType,\r\n\t\tHasBalcony:   updatedPlace.HasBalcony,\r\n\t\tHasElevator:  updatedPlace.HasElevator,\r\n\t\tHasGas:       updatedPlace.HasGas,\r\n\t\tRooms:        middleware.ConvertRoomsToGRPC(updatedPlace.Rooms),\r\n\t})\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to update place\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\tst, ok := status.FromError(err)\r\n\t\tif ok {\r\n\t\t\tstatusCode = h.handleError(w, errors.New(st.Message()), requestID)\r\n\t\t}\r\n\t\treturn\r\n\t}\r\n\r\n\tw.Header().Set(\"Content-Type\", \"application/json; charset=UTF-8\")\r\n\tw.WriteHeader(http.StatusOK)\r\n\tupdateResponse := domain.ResponseMessage{\r\n\t\tMessage: \"Successfully updated ad\",\r\n\t}\r\n\tif _, err = easyjson.MarshalToWriter(updateResponse, w); err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to encode response\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\thttp.Error(w, err.Error(), http.StatusInternalServerError)\r\n\t\treturn\r\n\t}\r\n\tduration := time.Since(start)\r\n\tlogger.AccessLogger.Info(\"Completed UpdatePlace request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.Duration(\"duration\", duration),\r\n\t\tzap.Int(\"status\", http.StatusOK),\r\n\t)\r\n}\r\n\r\nfunc (h *AdHandler) DeletePlace(w http.ResponseWriter, r *http.Request) {\r\n\tstart := time.Now()\r\n\trequestID := middleware.GetRequestID(r.Context())\r\n\tadId := mux.Vars(r)[\"adId\"]\r\n\tctx, cancel := middleware.WithTimeout(r.Context())\r\n\tdefer cancel()\r\n\r\n\tstatusCode := http.StatusOK\r\n\tvar err error\r\n\tclientIP := r.RemoteAddr\r\n\tif realIP := r.Header.Get(\"X-Real-IP\"); realIP != \"\" {\r\n\t\tclientIP = realIP\r\n\t} else if forwarded := r.Header.Get(\"X-Forwarded-For\"); forwarded != \"\" {\r\n\t\tclientIP = forwarded\r\n\t}\r\n\tdefer func() {\r\n\t\tsanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)\r\n\t\tif statusCode == http.StatusOK {\r\n\t\t\tmetrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()\r\n\t\t} else {\r\n\t\t\tmetrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()\r\n\t\t}\r\n\t\tduration := time.Since(start).Seconds()\r\n\t\tmetrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)\r\n\t}()\r\n\r\n\tlogger.AccessLogger.Info(\"Received DeletePlace request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"adId\", adId),\r\n\t)\r\n\r\n\tauthHeader := r.Header.Get(\"X-CSRF-Token\")\r\n\r\n\tsessionID, err := session.GetSessionId(r)\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to get session ID\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err))\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\t_, err = h.client.DeletePlace(ctx, &gen.DeletePlaceRequest{\r\n\t\tAdId:       adId,\r\n\t\tSessionID:  sessionID,\r\n\t\tAuthHeader: authHeader,\r\n\t})\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to delete place\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\tst, ok := status.FromError(err)\r\n\t\tif ok {\r\n\t\t\tstatusCode = h.handleError(w, errors.New(st.Message()), requestID)\r\n\t\t}\r\n\t\treturn\r\n\t}\r\n\r\n\tw.Header().Set(\"Content-Type\", \"application/json; charset=UTF-8\")\r\n\tw.WriteHeader(http.StatusOK)\r\n\tdeleteResponse := domain.ResponseMessage{\r\n\t\tMessage: \"Successfully deleted place\",\r\n\t}\r\n\tif _, err = easyjson.MarshalToWriter(deleteResponse, w); err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to encode response\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\thttp.Error(w, err.Error(), http.StatusInternalServerError)\r\n\t\treturn\r\n\t}\r\n}\r\n\r\nfunc (h *AdHandler) GetPlacesPerCity(w http.ResponseWriter, r *http.Request) {\r\n\tstart := time.Now()\r\n\trequestID := middleware.GetRequestID(r.Context())\r\n\tcity := mux.Vars(r)[\"city\"]\r\n\tctx, cancel := middleware.WithTimeout(r.Context())\r\n\tdefer cancel()\r\n\r\n\tstatusCode := http.StatusOK\r\n\tvar err error\r\n\tclientIP := r.RemoteAddr\r\n\tif realIP := r.Header.Get(\"X-Real-IP\"); realIP != \"\" {\r\n\t\tclientIP = realIP\r\n\t} else if forwarded := r.Header.Get(\"X-Forwarded-For\"); forwarded != \"\" {\r\n\t\tclientIP = forwarded\r\n\t}\r\n\tdefer func() {\r\n\t\tsanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)\r\n\t\tif statusCode == http.StatusOK {\r\n\t\t\tmetrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()\r\n\t\t} else {\r\n\t\t\tmetrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()\r\n\t\t}\r\n\t\tduration := time.Since(start).Seconds()\r\n\t\tmetrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)\r\n\t}()\r\n\r\n\tlogger.AccessLogger.Info(\"Received GetPlacesPerCity request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"city\", city),\r\n\t)\r\n\r\n\tresponse, err := h.client.GetPlacesPerCity(ctx, &gen.GetPlacesPerCityRequest{\r\n\t\tCityName: city,\r\n\t})\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to get places per city\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\tst, ok := status.FromError(err)\r\n\t\tif ok {\r\n\t\t\tstatusCode = h.handleError(w, errors.New(st.Message()), requestID)\r\n\t\t}\r\n\t\treturn\r\n\t}\r\n\r\n\tpayload, err := h.utils.ConvertGetAllAdsResponseProtoToGo(response)\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to Convert From Proto to Go\",\r\n\t\t\tzap.Error(err),\r\n\t\t\tzap.String(\"request_id\", requestID))\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\tw.Header().Set(\"Content-Type\", \"application/json; charset=UTF-8\")\r\n\tw.WriteHeader(http.StatusOK)\r\n\tbody := domain.PlacesResponse{\r\n\t\tPlaces: payload,\r\n\t}\r\n\tif _, err = easyjson.MarshalToWriter(body, w); err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to encode response\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err),\r\n\t\t)\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\tduration := time.Since(start)\r\n\tlogger.AccessLogger.Info(\"Completed GetPlacesPerCity request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.Duration(\"duration\", duration),\r\n\t\tzap.Int(\"status\", http.StatusOK),\r\n\t)\r\n}\r\n\r\nfunc (h *AdHandler) GetUserPlaces(w http.ResponseWriter, r *http.Request) {\r\n\tstart := time.Now()\r\n\trequestID := middleware.GetRequestID(r.Context())\r\n\tuserId := mux.Vars(r)[\"userId\"]\r\n\tctx, cancel := middleware.WithTimeout(r.Context())\r\n\tdefer cancel()\r\n\r\n\tstatusCode := http.StatusOK\r\n\tvar err error\r\n\tclientIP := r.RemoteAddr\r\n\tif realIP := r.Header.Get(\"X-Real-IP\"); realIP != \"\" {\r\n\t\tclientIP = realIP\r\n\t} else if forwarded := r.Header.Get(\"X-Forwarded-For\"); forwarded != \"\" {\r\n\t\tclientIP = forwarded\r\n\t}\r\n\tdefer func() {\r\n\t\tsanitizedPath := metrics.SanitizeUserIdPath(r.URL.Path)\r\n\t\tif statusCode == http.StatusOK {\r\n\t\t\tmetrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()\r\n\t\t} else {\r\n\t\t\tmetrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()\r\n\t\t}\r\n\t\tduration := time.Since(start).Seconds()\r\n\t\tmetrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)\r\n\t}()\r\n\r\n\tlogger.AccessLogger.Info(\"Received GetUserPlaces request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"userId\", userId),\r\n\t)\r\n\r\n\tresponse, err := h.client.GetUserPlaces(ctx, &gen.GetUserPlacesRequest{\r\n\t\tUserId: userId,\r\n\t})\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to get places per user\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err))\r\n\t\tst, ok := status.FromError(err)\r\n\t\tif ok {\r\n\t\t\tstatusCode = h.handleError(w, errors.New(st.Message()), requestID)\r\n\t\t}\r\n\t\treturn\r\n\t}\r\n\r\n\tpayload, err := h.utils.ConvertGetAllAdsResponseProtoToGo(response)\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to Convert From Proto to Go\",\r\n\t\t\tzap.Error(err),\r\n\t\t\tzap.String(\"request_id\", requestID))\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\tw.Header().Set(\"Content-Type\", \"application/json; charset=UTF-8\")\r\n\tw.WriteHeader(http.StatusOK)\r\n\tbody := domain.PlacesResponse{\r\n\t\tPlaces: payload,\r\n\t}\r\n\tif _, err = easyjson.MarshalToWriter(body, w); err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to encode response\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err),\r\n\t\t)\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\tduration := time.Since(start)\r\n\tlogger.AccessLogger.Info(\"Completed GetUserPlaces request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.Duration(\"duration\", duration),\r\n\t\tzap.Int(\"status\", http.StatusOK),\r\n\t)\r\n}\r\n\r\nfunc (h *AdHandler) DeleteAdImage(w http.ResponseWriter, r *http.Request) {\r\n\tstart := time.Now()\r\n\trequestID := middleware.GetRequestID(r.Context())\r\n\timageId := mux.Vars(r)[\"imageId\"]\r\n\tadId := mux.Vars(r)[\"adId\"]\r\n\tctx, cancel := middleware.WithTimeout(r.Context())\r\n\tdefer cancel()\r\n\r\n\tstatusCode := http.StatusOK\r\n\tvar err error\r\n\tclientIP := r.RemoteAddr\r\n\tif realIP := r.Header.Get(\"X-Real-IP\"); realIP != \"\" {\r\n\t\tclientIP = realIP\r\n\t} else if forwarded := r.Header.Get(\"X-Forwarded-For\"); forwarded != \"\" {\r\n\t\tclientIP = forwarded\r\n\t}\r\n\tdefer func() {\r\n\t\tsanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)\r\n\t\tif statusCode == http.StatusOK {\r\n\t\t\tmetrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()\r\n\t\t} else {\r\n\t\t\tmetrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()\r\n\t\t}\r\n\t\tduration := time.Since(start).Seconds()\r\n\t\tmetrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)\r\n\t}()\r\n\r\n\tlogger.AccessLogger.Info(\"Received DeleteAdImage request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"adId\", adId),\r\n\t\tzap.String(\"imageId\", imageId))\r\n\r\n\tauthHeader := r.Header.Get(\"X-CSRF-Token\")\r\n\r\n\tsessionID, err := session.GetSessionId(r)\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to get session ID\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err))\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\t_, err = h.client.DeleteAdImage(ctx, &gen.DeleteAdImageRequest{\r\n\t\tAdId:       adId,\r\n\t\tImageId:    imageId,\r\n\t\tAuthHeader: authHeader,\r\n\t\tSessionID:  sessionID,\r\n\t})\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to delete ad image\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\tst, ok := status.FromError(err)\r\n\t\tif ok {\r\n\t\t\tstatusCode = h.handleError(w, errors.New(st.Message()), requestID)\r\n\t\t}\r\n\t\treturn\r\n\t}\r\n\r\n\tw.Header().Set(\"Content-Type\", \"application/json; charset=UTF-8\")\r\n\tw.WriteHeader(http.StatusOK)\r\n\tdeleteResponse := domain.ResponseMessage{\r\n\t\tMessage: \"Successfully deleted ad image\",\r\n\t}\r\n\tif _, err = easyjson.MarshalToWriter(deleteResponse, w); err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to encode response\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\thttp.Error(w, err.Error(), http.StatusInternalServerError)\r\n\t\treturn\r\n\t}\r\n\r\n\tduration := time.Since(start)\r\n\tlogger.AccessLogger.Info(\"Completed DeleteAdImage request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"adId\", adId),\r\n\t\tzap.String(\"imageId\", imageId),\r\n\t\tzap.Duration(\"duration\", duration),\r\n\t)\r\n}\r\n\r\nfunc (h *AdHandler) AddToFavorites(w http.ResponseWriter, r *http.Request) {\r\n\tstart := time.Now()\r\n\trequestID := middleware.GetRequestID(r.Context())\r\n\tadId := mux.Vars(r)[\"adId\"]\r\n\tctx, cancel := middleware.WithTimeout(r.Context())\r\n\tdefer cancel()\r\n\r\n\tstatusCode := http.StatusOK\r\n\tvar err error\r\n\tclientIP := r.RemoteAddr\r\n\tif realIP := r.Header.Get(\"X-Real-IP\"); realIP != \"\" {\r\n\t\tclientIP = realIP\r\n\t} else if forwarded := r.Header.Get(\"X-Forwarded-For\"); forwarded != \"\" {\r\n\t\tclientIP = forwarded\r\n\t}\r\n\tdefer func() {\r\n\t\tsanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)\r\n\t\tif statusCode == http.StatusOK {\r\n\t\t\tmetrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()\r\n\t\t} else {\r\n\t\t\tmetrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()\r\n\t\t}\r\n\t\tduration := time.Since(start).Seconds()\r\n\t\tmetrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)\r\n\t}()\r\n\r\n\tlogger.AccessLogger.Info(\"Received AddToFavorites request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"adId\", adId))\r\n\r\n\tauthHeader := r.Header.Get(\"X-CSRF-Token\")\r\n\r\n\tsessionID, err := session.GetSessionId(r)\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to get session ID\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err))\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\t_, err = h.client.AddToFavorites(ctx, &gen.AddToFavoritesRequest{\r\n\t\tAdId:       adId,\r\n\t\tAuthHeader: authHeader,\r\n\t\tSessionID:  sessionID,\r\n\t})\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to add ad to favorites\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\tst, ok := status.FromError(err)\r\n\t\tif ok {\r\n\t\t\tstatusCode = h.handleError(w, errors.New(st.Message()), requestID)\r\n\t\t}\r\n\t\treturn\r\n\t}\r\n\r\n\tw.Header().Set(\"Content-Type\", \"application/json; charset=UTF-8\")\r\n\tw.WriteHeader(http.StatusOK)\r\n\taddToResponse := domain.ResponseMessage{\r\n\t\tMessage: \"Successfully added to favorites\",\r\n\t}\r\n\tif _, err := easyjson.MarshalToWriter(addToResponse, w); err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to encode response\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\thttp.Error(w, err.Error(), http.StatusInternalServerError)\r\n\t\treturn\r\n\t}\r\n\r\n\tduration := time.Since(start)\r\n\tlogger.AccessLogger.Info(\"Completed AddToFavorites request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"adId\", adId),\r\n\t\tzap.Duration(\"duration\", duration),\r\n\t)\r\n\r\n}\r\n\r\nfunc (h *AdHandler) DeleteFromFavorites(w http.ResponseWriter, r *http.Request) {\r\n\tstart := time.Now()\r\n\trequestID := middleware.GetRequestID(r.Context())\r\n\tadId := mux.Vars(r)[\"adId\"]\r\n\tctx, cancel := middleware.WithTimeout(r.Context())\r\n\tdefer cancel()\r\n\r\n\tstatusCode := http.StatusOK\r\n\tvar err error\r\n\tclientIP := r.RemoteAddr\r\n\tif realIP := r.Header.Get(\"X-Real-IP\"); realIP != \"\" {\r\n\t\tclientIP = realIP\r\n\t} else if forwarded := r.Header.Get(\"X-Forwarded-For\"); forwarded != \"\" {\r\n\t\tclientIP = forwarded\r\n\t}\r\n\tdefer func() {\r\n\t\tsanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)\r\n\t\tif statusCode == http.StatusOK {\r\n\t\t\tmetrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()\r\n\t\t} else {\r\n\t\t\tmetrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()\r\n\t\t}\r\n\t\tduration := time.Since(start).Seconds()\r\n\t\tmetrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)\r\n\t}()\r\n\r\n\tlogger.AccessLogger.Info(\"Received DeleteFromFavorites request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"adId\", adId))\r\n\r\n\tauthHeader := r.Header.Get(\"X-CSRF-Token\")\r\n\r\n\tsessionID, err := session.GetSessionId(r)\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to get session ID\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err))\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\t_, err = h.client.DeleteFromFavorites(ctx, &gen.DeleteFromFavoritesRequest{\r\n\t\tAdId:       adId,\r\n\t\tAuthHeader: authHeader,\r\n\t\tSessionID:  sessionID,\r\n\t})\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to delete ad from favorites\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\tst, ok := status.FromError(err)\r\n\t\tif ok {\r\n\t\t\tstatusCode = h.handleError(w, errors.New(st.Message()), requestID)\r\n\t\t}\r\n\t\treturn\r\n\t}\r\n\r\n\tw.Header().Set(\"Content-Type\", \"application/json; charset=UTF-8\")\r\n\tw.WriteHeader(http.StatusOK)\r\n\tdeleteFromFavResponse := domain.ResponseMessage{\r\n\t\tMessage: \"Successfully deleted from favorites\",\r\n\t}\r\n\tif _, err = easyjson.MarshalToWriter(deleteFromFavResponse, w); err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to encode response\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\thttp.Error(w, err.Error(), http.StatusInternalServerError)\r\n\t\treturn\r\n\t}\r\n\r\n\tduration := time.Since(start)\r\n\tlogger.AccessLogger.Info(\"Completed DeleteFromFavorites request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"adId\", adId),\r\n\t\tzap.Duration(\"duration\", duration),\r\n\t)\r\n\r\n}\r\n\r\nfunc (h *AdHandler) GetUserFavorites(w http.ResponseWriter, r *http.Request) {\r\n\tstart := time.Now()\r\n\trequestID := middleware.GetRequestID(r.Context())\r\n\tuserId := mux.Vars(r)[\"userId\"]\r\n\tctx, cancel := middleware.WithTimeout(r.Context())\r\n\tdefer cancel()\r\n\r\n\tstatusCode := http.StatusOK\r\n\tvar err error\r\n\tclientIP := r.RemoteAddr\r\n\tif realIP := r.Header.Get(\"X-Real-IP\"); realIP != \"\" {\r\n\t\tclientIP = realIP\r\n\t} else if forwarded := r.Header.Get(\"X-Forwarded-For\"); forwarded != \"\" {\r\n\t\tclientIP = forwarded\r\n\t}\r\n\tdefer func() {\r\n\t\tsanitizedPath := metrics.SanitizeUserIdPath(r.URL.Path)\r\n\t\tif statusCode == http.StatusOK {\r\n\t\t\tmetrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()\r\n\t\t} else {\r\n\t\t\tmetrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()\r\n\t\t}\r\n\t\tduration := time.Since(start).Seconds()\r\n\t\tmetrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)\r\n\t}()\r\n\r\n\tlogger.AccessLogger.Info(\"Received GetUserFavorites request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"userId\", userId))\r\n\r\n\tsessionID, err := session.GetSessionId(r)\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to get session ID\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err))\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\tresponse, err := h.client.GetUserFavorites(ctx, &gen.GetUserFavoritesRequest{\r\n\t\tUserId:    userId,\r\n\t\tSessionID: sessionID,\r\n\t})\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to delete ad from favorites\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\tst, ok := status.FromError(err)\r\n\t\tif ok {\r\n\t\t\tstatusCode = h.handleError(w, errors.New(st.Message()), requestID)\r\n\t\t}\r\n\t\treturn\r\n\t}\r\n\r\n\tbody, err := h.utils.ConvertGetAllAdsResponseProtoToGo(response)\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to Convert From Proto to Go\",\r\n\t\t\tzap.Error(err),\r\n\t\t\tzap.String(\"request_id\", requestID))\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\tw.Header().Set(\"Content-Type\", \"application/json; charset=UTF-8\")\r\n\tw.WriteHeader(http.StatusOK)\r\n\tif _, err = easyjson.MarshalToWriter(body, w); err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to encode response\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err),\r\n\t\t)\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\tduration := time.Since(start)\r\n\tlogger.AccessLogger.Info(\"Completed GetUserFavorites request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"userId\", userId),\r\n\t\tzap.Duration(\"duration\", duration),\r\n\t)\r\n\r\n}\r\n\r\nfunc (h *AdHandler) UpdatePriorityWithPayment(w http.ResponseWriter, r *http.Request) {\r\n\tstart := time.Now()\r\n\trequestID := middleware.GetRequestID(r.Context())\r\n\tadId := mux.Vars(r)[\"adId\"]\r\n\tctx, cancel := middleware.WithTimeout(r.Context())\r\n\tdefer cancel()\r\n\r\n\tstatusCode := http.StatusOK\r\n\tvar err error\r\n\tclientIP := r.RemoteAddr\r\n\tif realIP := r.Header.Get(\"X-Real-IP\"); realIP != \"\" {\r\n\t\tclientIP = realIP\r\n\t} else if forwarded := r.Header.Get(\"X-Forwarded-For\"); forwarded != \"\" {\r\n\t\tclientIP = forwarded\r\n\t}\r\n\tdefer func() {\r\n\t\tsanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)\r\n\t\tif statusCode == http.StatusOK {\r\n\t\t\tmetrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()\r\n\t\t} else {\r\n\t\t\tmetrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()\r\n\t\t}\r\n\t\tduration := time.Since(start).Seconds()\r\n\t\tmetrics.HttpRequestDuration.WithLabelValues(r.Method, sanitizedPath, clientIP).Observe(duration)\r\n\t}()\r\n\r\n\tlogger.AccessLogger.Info(\"Received UpdatePriorityWithPayment request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"userId\", adId))\r\n\r\n\tvar card domain.PaymentInfo\r\n\tif err = easyjson.UnmarshalFromReader(r.Body, &card); err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to decode request body\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err),\r\n\t\t)\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\tauthHeader := r.Header.Get(\"X-CSRF-Token\")\r\n\r\n\tsessionID, err := session.GetSessionId(r)\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to get session ID\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(err))\r\n\t\tstatusCode = h.handleError(w, err, requestID)\r\n\t\treturn\r\n\t}\r\n\r\n\t_, err = h.client.UpdatePriority(ctx, &gen.UpdatePriorityRequest{\r\n\t\tAdId:       adId,\r\n\t\tAuthHeader: authHeader,\r\n\t\tSessionID:  sessionID,\r\n\t\tAmount:     card.DonationAmount,\r\n\t})\r\n\tif err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to delete ad from favorites\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\tst, ok := status.FromError(err)\r\n\t\tif ok {\r\n\t\t\tstatusCode = h.handleError(w, errors.New(st.Message()), requestID)\r\n\t\t}\r\n\t\treturn\r\n\t}\r\n\r\n\tw.Header().Set(\"Content-Type\", \"application/json; charset=UTF-8\")\r\n\tw.WriteHeader(http.StatusOK)\r\n\tupdatePriorResponse := domain.ResponseMessage{\r\n\t\tMessage: \"Successfully updated from favorites\",\r\n\t}\r\n\tif _, err = easyjson.MarshalToWriter(updatePriorResponse, w); err != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to encode response\", zap.String(\"request_id\", requestID), zap.Error(err))\r\n\t\thttp.Error(w, err.Error(), http.StatusInternalServerError)\r\n\t\treturn\r\n\t}\r\n\r\n\tduration := time.Since(start)\r\n\tlogger.AccessLogger.Info(\"Completed UpdatePriorityWithPayment request\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.String(\"userId\", adId),\r\n\t\tzap.Duration(\"duration\", duration),\r\n\t)\r\n}\r\n\r\nfunc (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID string) int {\r\n\tlogger.AccessLogger.Error(\"Handling error\",\r\n\t\tzap.String(\"request_id\", requestID),\r\n\t\tzap.Error(err),\r\n\t)\r\n\tvar statusCode int\r\n\tw.Header().Set(\"Content-Type\", \"application/json\")\r\n\terrorResponse := domain.ErrorResponse{\r\n\t\tError: err.Error(),\r\n\t}\r\n\tswitch err.Error() {\r\n\tcase \"ad not found\", \"ad date not found\", \"image not found\":\r\n\t\tstatusCode = http.StatusNotFound\r\n\tcase \"ad already exists\", \"roomsNumber out of range\", \"not owner of ad\":\r\n\t\tstatusCode = http.StatusConflict\r\n\tcase \"no active session\", \"missing X-CSRF-Token header\",\r\n\t\t\"invalid JWT token\", \"user is not host\", \"session not found\", \"user ID not found in session\":\r\n\t\tstatusCode = http.StatusUnauthorized\r\n\tcase \"invalid metadata JSON\", \"invalid multipart form\", \"input contains invalid characters\",\r\n\t\t\"input exceeds character limit\", \"invalid size, type or resolution of image\",\r\n\t\t\"query offset not int\", \"query limit not int\", \"query dateFrom not int\",\r\n\t\t\"query dateTo not int\", \"URL contains invalid characters\", \"URL exceeds character limit\",\r\n\t\t\"token parse error\", \"token invalid\", \"token expired\", \"bad sign method\",\r\n\t\t\"failed to decode metadata\", \"no images provided\", \"failed to open file\",\r\n\t\t\"failed to read file\", \"failed to encode response\", \"invalid rating value\",\r\n\t\t\"cant access other user favorites\":\r\n\t\tstatusCode = http.StatusBadRequest\r\n\tcase \"error fetching all places\", \"error fetching images for ad\", \"error fetching user\",\r\n\t\t\"error finding user\", \"error finding city\", \"error creating place\", \"error creating date\",\r\n\t\t\"error saving place\", \"error updating place\", \"error updating date\",\r\n\t\t\"error updating views count\", \"error deleting place\", \"get places error\",\r\n\t\t\"get places per city error\", \"get user places error\", \"error creating image\",\r\n\t\t\"delete ad image error\", \"failed to generate session id\", \"failed to save session\",\r\n\t\t\"failed to delete session\", \"error generating random bytes for session ID\",\r\n\t\t\"failed to get session id from request cookie\", \"error fetching rooms for ad\",\r\n\t\t\"error counting favorites\", \"error updating favorites count\", \"error creating room\", \"error parsing date\",\r\n\t\t\"adAuthor is nil\", \"ad is nil\":\r\n\t\tstatusCode = http.StatusInternalServerError\r\n\tdefault:\r\n\t\tstatusCode = http.StatusInternalServerError\r\n\t}\r\n\r\n\tw.WriteHeader(statusCode)\r\n\tif _, jsonErr := easyjson.MarshalToWriter(&errorResponse, w); jsonErr != nil {\r\n\t\tlogger.AccessLogger.Error(\"Failed to encode error response\",\r\n\t\t\tzap.String(\"request_id\", requestID),\r\n\t\t\tzap.Error(jsonErr),\r\n\t\t)\r\n\t\thttp.Error(w, jsonErr.Error(), http.StatusInternalServerError)\r\n\t}\r\n\r\n\treturn statusCode\r\n}\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/internal/ads/controller/ads_controller.go b/internal/ads/controller/ads_controller.go
+--- a/internal/ads/controller/ads_controller.go	(revision f68dbe94cca631281d0d1496863bdf9efcda8dd8)
++++ b/internal/ads/controller/ads_controller.go	(date 1734480286733)
+@@ -234,7 +234,7 @@
+ 	}
+ 	defer func() {
+ 		sanitizedPath := metrics.SanitizeAdIdPath(r.URL.Path)
+-		if statusCode == http.StatusOK {
++		if statusCode == http.StatusCreated {
+ 			metrics.HttpRequestsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), clientIP).Inc()
+ 		} else {
+ 			metrics.HttpErrorsTotal.WithLabelValues(r.Method, sanitizedPath, http.StatusText(statusCode), err.Error(), clientIP).Inc()
+@@ -330,7 +330,7 @@
+ 	}
+ 
+ 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+-	w.WriteHeader(http.StatusOK)
++	w.WriteHeader(http.StatusCreated)
+ 	body := domain.ResponseMessage{
+ 		Message: "Successfully created ad",
+ 	}
+@@ -344,7 +344,7 @@
+ 	logger.AccessLogger.Info("Completed CreatePlace request",
+ 		zap.String("request_id", requestID),
+ 		zap.Duration("duration", duration),
+-		zap.Int("status", http.StatusOK),
++		zap.Int("status", http.StatusCreated),
+ 	)
+ }
+ 
+@@ -1056,7 +1056,7 @@
+ 		Amount:     card.DonationAmount,
+ 	})
+ 	if err != nil {
+-		logger.AccessLogger.Error("Failed to delete ad from favorites", zap.String("request_id", requestID), zap.Error(err))
++		logger.AccessLogger.Error("Failed to update priority", zap.String("request_id", requestID), zap.Error(err))
+ 		st, ok := status.FromError(err)
+ 		if ok {
+ 			statusCode = h.handleError(w, errors.New(st.Message()), requestID)
+@@ -1067,7 +1067,7 @@
+ 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+ 	w.WriteHeader(http.StatusOK)
+ 	updatePriorResponse := domain.ResponseMessage{
+-		Message: "Successfully updated from favorites",
++		Message: "Successfully update ad priority",
+ 	}
+ 	if _, err = easyjson.MarshalToWriter(updatePriorResponse, w); err != nil {
+ 		logger.AccessLogger.Error("Failed to encode response", zap.String("request_id", requestID), zap.Error(err))

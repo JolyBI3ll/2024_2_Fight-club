@@ -2,604 +2,1672 @@ package controller
 
 import (
 	"2024_2_FIGHT-CLUB/domain"
-	"2024_2_FIGHT-CLUB/internal/ads/mocks"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
-	"2024_2_FIGHT-CLUB/internal/service/middleware"
+	"2024_2_FIGHT-CLUB/internal/service/utils"
+	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
+	"2024_2_FIGHT-CLUB/microservices/ads_service/mocks"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
-	"log"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 )
 
-func TestAdHandler_GetAllPlaces(t *testing.T) {
+func TestAdHandler_GetAllPlaces_Success(t *testing.T) {
 	// Инициализация логгера
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
-	}
-	defer logger.SyncLoggers()
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
-	// Создание мока use case и других зависимостей
-	mockUseCase := &mocks.MockAdUseCase{}
-	mockSession := &mocks.MockServiceSession{}
-	mockJwtToken := &mocks.MockJwtTokenService{}
-	handler := NewAdHandler(mockUseCase, mockSession, mockJwtToken)
+	mockGrpcClient := new(mocks.MockGrpcClient)
+	testResponse := &gen.GetAllAdsResponseList{}
+	mockGrpcClient.On("GetAllPlaces", mock.Anything, mock.Anything, mock.Anything).Return(testResponse, nil)
+	response := &gen.GetAllAdsResponseList{}
+	utilsMock := &utils.MockUtils{}
+	utilsMock.On("ConvertGetAllAdsResponseProtoToGo", response).
+		Return(nil, nil)
 
-	// Определение фильтра и ожидаемых результатов
-	filter := domain.AdFilter{
-		Location:    "Test City",
-		Rating:      "5",
-		NewThisWeek: "true",
-		HostGender:  "any",
-		GuestCount:  "2",
-	}
-
-	expectedAds := []domain.GetAllAdsResponse{
-		{
-			UUID:        "1",
-			Cityname:    "Test City",
-			Address:     "test address",
-			RoomsNumber: 10,
-		},
+	adHandler := &AdHandler{
+		client: mockGrpcClient,
+		utils:  utilsMock,
 	}
 
-	mockUseCase.MockGetAllPlaces = func(ctx context.Context, f domain.AdFilter) ([]domain.GetAllAdsResponse, error) {
-		assert.Equal(t, filter, f, "Filter should match")
-		return expectedAds, nil
-	}
+	req := httptest.NewRequest(http.MethodGet, "/housing?location=test", nil)
+	req.Header.Set("X-Real-IP", "127.0.0.1")
+	w := httptest.NewRecorder()
 
-	req, err := http.NewRequest("GET", "/api/ads/?location=Test+City&rating=5&new=true&gender=any&guests=2", nil)
-	assert.NoError(t, err)
+	adHandler.GetAllPlaces(w, req)
 
-	rr := httptest.NewRecorder()
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
 
-	handler.GetAllPlaces(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code, "Expected status OK")
-
-	var response map[string]interface{}
-	err = json.Unmarshal(rr.Body.Bytes(), &response)
-	assert.NoError(t, err)
-
-	places, ok := response["places"].([]interface{})
-	assert.True(t, ok, "Expected 'places' field in response")
-
-	assert.Equal(t, len(expectedAds), len(places), "Returned places count should match expected")
-
-	mockUseCase.MockGetAllPlaces = func(ctx context.Context, f domain.AdFilter) ([]domain.GetAllAdsResponse, error) {
-		return nil, fmt.Errorf("server error")
-	}
-
-	rr = httptest.NewRecorder()
-	handler.GetAllPlaces(rr, req)
-
-	assert.Equal(t, http.StatusInternalServerError, rr.Code, "Expected status 500")
+	assert.Equal(t, http.StatusOK, result.StatusCode)
+	mockGrpcClient.AssertExpectations(t)
 }
 
-func TestAdHandler_GetOnePlace(t *testing.T) {
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
-	}
-	defer logger.SyncLoggers()
+func TestAdHandler_GetAllPlaces_Error(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+	grpcErr := status.Error(codes.Internal, "Simulated gRPC Error")
 
-	mockUseCase := &mocks.MockAdUseCase{}
-	mockSession := &mocks.MockServiceSession{}
-	mockJwtToken := &mocks.MockJwtTokenService{}
-	handler := NewAdHandler(mockUseCase, mockSession, mockJwtToken)
+	mockGrpcClient := new(mocks.MockGrpcClient)
+	mockGrpcClient.On("GetAllPlaces", mock.Anything, mock.Anything, mock.Anything).
+		Return((*gen.GetAllAdsResponseList)(nil), grpcErr)
 
-	adId := "1"
-	expectedAd := domain.GetAllAdsResponse{
-		UUID:        "1",
-		Cityname:    "Test City",
-		Address:     "test address",
-		RoomsNumber: 10,
-	}
-
-	mockUseCase.MockGetOnePlace = func(ctx context.Context, id string) (domain.GetAllAdsResponse, error) {
-		assert.Equal(t, adId, id, "Ad ID should match")
-		return expectedAd, nil
+	adHandler := &AdHandler{
+		client: mockGrpcClient,
 	}
 
-	req, err := http.NewRequest("GET", "/api/ads/"+adId, nil)
-	assert.NoError(t, err)
+	req := httptest.NewRequest(http.MethodGet, "/housing", nil)
+	req.Header.Set("X-Real-IP", "127.0.0.1")
+	w := httptest.NewRecorder()
 
-	req = mux.SetURLVars(req, map[string]string{"adId": adId})
+	adHandler.GetAllPlaces(w, req)
 
-	rr := httptest.NewRecorder()
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
 
-	handler.GetOnePlace(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code, "Expected status OK")
-
-	var response map[string]domain.GetAllAdsResponse
-	err = json.Unmarshal(rr.Body.Bytes(), &response)
-	assert.NoError(t, err)
-
-	assert.Equal(t, expectedAd, response["place"], "Returned place should match expected")
-
-	mockUseCase.MockGetOnePlace = func(ctx context.Context, id string) (domain.GetAllAdsResponse, error) {
-		return domain.GetAllAdsResponse{}, fmt.Errorf("place not found")
-	}
-
-	rr = httptest.NewRecorder()
-	handler.GetOnePlace(rr, req)
-
-	assert.Equal(t, http.StatusInternalServerError, rr.Code, "Expected status 500")
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+	mockGrpcClient.AssertExpectations(t)
 }
 
-func TestAdHandler_CreatePlace(t *testing.T) {
+func TestAdHandler_GetAllPlaces_ConvertError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+	response := &gen.GetAllAdsResponseList{}
+	mockGrpcClient := new(mocks.MockGrpcClient)
+	mockGrpcClient.On("GetAllPlaces", mock.Anything, mock.Anything, mock.Anything).
+		Return(response, nil)
+
+	utilsMock := &utils.MockUtils{}
+	utilsMock.On("ConvertGetAllAdsResponseProtoToGo", response).
+		Return(nil, errors.New("conversion error"))
+
+	adHandler := &AdHandler{
+		client: mockGrpcClient,
+		utils:  utilsMock,
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/housing", nil)
+	w := httptest.NewRecorder()
+
+	// Выполнение метода
+	adHandler.GetAllPlaces(w, req)
+
+	// Проверка результата
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+	mockGrpcClient.AssertExpectations(t)
+	utilsMock.AssertExpectations(t)
+}
+
+func TestAdHandler_GetOnePlace_Success(t *testing.T) {
 	// Инициализация логгера
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
-	}
-	defer logger.SyncLoggers()
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		require.NoError(t, logger.SyncLoggers())
+	}()
 
-	// Ручное создание мок объектов
-	mockUseCase := &mocks.MockAdUseCase{}
-	mockSession := &mocks.MockServiceSession{}
-	mockJwtToken := &mocks.MockJwtTokenService{}
-	handler := NewAdHandler(mockUseCase, mockSession, mockJwtToken)
+	mockGrpcClient := new(mocks.MockGrpcClient)
+	mockSessionService := &mocks.MockServiceSession{}
+	mockUtils := new(utils.MockUtils)
 
-	newAdRequest := domain.CreateAdRequest{
-		CityName:    "Test City",
-		Address:     "Test Street",
-		Description: "Test Description",
-		RoomsNumber: 3,
-	}
+	testResponse := &gen.GetAllAdsResponse{}
+	mockGrpcClient.On("GetOnePlace", mock.Anything, mock.Anything, mock.Anything).Return(testResponse, nil)
 
-	testTime := time.Now()
+	convertedResponse := &domain.GetAllAdsResponse{}
+	mockUtils.On("ConvertAdProtoToGo", testResponse).Return(convertedResponse, nil)
 
-	expectedAd := domain.Ad{
-		UUID:            "1",
-		CityID:          123,
-		AuthorUUID:      "user123",
-		Address:         "Test Street",
-		PublicationDate: testTime,
-		Description:     "Test Description",
-		RoomsNumber:     3,
+	mockSessionService.MockGetUserID = func(ctx context.Context, sessionID string) (string, error) {
+		return "123", nil
 	}
 
-	// Мокаем метод CreatePlace
-	mockUseCase.MockCreatePlace = func(ctx context.Context, ad *domain.Ad, files []*multipart.FileHeader, newPlace domain.CreateAdRequest) error {
-		ad.UUID = expectedAd.UUID
-		ad.CityID = expectedAd.CityID
-		ad.AuthorUUID = expectedAd.AuthorUUID
-		ad.Address = expectedAd.Address
-		ad.PublicationDate = expectedAd.PublicationDate
-		ad.Description = expectedAd.Description
-		ad.RoomsNumber = expectedAd.RoomsNumber
-		return nil
+	adHandler := &AdHandler{
+		client:         mockGrpcClient,
+		sessionService: mockSessionService,
+		utils:          mockUtils,
 	}
 
-	// Мокаем другие компоненты
-	mockSession.MockGetUserID = func(ctx context.Context, r *http.Request) (string, error) {
-		return "user123", nil
-	}
+	req := httptest.NewRequest(http.MethodGet, "/housing/123", nil)
+	req = mux.SetURLVars(req, map[string]string{"adId": "123"})
+	req.Header.Set("X-Real-IP", "127.0.0.1")
+	w := httptest.NewRecorder()
 
-	mockJwtToken.MockValidate = func(tokenString string) (*middleware.JwtCsrfClaims, error) {
-		if tokenString == "valid_token" {
-			return &middleware.JwtCsrfClaims{}, nil
+	adHandler.GetOnePlace(w, req)
+
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
 		}
-		return nil, fmt.Errorf("invalid token")
+	}(result.Body)
+
+	assert.Equal(t, http.StatusOK, result.StatusCode)
+	mockGrpcClient.AssertExpectations(t)
+	mockUtils.AssertExpectations(t)
+}
+
+func TestAdHandler_GetOnePlace_GrpcError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockGrpcClient := new(mocks.MockGrpcClient)
+	mockSessionService := &mocks.MockServiceSession{}
+
+	grpcErr := status.Error(codes.Internal, "Simulated gRPC Error")
+	mockGrpcClient.On("GetOnePlace", mock.Anything, mock.Anything, mock.Anything).Return((*gen.GetAllAdsResponse)(nil), grpcErr)
+
+	mockSessionService.MockGetUserID = func(ctx context.Context, sessionID string) (string, error) {
+		return "123", nil
 	}
 
-	metaData, err := json.Marshal(newAdRequest)
-	assert.NoError(t, err)
+	adHandler := &AdHandler{
+		client:         mockGrpcClient,
+		sessionService: mockSessionService,
+	}
 
-	body := &bytes.Buffer{}
+	req := httptest.NewRequest(http.MethodGet, "/housing/123", nil)
+	req = mux.SetURLVars(req, map[string]string{"adId": "123"})
+	req.Header.Set("X-Real-IP", "127.0.0.1")
+	w := httptest.NewRecorder()
+
+	adHandler.GetOnePlace(w, req)
+
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+	mockGrpcClient.AssertExpectations(t)
+}
+
+func TestAdHandler_GetOnePlace_ConvertError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockGrpcClient := new(mocks.MockGrpcClient)
+	mockSessionService := &mocks.MockServiceSession{}
+	mockUtils := new(utils.MockUtils)
+
+	testResponse := &gen.GetAllAdsResponse{}
+	mockGrpcClient.On("GetOnePlace", mock.Anything, mock.Anything, mock.Anything).Return(testResponse, nil)
+
+	mockUtils.On("ConvertAdProtoToGo", testResponse).Return(nil, errors.New("conversion error"))
+
+	mockSessionService.MockGetUserID = func(ctx context.Context, sessionID string) (string, error) {
+		return "123", nil
+	}
+
+	adHandler := &AdHandler{
+		client:         mockGrpcClient,
+		sessionService: mockSessionService,
+		utils:          mockUtils,
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/housing/123", nil)
+	req = mux.SetURLVars(req, map[string]string{"adId": "123"})
+	req.Header.Set("X-Real-IP", "127.0.0.1")
+	w := httptest.NewRecorder()
+
+	adHandler.GetOnePlace(w, req)
+
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+	mockGrpcClient.AssertExpectations(t)
+	mockUtils.AssertExpectations(t)
+}
+
+func TestAdHandler_CreatePlace_Success(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{
+		client: mockClient,
+	}
+
+	// Создаем multipart запрос с метаданными и файлами
+	body := new(bytes.Buffer)
 	writer := multipart.NewWriter(body)
-	_ = writer.WriteField("metadata", string(metaData))
-	writer.Close()
 
-	req, err := http.NewRequest("POST", "/api/ads", body)
-	assert.NoError(t, err)
+	// Добавляем JSON metadata
+	metadata := `{
+		"CityName": "TestCity",
+		"Description": "Test Description",
+		"Address": "Test Address",
+		"RoomsNumber": 2,
+		"SquareMeters": 60,
+		"Floor": 3,
+		"BuildingType": "Apartment",
+		"HasBalcony": true
+	}`
+	_ = writer.WriteField("metadata", metadata)
+
+	part, _ := writer.CreateFormFile("images", "image1.jpg")
+	_, err := part.Write([]byte("mock image data"))
+	if err != nil {
+		return
+	}
+
+	err = writer.Close()
+	if err != nil {
+		return
+	}
+
+	req := httptest.NewRequest("POST", "/housing", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("X-CSRF-Token", "bearer valid_token")
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.Header.Set("X-Real-IP", "127.0.0.1")
+	req.AddCookie(&http.Cookie{
+		Name:  "session_id",
+		Value: "test-session-id",
+	})
 
-	rr := httptest.NewRecorder()
+	w := httptest.NewRecorder()
 
-	handler.CreatePlace(rr, req)
+	mockClient.On("CreatePlace", mock.Anything, mock.Anything, mock.Anything).Return(&gen.Ad{}, nil)
 
-	assert.Equal(t, http.StatusOK, rr.Code, "Expected status OK")
+	handler.CreatePlace(w, req)
 
-	var response map[string]domain.Ad
-	err = json.Unmarshal(rr.Body.Bytes(), &response)
-	assert.NoError(t, err)
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
 
-	// Используем сравнение без учёта времени
-	if responseAd, ok := response["place"]; ok {
-		assert.Equal(t, expectedAd.UUID, responseAd.UUID)
-		assert.Equal(t, expectedAd.CityID, responseAd.CityID)
-		assert.Equal(t, expectedAd.AuthorUUID, responseAd.AuthorUUID)
-		assert.Equal(t, expectedAd.Address, responseAd.Address)
-		assert.Equal(t, expectedAd.Description, responseAd.Description)
-		assert.Equal(t, expectedAd.RoomsNumber, responseAd.RoomsNumber)
-	} else {
-		t.FailNow()
-	}
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	bodyResponse, _ := io.ReadAll(resp.Body)
+	require.Contains(t, string(bodyResponse), "Successfully created ad")
 
-	// Тест на случай ошибки в создании
-	mockUseCase.MockCreatePlace = func(ctx context.Context, ad *domain.Ad, files []*multipart.FileHeader, newPlace domain.CreateAdRequest) error {
-		return fmt.Errorf("could not create place")
-	}
-
-	rr = httptest.NewRecorder()
-	handler.CreatePlace(rr, req)
-
-	assert.Equal(t, http.StatusInternalServerError, rr.Code, "Expected status 500")
+	mockClient.AssertExpectations(t)
 }
 
-func TestAdHandler_UpdatePlace(t *testing.T) {
-	// Инициализация логгеров
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
-	}
-	defer logger.SyncLoggers()
-
-	// Ручное создание мок-объектов для теста
-	mockUseCase := &mocks.MockAdUseCase{}
-	mockSession := &mocks.MockServiceSession{}
-	mockJwtToken := &mocks.MockJwtTokenService{}
-
-	handler := NewAdHandler(mockUseCase, mockSession, mockJwtToken)
-
-	adId := "1"
-	updatedAdRequest := domain.UpdateAdRequest{
-		CityName:    "Updated City",
-		Address:     "Updated Street",
-		Description: "Updated Description",
-		RoomsNumber: 3,
-	}
-
-	mockUseCase.MockUpdatePlace = func(ctx context.Context, ad *domain.Ad, id string, userID string, files []*multipart.FileHeader, updatedPlace domain.UpdateAdRequest) error {
-		assert.Equal(t, adId, id, "Ad ID должен совпадать")
-		assert.Equal(t, "user123", userID, "User ID должен совпадать")
-		assert.Equal(t, updatedAdRequest, updatedPlace, "Обновленный ад должен совпадать с ожидаемым")
-		return nil
-	}
-
-	mockSession.MockGetUserID = func(ctx context.Context, r *http.Request) (string, error) {
-		return "user123", nil
-	}
-
-	mockJwtToken.MockValidate = func(tokenString string) (*middleware.JwtCsrfClaims, error) {
-		if tokenString == "valid_token" {
-			return &middleware.JwtCsrfClaims{}, nil
+func TestAdHandler_CreatePlace_FailedToReadFile(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
 		}
-		return nil, fmt.Errorf("invalid token")
+	}()
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{
+		client: mockClient,
 	}
 
-	metaData, err := json.Marshal(updatedAdRequest)
-	assert.NoError(t, err)
-
-	body := &bytes.Buffer{}
+	body := new(bytes.Buffer)
 	writer := multipart.NewWriter(body)
-	writer.WriteField("metadata", string(metaData))
-	writer.Close()
+	_, err := writer.CreateFormFile("images", "image1.jpg")
+	if err != nil {
+		return
+	}
 
-	req, err := http.NewRequest("PUT", "/api/ads/"+adId, body)
-	assert.NoError(t, err)
-	req = mux.SetURLVars(req, map[string]string{"adId": adId})
+	err = writer.Close()
+	if err != nil {
+		return
+	}
+
+	req := httptest.NewRequest("POST", "/ads/create", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("X-CSRF-Token", "Bearer valid_token")
+	req.AddCookie(&http.Cookie{
+		Name:  "session_id",
+		Value: "test-session-id",
+	})
 
-	rr := httptest.NewRecorder()
+	w := httptest.NewRecorder()
 
-	handler.UpdatePlace(rr, req)
+	// Выполнение метода
+	handler.CreatePlace(w, req)
 
-	assert.Equal(t, http.StatusOK, rr.Code, "Expected status OK")
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
 
-	var response map[string]string
-	err = json.Unmarshal(rr.Body.Bytes(), &response)
-	assert.NoError(t, err)
-
-	assert.Equal(t, "Update successfully", response["response"], "Response message должен совпадать с ожидаемым")
-
-	// Проверка на случай ошибки в обновлении
-	mockUseCase.MockUpdatePlace = func(ctx context.Context, ad *domain.Ad, id string, userID string, files []*multipart.FileHeader, updatedPlace domain.UpdateAdRequest) error {
-		return fmt.Errorf("could not update place")
-	}
-
-	rr = httptest.NewRecorder()
-	handler.UpdatePlace(rr, req)
-	assert.Equal(t, http.StatusInternalServerError, rr.Code, "Expected status 500")
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 }
 
-func TestAdHandler_DeletePlace(t *testing.T) {
-	// Инициализация логгеров
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
-	}
-	defer logger.SyncLoggers()
-
-	// Ручное создание мок-объектов
-	mockUseCase := &mocks.MockAdUseCase{}
-	mockSession := &mocks.MockServiceSession{}
-	mockJwtToken := &mocks.MockJwtTokenService{}
-
-	handler := NewAdHandler(mockUseCase, mockSession, mockJwtToken)
-
-	adId := "1"
-
-	mockUseCase.MockDeletePlace = func(ctx context.Context, id string, userID string) error {
-		assert.Equal(t, adId, id, "Ad ID должен совпадать")
-		assert.Equal(t, "user123", userID, "User ID должен совпадать")
-		return nil
-	}
-
-	mockSession.MockGetUserID = func(ctx context.Context, r *http.Request) (string, error) {
-		return "user123", nil
-	}
-
-	mockJwtToken.MockValidate = func(tokenString string) (*middleware.JwtCsrfClaims, error) {
-		if tokenString == "valid_token" {
-			return &middleware.JwtCsrfClaims{}, nil
+func TestAdHandler_CreatePlace_CreatePlaceFailure(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
 		}
-		return nil, fmt.Errorf("invalid token")
+	}()
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{
+		client: mockClient,
 	}
 
-	req, err := http.NewRequest("DELETE", "/api/ads/"+adId, nil)
-	assert.NoError(t, err)
-	req = mux.SetURLVars(req, map[string]string{"adId": adId})
-	req.Header.Set("X-CSRF-Token", "Bearer valid_token")
-
-	rr := httptest.NewRecorder()
-
-	handler.DeletePlace(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code, "Expected status OK")
-
-	var response map[string]string
-	err = json.Unmarshal(rr.Body.Bytes(), &response)
-	assert.NoError(t, err)
-
-	assert.Equal(t, "Delete successfully", response["response"], "Response message должен совпадать с ожидаемым")
-
-	// Проверка на случай ошибки в удалении
-	mockUseCase.MockDeletePlace = func(ctx context.Context, id string, userID string) error {
-		return fmt.Errorf("could not delete place")
+	// Создаем multipart запрос с метаданными и файлами
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	_ = writer.WriteField("metadata", `{"CityName":"TestCity"}`)
+	part, _ := writer.CreateFormFile("images", "image1.jpg")
+	_, err := part.Write([]byte("mock image data"))
+	if err != nil {
+		return
+	}
+	err = writer.Close()
+	if err != nil {
+		return
 	}
 
-	rr = httptest.NewRecorder()
-	handler.DeletePlace(rr, req)
-	assert.Equal(t, http.StatusInternalServerError, rr.Code, "Expected status 500")
+	req := httptest.NewRequest("POST", "/ads/create", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.AddCookie(&http.Cookie{
+		Name:  "session_id",
+		Value: "test-session-id",
+	})
+
+	w := httptest.NewRecorder()
+	grpcErr := status.Error(codes.Internal, "Simulated gRPC Error")
+	mockClient.On("CreatePlace", mock.Anything, mock.Anything, mock.Anything).Return(&gen.Ad{}, grpcErr)
+
+	handler.CreatePlace(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	mockClient.AssertExpectations(t)
 }
 
-func TestAdHandler_GetPlacesPerCity(t *testing.T) {
-	// Инициализация логгеров
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
-	}
-	defer logger.SyncLoggers()
-
-	// Ручное создание мок-объектов
-	mockUseCase := &mocks.MockAdUseCase{}
-
-	handler := NewAdHandler(mockUseCase, nil, nil)
-
-	cityName := "Test City"
-	expectedAds := []domain.GetAllAdsResponse{
-		{UUID: "1", Address: "Test Street", RoomsNumber: 10},
-		{UUID: "2", Address: "Test Street2", RoomsNumber: 12},
-	}
-	// Успешный сценарий
-	mockUseCase.MockGetPlacesPerCity = func(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error) {
-		assert.Equal(t, cityName, city, "City name должен совпадать")
-		return expectedAds, nil
+func TestAdHandler_CreatePlace_NoCookie(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{
+		client: mockClient,
 	}
 
-	req, err := http.NewRequest("GET", "/api/ads/city/"+cityName, nil)
-	assert.NoError(t, err)
-	req = mux.SetURLVars(req, map[string]string{"city": cityName})
-
-	rr := httptest.NewRecorder()
-	handler.GetPlacesPerCity(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code, "Expected status OK")
-
-	var response map[string][]domain.GetAllAdsResponse
-	err = json.Unmarshal(rr.Body.Bytes(), &response)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedAds, response["places"], "Returned places should match expected")
-
-	// Ошибочный сценарий
-	mockUseCase.MockGetPlacesPerCity = func(ctx context.Context, city string) ([]domain.GetAllAdsResponse, error) {
-		return nil, fmt.Errorf("could not get places")
+	// Создаем multipart запрос с метаданными и файлами
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	_ = writer.WriteField("metadata", `{"CityName":"TestCity"}`)
+	part, _ := writer.CreateFormFile("images", "image1.jpg")
+	_, err := part.Write([]byte("mock image data"))
+	if err != nil {
+		return
+	}
+	err = writer.Close()
+	if err != nil {
+		return
 	}
 
-	rr = httptest.NewRecorder()
-	handler.GetPlacesPerCity(rr, req)
+	req := httptest.NewRequest("POST", "/ads/create", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
 
-	assert.Equal(t, http.StatusInternalServerError, rr.Code, "Expected status 500")
+	w := httptest.NewRecorder()
+
+	handler.CreatePlace(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	mockClient.AssertExpectations(t)
 }
 
-func TestAdHandler_GetUserPlaces(t *testing.T) {
-	// Инициализация логгеров
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
-	}
-	defer logger.SyncLoggers()
+func TestAdHandler_UpdatePlace_Success(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 
-	// Ручное создание мок-объектов
-	mockUseCase := &mocks.MockAdUseCase{}
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
 
-	handler := NewAdHandler(mockUseCase, nil, nil)
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
 
-	expectedUserId := "user123"
-	expectedAds := []domain.GetAllAdsResponse{
-		{UUID: "1", Address: "Test Street", RoomsNumber: 10},
-		{UUID: "2", Address: "Test Street2", RoomsNumber: 12},
-	}
+	metadata := `{
+		"CityName": "TestCity",
+		"Description": "Updated Description",
+		"Address": "Test Address",
+		"RoomsNumber": 3,
+		"SquareMeters": 70,
+		"Floor": 4,
+		"BuildingType": "Apartment",
+		"HasBalcony": false
+	}`
 
-	// Успешный сценарий
-	mockUseCase.MockGetUserPlaces = func(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
-		assert.Equal(t, expectedUserId, userId, "User ID должен совпадать")
-		return expectedAds, nil
-	}
+	_ = writer.WriteField("metadata", metadata)
 
-	req, err := http.NewRequest("GET", "/api/users/"+expectedUserId+"/ads", nil)
-	assert.NoError(t, err)
-	req = mux.SetURLVars(req, map[string]string{"userId": expectedUserId})
+	part, _ := writer.CreateFormFile("images", "image1.jpg")
+	_, err := part.Write([]byte("mock image data"))
+	require.NoError(t, err)
 
-	rr := httptest.NewRecorder()
-	handler.GetUserPlaces(rr, req)
+	err = writer.Close()
+	require.NoError(t, err)
 
-	assert.Equal(t, http.StatusOK, rr.Code, "Expected status OK")
+	req := httptest.NewRequest("PUT", "/housing/123", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.Header.Set("X-Real-IP", "127.0.0.1")
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "test-session-id"})
 
-	var response map[string][]domain.GetAllAdsResponse
-	err = json.Unmarshal(rr.Body.Bytes(), &response)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedAds, response["places"], "Returned places should match expected")
+	w := httptest.NewRecorder()
 
-	// Ошибочный сценарий
-	mockUseCase.MockGetUserPlaces = func(ctx context.Context, userId string) ([]domain.GetAllAdsResponse, error) {
-		return nil, fmt.Errorf("could not get places")
-	}
+	mockClient.On("UpdatePlace", mock.Anything, mock.Anything, mock.Anything).Return(&gen.AdResponse{}, nil)
 
-	rr = httptest.NewRecorder()
-	handler.GetUserPlaces(rr, req)
+	handler.UpdatePlace(w, req)
 
-	assert.Equal(t, http.StatusInternalServerError, rr.Code, "Expected status 500")
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	bodyResponse, _ := io.ReadAll(resp.Body)
+	require.Contains(t, string(bodyResponse), "Successfully updated ad")
+
+	mockClient.AssertExpectations(t)
 }
 
-func TestDeleteAdImage(t *testing.T) {
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
+func TestAdHandler_UpdatePlace_ParseMultipartError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	handler := &AdHandler{client: new(mocks.MockGrpcClient)}
+
+	req := httptest.NewRequest("PUT", "/housing/123", bytes.NewBufferString("invalid body"))
+	req.Header.Set("Content-Type", "multipart/form-data")
+
+	w := httptest.NewRecorder()
+
+	handler.UpdatePlace(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestAdHandler_UpdatePlace_MetadataDecodeError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	handler := &AdHandler{client: new(mocks.MockGrpcClient)}
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	_ = writer.WriteField("metadata", "invalid json")
+
+	_ = writer.Close()
+
+	req := httptest.NewRequest("PUT", "/housing/123", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "test-session-id"})
+
+	w := httptest.NewRecorder()
+
+	handler.UpdatePlace(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestAdHandler_UpdatePlace_SessionIDError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	handler := &AdHandler{client: new(mocks.MockGrpcClient)}
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	_ = writer.WriteField("metadata", "{}")
+	_ = writer.Close()
+
+	req := httptest.NewRequest("PUT", "/housing/123", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	w := httptest.NewRecorder()
+
+	handler.UpdatePlace(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+}
+
+func TestAdHandler_UpdatePlace_GRPCError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+
+	metadata := `{"CityName": "TestCity"}`
+	_ = writer.WriteField("metadata", metadata)
+	_ = writer.Close()
+
+	req := httptest.NewRequest("PUT", "/housing/123", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "test-session-id"})
+
+	w := httptest.NewRecorder()
+	grpcErr := status.Error(codes.Internal, "Simulated gRPC Error")
+	mockClient.On("UpdatePlace", mock.Anything, mock.Anything, mock.Anything).Return(&gen.AdResponse{}, grpcErr)
+
+	handler.UpdatePlace(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+}
+
+func TestAdHandler_DeletePlace_Success(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
+
+	req := httptest.NewRequest("DELETE", "/housing/123", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "test-session-id"})
+
+	w := httptest.NewRecorder()
+
+	mockClient.On("DeletePlace", mock.Anything, mock.Anything, mock.Anything).Return(&gen.DeleteResponse{}, nil)
+
+	handler.DeletePlace(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Contains(t, w.Body.String(), "Successfully deleted place")
+
+	mockClient.AssertExpectations(t)
+}
+
+func TestAdHandler_DeletePlace_FailedToGetSessionID(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
+
+	req := httptest.NewRequest("DELETE", "/housing/123", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+
+	w := httptest.NewRecorder()
+
+	handler.DeletePlace(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	require.Contains(t, w.Body.String(), "failed to get session id from request cookie")
+
+	mockClient.AssertExpectations(t)
+}
+
+func TestAdHandler_DeletePlace_ClientError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
+
+	req := httptest.NewRequest("DELETE", "/housing/123", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "test-session-id"})
+
+	w := httptest.NewRecorder()
+	grpcErr := status.Error(codes.Internal, "failed to delete place")
+	mockClient.On("DeletePlace", mock.Anything, mock.Anything, mock.Anything).Return(&gen.DeleteResponse{}, grpcErr)
+
+	handler.DeletePlace(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	require.Contains(t, w.Body.String(), "failed to delete place")
+
+	mockClient.AssertExpectations(t)
+}
+
+func TestAdHandler_GetPlacesPerCity_Success(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	utilsMock := &utils.MockUtils{}
+	handler := &AdHandler{client: mockClient, utils: utilsMock}
+
+	req := httptest.NewRequest("GET", "/housing/city/TestCity", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+
+	w := httptest.NewRecorder()
+
+	mockClient.On("GetPlacesPerCity", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.GetAllAdsResponseList{}, nil)
+
+	utilsMock.On("ConvertGetAllAdsResponseProtoToGo", mock.Anything).
+		Return([]domain.GetAllAdsListResponse{}, nil)
+
+	handler.GetPlacesPerCity(w, req)
+
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusOK, result.StatusCode)
+
+	mockClient.AssertExpectations(t)
+	utilsMock.AssertExpectations(t)
+}
+
+func TestAdHandler_GetPlacesPerCity_GrpcError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
+
+	req := httptest.NewRequest("GET", "/housing/city/TestCity", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+
+	w := httptest.NewRecorder()
+	grpcError := status.Error(codes.Internal, "failed to get place per city")
+	mockClient.On("GetPlacesPerCity", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.GetAllAdsResponseList{}, grpcError)
+
+	handler.GetPlacesPerCity(w, req)
+
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+	mockClient.AssertExpectations(t)
+}
+
+func TestAdHandler_GetPlacesPerCity_ConvertError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	utilsMock := &utils.MockUtils{}
+	handler := &AdHandler{client: mockClient, utils: utilsMock}
+
+	req := httptest.NewRequest("GET", "/housing/city/TestCity", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+
+	w := httptest.NewRecorder()
+
+	mockClient.On("GetPlacesPerCity", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.GetAllAdsResponseList{}, nil)
+
+	utilsMock.On("ConvertGetAllAdsResponseProtoToGo", mock.Anything).
+		Return([]domain.GetAllAdsListResponse{}, errors.New("conversion error"))
+
+	handler.GetPlacesPerCity(w, req)
+
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+
+	mockClient.AssertExpectations(t)
+	utilsMock.AssertExpectations(t)
+}
+
+func TestAdHandler_GetUserPlaces_Success(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	mockUtils := &utils.MockUtils{}
+	handler := &AdHandler{client: mockClient, utils: mockUtils}
+
+	req := httptest.NewRequest("GET", "/housing/user/testUserId", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+
+	w := httptest.NewRecorder()
+
+	mockClient.On("GetUserPlaces", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.GetAllAdsResponseList{}, nil)
+
+	mockUtils.On("ConvertGetAllAdsResponseProtoToGo", mock.Anything).
+		Return([]domain.GetAllAdsListResponse{}, nil)
+
+	handler.GetUserPlaces(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	mockClient.AssertExpectations(t)
+	mockUtils.AssertExpectations(t)
+}
+
+func TestAdHandler_GetUserPlaces_GrpcError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
+
+	req := httptest.NewRequest("GET", "/housing/user/testUserId", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+
+	w := httptest.NewRecorder()
+	grpcError := status.Error(codes.Internal, "failed to get place per city")
+	mockClient.On("GetUserPlaces", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.GetAllAdsResponseList{}, grpcError)
+
+	handler.GetUserPlaces(w, req)
+
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+
+	mockClient.AssertExpectations(t)
+}
+
+func TestAdHandler_GetUserPlaces_ConvertError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	utilsMock := &utils.MockUtils{}
+	handler := &AdHandler{client: mockClient, utils: utilsMock}
+
+	req := httptest.NewRequest("GET", "/housing/user/testUserId", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+
+	w := httptest.NewRecorder()
+
+	mockClient.On("GetUserPlaces", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.GetAllAdsResponseList{}, nil)
+
+	utilsMock.On("ConvertGetAllAdsResponseProtoToGo", mock.Anything).
+		Return([]domain.GetAllAdsListResponse{}, errors.New("conversion error"))
+
+	handler.GetUserPlaces(w, req)
+
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+
+	mockClient.AssertExpectations(t)
+	utilsMock.AssertExpectations(t)
+}
+
+func TestAdHandler_DeleteAdImage_Success(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+
+	handler := &AdHandler{client: mockClient}
+
+	req := httptest.NewRequest("DELETE", "/housing/{adId}/images/{imageId}", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.AddCookie(&http.Cookie{
+		Name:  "session_id",
+		Value: "test-session-id",
+	})
+
+	w := httptest.NewRecorder()
+
+	mockClient.On("DeleteAdImage", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.DeleteResponse{}, nil)
+
+	handler.DeleteAdImage(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Contains(t, w.Body.String(), "\"message\":\"Successfully deleted ad image\"")
+
+	mockClient.AssertExpectations(t)
+}
+
+func TestAdHandler_DeleteAdImage_FailedToGetSessionID(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	handler := &AdHandler{}
+
+	req := httptest.NewRequest("DELETE", "/housing/{adId}/images/{imageId}", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+
+	w := httptest.NewRecorder()
+
+	handler.DeleteAdImage(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	require.Contains(t, w.Body.String(), "failed to get session id from request cookie")
+}
+
+func TestAdHandler_DeleteAdImage_GrpcError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+
+	handler := &AdHandler{client: mockClient}
+
+	req := httptest.NewRequest("DELETE", "/housing/{adId}/images/{imageId}", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.AddCookie(&http.Cookie{
+		Name:  "session_id",
+		Value: "test-session-id",
+	})
+
+	w := httptest.NewRecorder()
+	grpcError := status.Error(codes.Internal, "failed to get place per city")
+	mockClient.On("DeleteAdImage", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.DeleteResponse{}, grpcError)
+
+	handler.DeleteAdImage(w, req)
+
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+	require.Contains(t, w.Body.String(), "\"error\":\"failed to get place per city\"")
+
+	mockClient.AssertExpectations(t)
+}
+
+func TestAdHandler_AddToFavorites_Success(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
+
+	req := httptest.NewRequest("POST", "/housing/{adId}/like", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.AddCookie(&http.Cookie{
+		Name:  "session_id",
+		Value: "test-session-id",
+	})
+
+	w := httptest.NewRecorder()
+
+	mockClient.On("AddToFavorites", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.AdResponse{}, nil)
+
+	handler.AddToFavorites(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Contains(t, w.Body.String(), "\"message\":\"Successfully added to favorites\"")
+
+	mockClient.AssertExpectations(t)
+}
+
+func TestAdHandler_AddToFavorites_FailedToGetSessionID(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	handler := &AdHandler{}
+
+	req := httptest.NewRequest("POST", "/housing/{adId}/like", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+
+	w := httptest.NewRecorder()
+
+	handler.AddToFavorites(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	require.Contains(t, w.Body.String(), "failed to get session id from request cookie")
+
+}
+
+func TestAdHandler_AddToFavorites_GrpcError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
+
+	req := httptest.NewRequest("POST", "/housing/{adId}/like", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.AddCookie(&http.Cookie{
+		Name:  "session_id",
+		Value: "test-session-id",
+	})
+
+	w := httptest.NewRecorder()
+	grpcError := status.Error(codes.Internal, "failed to add to favorites")
+	mockClient.On("AddToFavorites", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.AdResponse{}, grpcError)
+
+	handler.AddToFavorites(w, req)
+
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+	require.Contains(t, w.Body.String(), "\"error\":\"failed to add to favorites\"")
+
+	mockClient.AssertExpectations(t)
+}
+
+func TestAdHandler_DeleteFromFavorites_Success(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
+
+	req := httptest.NewRequest("DELETE", "/housing/{adId}/dislike", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.AddCookie(&http.Cookie{
+		Name:  "session_id",
+		Value: "test-session-id",
+	})
+
+	w := httptest.NewRecorder()
+
+	mockClient.On("DeleteFromFavorites", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.AdResponse{}, nil)
+
+	handler.DeleteFromFavorites(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Contains(t, w.Body.String(), "\"message\":\"Successfully deleted from favorites\"")
+
+	mockClient.AssertExpectations(t)
+}
+
+func TestAdHandler_DeleteFromFavorites_FailedToGetSessionID(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	handler := &AdHandler{}
+
+	req := httptest.NewRequest("POST", "/housing/{adId}/dislike", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+
+	w := httptest.NewRecorder()
+
+	handler.DeleteFromFavorites(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	require.Contains(t, w.Body.String(), "failed to get session id from request cookie")
+
+}
+
+func TestAdHandler_DeleteFromFavorites_GrpcError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
+
+	req := httptest.NewRequest("POST", "/housing/{adId}/dislike", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.AddCookie(&http.Cookie{
+		Name:  "session_id",
+		Value: "test-session-id",
+	})
+
+	w := httptest.NewRecorder()
+	grpcError := status.Error(codes.Internal, "failed to delete ad from favorites")
+	mockClient.On("DeleteFromFavorites", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.AdResponse{}, grpcError)
+
+	handler.DeleteFromFavorites(w, req)
+
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+	require.Contains(t, w.Body.String(), "\"error\":\"failed to delete ad from favorites\"")
+
+	mockClient.AssertExpectations(t)
+}
+
+func TestAdHandler_GetUserFavorites_Success(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	mockUtils := &utils.MockUtils{}
+	handler := &AdHandler{client: mockClient, utils: mockUtils}
+
+	req := httptest.NewRequest("GET", "/users/{userId}/favorites", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.AddCookie(&http.Cookie{
+		Name:  "session_id",
+		Value: "test-session-id",
+	})
+
+	w := httptest.NewRecorder()
+
+	mockClient.On("GetUserFavorites", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.GetAllAdsResponseList{}, nil)
+
+	mockUtils.On("ConvertGetAllAdsResponseProtoToGo", mock.Anything).
+		Return([]domain.GetAllAdsListResponse{}, nil)
+
+	handler.GetUserFavorites(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	mockClient.AssertExpectations(t)
+	mockUtils.AssertExpectations(t)
+}
+
+func TestAdHandler_GetUserFavorites_GrpcError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
+
+	req := httptest.NewRequest("GET", "/users/{userId}/favorites", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.AddCookie(&http.Cookie{
+		Name:  "session_id",
+		Value: "test-session-id",
+	})
+
+	w := httptest.NewRecorder()
+	grpcError := status.Error(codes.Internal, "failed to user favorites")
+	mockClient.On("GetUserFavorites", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.GetAllAdsResponseList{}, grpcError)
+
+	handler.GetUserFavorites(w, req)
+
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+
+	mockClient.AssertExpectations(t)
+}
+
+func TestAdHandler_GetUserFavorites_ConvertError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	utilsMock := &utils.MockUtils{}
+	handler := &AdHandler{client: mockClient, utils: utilsMock}
+
+	req := httptest.NewRequest("GET", "/users/{userId}/favorites", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.AddCookie(&http.Cookie{
+		Name:  "session_id",
+		Value: "test-session-id",
+	})
+
+	w := httptest.NewRecorder()
+
+	mockClient.On("GetUserFavorites", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.GetAllAdsResponseList{}, nil)
+
+	utilsMock.On("ConvertGetAllAdsResponseProtoToGo", mock.Anything).
+		Return([]domain.GetAllAdsListResponse{}, errors.New("conversion error"))
+
+	handler.GetUserFavorites(w, req)
+
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(result.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+
+	mockClient.AssertExpectations(t)
+	utilsMock.AssertExpectations(t)
+}
+
+func TestAdHandler_GetUserFavorites_FailedToGetSessionID(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	handler := &AdHandler{}
+
+	req := httptest.NewRequest("GET", "/users/{userId}/favorites", nil)
+	req.Header.Set("X-CSRF-Token", "test-token")
+
+	w := httptest.NewRecorder()
+
+	handler.GetUserFavorites(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	require.Contains(t, w.Body.String(), "failed to get session id from request cookie")
+}
+
+func TestAdHandler_UpdatePriorityWithPayment_Success(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
+
+	card := domain.PaymentInfo{
+		DonationAmount: "100",
 	}
-	defer logger.SyncLoggers()
+	cardData, _ := json.Marshal(card)
 
-	// Создаем экземпляры моков
-	mockJWT := &mocks.MockJwtTokenService{}
-	mockSession := &mocks.MockServiceSession{}
-	mockAdUseCase := &mocks.MockAdUseCase{}
-	handler := NewAdHandler(mockAdUseCase, mockSession, mockJWT)
-
-	// Создаем стандартные параметры
-	adId := "ad-uuid"
-	imageId := "123"
-	userId := "user-uuid"
-	csrfToken := "Bearer valid_token"
-
-	// Тестируем каждый сценарий
-	t.Run("invalid imageId", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodDelete, "/api/ads/"+adId+"/images/invalidId", nil)
-		w := httptest.NewRecorder()
-		req = mux.SetURLVars(req, map[string]string{"adId": adId, "imageId": "invalidId"})
-
-		handler.DeleteAdImage(w, req)
-
-		assert.Equal(t, http.StatusInternalServerError, w.Result().StatusCode)
-		assert.Contains(t, w.Body.String(), "invalidId")
+	req := httptest.NewRequest("POST", "/housing/{adId}/payment", bytes.NewReader(cardData))
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.AddCookie(&http.Cookie{
+		Name:  "session_id",
+		Value: "test-session-id",
 	})
+	w := httptest.NewRecorder()
 
-	t.Run("missing CSRF token", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodDelete, "/api/ads/"+adId+"/images/"+imageId, nil)
-		w := httptest.NewRecorder()
-		req = mux.SetURLVars(req, map[string]string{"adId": adId, "imageId": imageId})
+	mockClient.On("UpdatePriority", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.AdResponse{}, nil)
 
-		handler.DeleteAdImage(w, req)
+	handler.UpdatePriorityWithPayment(w, req)
 
-		assert.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
-		assert.Contains(t, w.Body.String(), "Missing X-CSRF-Token header")
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Contains(t, w.Body.String(), "\"message\":\"Successfully update ad priority\"")
+
+	mockClient.AssertExpectations(t)
+}
+
+func TestAdHandler_UpdatePriorityWithPayment_DecodeError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
+
+	req := httptest.NewRequest("POST", "/housing/{adId}/payment", bytes.NewReader([]byte("invalid json")))
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.AddCookie(&http.Cookie{
+		Name:  "session_id",
+		Value: "test-session-id",
 	})
+	w := httptest.NewRecorder()
 
-	t.Run("invalid JWT token", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodDelete, "/api/ads/"+adId+"/images/"+imageId, nil)
-		req.Header.Set("X-CSRF-Token", csrfToken)
-		w := httptest.NewRecorder()
-		req = mux.SetURLVars(req, map[string]string{"adId": adId, "imageId": imageId})
+	handler.UpdatePriorityWithPayment(w, req)
 
-		mockJWT.MockValidate = func(tokenString string) (*middleware.JwtCsrfClaims, error) {
-			return nil, errors.New("invalid token")
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
 		}
+	}(resp.Body)
 
-		handler.DeleteAdImage(w, req)
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
-		assert.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
-		assert.Contains(t, w.Body.String(), "Invalid token")
+	mockClient.AssertExpectations(t)
+}
+
+func TestAdHandler_UpdatePriorityWithPayment_FailedToGetSessionID(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
+	card := domain.PaymentInfo{
+		DonationAmount: "100",
+	}
+	cardData, _ := json.Marshal(card)
+
+	req := httptest.NewRequest("POST", "/housing/{adId}/payment", bytes.NewReader(cardData))
+	req.Header.Set("X-CSRF-Token", "test-token")
+	w := httptest.NewRecorder()
+
+	handler.UpdatePriorityWithPayment(w, req)
+
+	resp := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	require.Contains(t, w.Body.String(), "failed to get session id from request cookie")
+}
+
+func TestAdHandler_UpdatePriorityWithPayment_GrpcError(t *testing.T) {
+	require.NoError(t, logger.InitLoggers())
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
+
+	mockClient := new(mocks.MockGrpcClient)
+	handler := &AdHandler{client: mockClient}
+
+	card := domain.PaymentInfo{
+		DonationAmount: "100",
+	}
+	cardData, _ := json.Marshal(card)
+
+	req := httptest.NewRequest("POST", "/housing/{adId}/payment", bytes.NewReader(cardData))
+	req.Header.Set("X-CSRF-Token", "test-token")
+	req.AddCookie(&http.Cookie{
+		Name:  "session_id",
+		Value: "test-session-id",
 	})
+	w := httptest.NewRecorder()
+	grpcError := status.Error(codes.Internal, "failed to update ad priority")
+	mockClient.On("UpdatePriority", mock.Anything, mock.Anything, mock.Anything).
+		Return(&gen.AdResponse{}, grpcError)
 
-	t.Run("no active session", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodDelete, "/api/ads/"+adId+"/images/"+imageId, nil)
-		req.Header.Set("X-CSRF-Token", csrfToken)
-		w := httptest.NewRecorder()
-		req = mux.SetURLVars(req, map[string]string{"adId": adId, "imageId": imageId})
+	handler.UpdatePriorityWithPayment(w, req)
 
-		mockJWT.MockValidate = func(tokenString string) (*middleware.JwtCsrfClaims, error) {
-			if tokenString == "valid_token" {
-				return &middleware.JwtCsrfClaims{}, nil
-			}
-			return nil, fmt.Errorf("invalid token")
+	result := w.Result()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
 		}
-		mockSession.MockGetUserID = func(ctx context.Context, r *http.Request) (string, error) {
-			return "", errors.New("no active session")
-		}
+	}(result.Body)
 
-		handler.DeleteAdImage(w, req)
+	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
 
-		assert.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
-		assert.Contains(t, w.Body.String(), "no active session")
-	})
-
-	t.Run("ad use case error", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodDelete, "/api/ads/"+adId+"/images/"+imageId, nil)
-		req.Header.Set("X-CSRF-Token", csrfToken)
-		w := httptest.NewRecorder()
-		req = mux.SetURLVars(req, map[string]string{"adId": adId, "imageId": imageId})
-
-		mockJWT.MockValidate = func(tokenString string) (*middleware.JwtCsrfClaims, error) {
-			if tokenString == "valid_token" {
-				return &middleware.JwtCsrfClaims{}, nil
-			}
-			return nil, fmt.Errorf("invalid token")
-		}
-		mockSession.MockGetUserID = func(ctx context.Context, r *http.Request) (string, error) {
-			return userId, nil
-		}
-		mockAdUseCase.MockDeleteAdImage = func(ctx context.Context, adId string, imageId int, userId string) error {
-			return errors.New("delete error")
-		}
-
-		handler.DeleteAdImage(w, req)
-
-		assert.Equal(t, http.StatusInternalServerError, w.Result().StatusCode)
-		assert.Contains(t, w.Body.String(), "delete error")
-	})
-
-	t.Run("successful delete", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodDelete, "/api/ads/"+adId+"/images/"+imageId, nil)
-		req.Header.Set("X-CSRF-Token", csrfToken)
-		w := httptest.NewRecorder()
-		req = mux.SetURLVars(req, map[string]string{"adId": adId, "imageId": imageId})
-
-		mockJWT.MockValidate = func(tokenString string) (*middleware.JwtCsrfClaims, error) {
-			if tokenString == "valid_token" {
-				return &middleware.JwtCsrfClaims{}, nil
-			}
-			return nil, fmt.Errorf("invalid token")
-		}
-		mockSession.MockGetUserID = func(ctx context.Context, r *http.Request) (string, error) {
-			return userId, nil
-		}
-		mockAdUseCase.MockDeleteAdImage = func(ctx context.Context, adId string, imageId int, userId string) error {
-			return nil
-		}
-
-		handler.DeleteAdImage(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
-
-		var response map[string]string
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Equal(t, "Delete image successfully", response["response"])
-	})
+	mockClient.AssertExpectations(t)
 }

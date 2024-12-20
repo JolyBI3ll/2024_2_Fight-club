@@ -7,8 +7,8 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
 	"2024_2_FIGHT-CLUB/internal/service/validation"
 	"context"
-	"encoding/json"
 	"errors"
+	"github.com/mailru/easyjson"
 	"go.uber.org/zap"
 	"net/http"
 	"regexp"
@@ -20,6 +20,8 @@ type AuthUseCase interface {
 	PutUser(ctx context.Context, creds *domain.User, userID string, avatar []byte) error
 	GetAllUser(ctx context.Context) ([]domain.User, error)
 	GetUserById(ctx context.Context, userID string) (*domain.User, error)
+	UpdateUserRegions(ctx context.Context, regions domain.UpdateUserRegion, userId string) error
+	DeleteUserRegion(ctx context.Context, regionName string, userID string) error
 }
 
 type authUseCase struct {
@@ -52,9 +54,9 @@ func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User) err
 	if creds.Username == "" || creds.Password == "" || creds.Email == "" {
 		return errors.New("username, password, and email are required")
 	}
-	errorResponse := map[string]interface{}{
-		"error":       "Incorrect data forms",
-		"wrongFields": []string{},
+	errorResponse := domain.WrongFieldErrorResponse{
+		Error:       "Incorrect data forms",
+		WrongFields: make([]string, 0),
 	}
 	var wrongFields []string
 	if !validation.ValidateLogin(creds.Username) {
@@ -70,8 +72,8 @@ func (uc *authUseCase) RegisterUser(ctx context.Context, creds *domain.User) err
 		wrongFields = append(wrongFields, "name")
 	}
 	if len(wrongFields) > 0 {
-		errorResponse["wrongFields"] = wrongFields
-		errorResponseJSON, err := json.Marshal(errorResponse)
+		errorResponse.WrongFields = wrongFields
+		errorResponseJSON, err := easyjson.Marshal(errorResponse)
 		if err != nil {
 			return errors.New("failed to generate error response")
 		}
@@ -123,9 +125,9 @@ func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*doma
 	if creds.Username == "" || creds.Password == "" {
 		return nil, errors.New("username and password are required")
 	}
-	errorResponse := map[string]interface{}{
-		"error":       "Incorrect data forms",
-		"wrongFields": []string{},
+	errorResponse := domain.WrongFieldErrorResponse{
+		Error:       "Incorrect data forms",
+		WrongFields: make([]string, 0),
 	}
 	var wrongFields []string
 	if !validation.ValidateLogin(creds.Username) {
@@ -135,8 +137,8 @@ func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*doma
 		wrongFields = append(wrongFields, "password")
 	}
 	if len(wrongFields) > 0 {
-		errorResponse["wrongFields"] = wrongFields
-		errorResponseJSON, err := json.Marshal(errorResponse)
+		errorResponse.WrongFields = wrongFields
+		errorResponseJSON, err := easyjson.Marshal(errorResponse)
 		if err != nil {
 			return nil, errors.New("failed to generate error response")
 		}
@@ -173,14 +175,14 @@ func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID s
 	if avatar != nil {
 		if err := validation.ValidateImage(avatar, 5<<20, []string{"image/jpeg", "image/png", "image/jpg"}, 2000, 2000); err != nil {
 			logger.AccessLogger.Warn("Invalid size, type or resolution of image", zap.String("request_id", requestID), zap.Error(err))
-			return errors.New("invalid size, type or resolution of image")
+			return err
 		}
 	}
 
 	var wrongFields []string
-	errorResponse := map[string]interface{}{
-		"error":       "Incorrect data forms",
-		"wrongFields": []string{},
+	errorResponse := domain.WrongFieldErrorResponse{
+		Error:       "Incorrect data forms",
+		WrongFields: make([]string, 0),
 	}
 	if !validation.ValidateLogin(creds.Username) && len(creds.Username) > 0 {
 		wrongFields = append(wrongFields, "username")
@@ -195,8 +197,8 @@ func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID s
 		wrongFields = append(wrongFields, "name")
 	}
 	if len(wrongFields) > 0 {
-		errorResponse["wrongFields"] = wrongFields
-		errorResponseJSON, err := json.Marshal(errorResponse)
+		errorResponse.WrongFields = wrongFields
+		errorResponseJSON, err := easyjson.Marshal(errorResponse)
 		if err != nil {
 			return errors.New("failed to generate error response")
 		}
@@ -208,6 +210,7 @@ func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID s
 
 		uploadedPath, err := uc.minioService.UploadFile(avatar, contentType, "user/"+userID)
 		if err != nil {
+			logger.AccessLogger.Warn("Failed to upload file", zap.String("request_id", requestID), zap.Error(err))
 			return errors.New("failed to upload file")
 		}
 
@@ -252,4 +255,49 @@ func (uc *authUseCase) GetUserById(ctx context.Context, userID string) (*domain.
 		return nil, err
 	}
 	return user, nil
+}
+
+func (uc *authUseCase) UpdateUserRegions(ctx context.Context, region domain.UpdateUserRegion, userId string) error {
+	requestID := middleware.GetRequestID(ctx)
+	const maxLen = 255
+	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]*$`)
+	if !validCharPattern.MatchString(userId) {
+		logger.AccessLogger.Warn("Input contains invalid characters", zap.String("request_id", requestID))
+		return errors.New("input contains invalid characters")
+	}
+
+	if len(userId) > maxLen {
+		logger.AccessLogger.Warn("Input exceeds character limit", zap.String("request_id", requestID))
+		return errors.New("input exceeds character limit")
+	}
+
+	err := uc.authRepository.UpdateUserRegion(ctx, region, userId)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (u *authUseCase) DeleteUserRegion(ctx context.Context, regionName string, userID string) error {
+	logger.AccessLogger.Info("Processing DeleteUserRegion",
+		zap.String("userID", userID),
+		zap.String("regionName", regionName),
+	)
+
+	// Удаляем регион через репозиторий
+	err := u.authRepository.DeleteUserRegion(ctx, regionName, userID)
+	if err != nil {
+		logger.AccessLogger.Error("Failed to delete user region",
+			zap.String("userID", userID),
+			zap.String("regionName", regionName),
+			zap.Error(err),
+		)
+		return err
+	}
+
+	logger.AccessLogger.Info("Successfully deleted user region",
+		zap.String("userID", userID),
+		zap.String("regionName", regionName),
+	)
+	return nil
 }

@@ -1,10 +1,48 @@
 package domain
 
+//go:generate easyjson -all auth.go
+
 import (
 	"context"
 	"time"
 )
 
+//easyjson:json
+type CSRFTokenResponse struct {
+	Token string `json:"csrf_token"`
+}
+
+//easyjson:json
+type SessionData struct {
+	Id     string `json:"id"`
+	Avatar string `json:"avatar"`
+}
+
+//easyjson:json
+type GetAllUsersResponse struct {
+	Users []*UserDataResponse `json:"users"`
+}
+
+//easyjson:json
+type AuthResponse struct {
+	SessionId string   `json:"session_id"`
+	User      AuthData `json:"user"`
+}
+
+//easyjson:json
+type UpdateUserRegion struct {
+	RegionName       string `json:"regionName"`
+	StartVisitedDate string `json:"startVisitedDate"`
+	EndVisitedDate   string `json:"endVisitedDate"`
+}
+
+type AuthData struct {
+	Id       string `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+}
+
+//easyjson:json
 type User struct {
 	UUID       string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid();column:uuid" json:"id"`
 	Username   string    `gorm:"type:varchar(20);unique;not null;column:username" json:"username"`
@@ -28,6 +66,7 @@ type UserResponce struct {
 	GuestCount int       `json:"guestCount"`
 }
 
+//easyjson:json
 type UserDataResponse struct {
 	Uuid       string    `json:"uuid"`
 	Username   string    `json:"username"`
@@ -49,4 +88,6 @@ type AuthRepository interface {
 	GetUserById(ctx context.Context, userID string) (*User, error)
 	GetUserByName(ctx context.Context, username string) (*User, error)
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
+	UpdateUserRegion(ctx context.Context, region UpdateUserRegion, userId string) error
+	DeleteUserRegion(ctx context.Context, regionName string, userId string) error
 }

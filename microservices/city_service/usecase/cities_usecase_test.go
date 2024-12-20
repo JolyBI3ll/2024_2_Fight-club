@@ -17,7 +17,12 @@ func TestGetCitiesSuccess(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	mockRepo := &mocks.MockCitiesRepository{
 		MockGetCities: func(ctx context.Context) ([]domain.City, error) {
 			return []domain.City{
@@ -46,7 +51,12 @@ func TestGetCitiesFailure(t *testing.T) {
 	if err := logger.InitLoggers(); err != nil {
 		log.Fatalf("Failed to initialize loggers: %v", err)
 	}
-	defer logger.SyncLoggers()
+	defer func() {
+		err := logger.SyncLoggers()
+		if err != nil {
+			return
+		}
+	}()
 	mockRepo := &mocks.MockCitiesRepository{
 		MockGetCities: func(ctx context.Context) ([]domain.City, error) {
 			return nil, errors.New("failed to retrieve cities")

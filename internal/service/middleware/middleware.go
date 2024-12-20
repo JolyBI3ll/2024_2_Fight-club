@@ -1,37 +1,35 @@
 package middleware
 
 import (
+	"2024_2_FIGHT-CLUB/domain"
 	"2024_2_FIGHT-CLUB/internal/service/dsn"
 	"2024_2_FIGHT-CLUB/internal/service/images"
+	"2024_2_FIGHT-CLUB/microservices/ads_service/controller/gen"
+	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/time/rate"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"sync"
 	"time"
-)
-
-type contextKey string
-
-const (
-	loggerKey contextKey = "logger"
 )
 
 const requestTimeout = 5 * time.Second
 
 func WithTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, requestTimeout)
-}
-
-func WithLogger(ctx context.Context, logger *zap.Logger) context.Context {
-	return context.WithValue(ctx, loggerKey, logger)
 }
 
 type key int
@@ -136,4 +134,106 @@ func HashPassword(password string) (string, error) {
 func CheckPassword(hashedPassword, password string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 	return err == nil
+}
+
+func ConvertRoomsToGRPC(rooms []domain.AdRoomsResponse) []*gen.AdRooms {
+	var grpcRooms []*gen.AdRooms
+	for _, room := range rooms {
+		grpcRooms = append(grpcRooms, &gen.AdRooms{
+			Type:         room.Type,
+			SquareMeters: int32(room.SquareMeters),
+		})
+	}
+	return grpcRooms
+}
+
+func ConvertGRPCToRooms(grpc []*gen.AdRooms) []domain.AdRoomsResponse {
+	var Rooms []domain.AdRoomsResponse
+	for _, room := range grpc {
+		Rooms = append(Rooms, domain.AdRoomsResponse{
+			Type:         room.Type,
+			SquareMeters: int(room.SquareMeters),
+		})
+	}
+	return Rooms
+}
+
+type responseWriterWrapper struct {
+	http.ResponseWriter
+	written bool
+}
+
+func (w *responseWriterWrapper) WriteHeader(statusCode int) {
+	if !w.written {
+		w.written = true
+		w.ResponseWriter.WriteHeader(statusCode)
+	}
+}
+
+func (w *responseWriterWrapper) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hijacker, ok := w.ResponseWriter.(http.Hijacker); ok {
+		return hijacker.Hijack()
+	}
+	return nil, nil, errors.New("Hijack not supported")
+}
+
+func RecoverWrap(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		wrappedWriter := &responseWriterWrapper{ResponseWriter: w}
+
+		defer func() {
+			if r := recover(); r != nil {
+				var err error
+				switch t := r.(type) {
+				case string:
+					err = errors.New(t)
+				case error:
+					err = t
+				default:
+					err = errors.New("Unknown error")
+				}
+				if !wrappedWriter.written {
+					http.Error(wrappedWriter, err.Error(), http.StatusInternalServerError)
+				}
+			}
+		}()
+		h.ServeHTTP(wrappedWriter, r)
+	})
+}
+
+func RecoveryInterceptor(
+	ctx context.Context,
+	req interface{},
+	info *grpc.UnaryServerInfo,
+	handler grpc.UnaryHandler,
+) (resp interface{}, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("Panic occurred: %v\n", r)
+			debug.PrintStack()
+			err = status.Errorf(codes.Internal, "internal server error: %v", r)
+		}
+	}()
+	return handler(ctx, req)
+}
+
+func ChainUnaryInterceptors(interceptors ...grpc.UnaryServerInterceptor) grpc.UnaryServerInterceptor {
+	return func(
+		ctx context.Context,
+		req interface{},
+		info *grpc.UnaryServerInfo,
+		handler grpc.UnaryHandler,
+	) (interface{}, error) {
+		current := len(interceptors) - 1
+		var chain grpc.UnaryHandler
+		chain = func(currentCtx context.Context, currentReq interface{}) (interface{}, error) {
+			if current < 0 {
+				return handler(currentCtx, currentReq)
+			}
+			interceptor := interceptors[current]
+			current--
+			return interceptor(currentCtx, currentReq, info, chain)
+		}
+		return chain(ctx, req)
+	}
 }

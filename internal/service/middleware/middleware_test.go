@@ -92,7 +92,7 @@ func TestJwtToken_Validate(t *testing.T) {
 
 	// Валидация истёкшего токена
 	expiredTime := time.Now().Add(-1 * time.Hour).Unix()
-	expiredToken, err := jwtService.Create(session, expiredTime)
+	expiredToken, _ := jwtService.Create(session, expiredTime)
 
 	_, err = jwtService.Validate(expiredToken, session)
 	assert.Error(t, err)

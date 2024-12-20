@@ -30,6 +30,7 @@ const (
 	Ads_AddToFavorites_FullMethodName      = "/ads.Ads/AddToFavorites"
 	Ads_DeleteFromFavorites_FullMethodName = "/ads.Ads/DeleteFromFavorites"
 	Ads_GetUserFavorites_FullMethodName    = "/ads.Ads/GetUserFavorites"
+	Ads_UpdatePriority_FullMethodName      = "/ads.Ads/UpdatePriority"
 )
 
 // AdsClient is the client API for Ads service.
@@ -47,6 +48,7 @@ type AdsClient interface {
 	AddToFavorites(ctx context.Context, in *AddToFavoritesRequest, opts ...grpc.CallOption) (*AdResponse, error)
 	DeleteFromFavorites(ctx context.Context, in *DeleteFromFavoritesRequest, opts ...grpc.CallOption) (*AdResponse, error)
 	GetUserFavorites(ctx context.Context, in *GetUserFavoritesRequest, opts ...grpc.CallOption) (*GetAllAdsResponseList, error)
+	UpdatePriority(ctx context.Context, in *UpdatePriorityRequest, opts ...grpc.CallOption) (*AdResponse, error)
 }
 
 type adsClient struct {
@@ -167,6 +169,16 @@ func (c *adsClient) GetUserFavorites(ctx context.Context, in *GetUserFavoritesRe
 	return out, nil
 }
 
+func (c *adsClient) UpdatePriority(ctx context.Context, in *UpdatePriorityRequest, opts ...grpc.CallOption) (*AdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AdResponse)
+	err := c.cc.Invoke(ctx, Ads_UpdatePriority_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AdsServer is the server API for Ads service.
 // All implementations must embed UnimplementedAdsServer
 // for forward compatibility.
@@ -182,6 +194,7 @@ type AdsServer interface {
 	AddToFavorites(context.Context, *AddToFavoritesRequest) (*AdResponse, error)
 	DeleteFromFavorites(context.Context, *DeleteFromFavoritesRequest) (*AdResponse, error)
 	GetUserFavorites(context.Context, *GetUserFavoritesRequest) (*GetAllAdsResponseList, error)
+	UpdatePriority(context.Context, *UpdatePriorityRequest) (*AdResponse, error)
 	mustEmbedUnimplementedAdsServer()
 }
 
@@ -224,6 +237,9 @@ func (UnimplementedAdsServer) DeleteFromFavorites(context.Context, *DeleteFromFa
 }
 func (UnimplementedAdsServer) GetUserFavorites(context.Context, *GetUserFavoritesRequest) (*GetAllAdsResponseList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUserFavorites not implemented")
+}
+func (UnimplementedAdsServer) UpdatePriority(context.Context, *UpdatePriorityRequest) (*AdResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdatePriority not implemented")
 }
 func (UnimplementedAdsServer) mustEmbedUnimplementedAdsServer() {}
 func (UnimplementedAdsServer) testEmbeddedByValue()             {}
@@ -444,6 +460,24 @@ func _Ads_GetUserFavorites_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Ads_UpdatePriority_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdatePriorityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdsServer).UpdatePriority(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Ads_UpdatePriority_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdsServer).UpdatePriority(ctx, req.(*UpdatePriorityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Ads_ServiceDesc is the grpc.ServiceDesc for Ads service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -494,6 +528,10 @@ var Ads_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUserFavorites",
 			Handler:    _Ads_GetUserFavorites_Handler,
+		},
+		{
+			MethodName: "UpdatePriority",
+			Handler:    _Ads_UpdatePriority_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
