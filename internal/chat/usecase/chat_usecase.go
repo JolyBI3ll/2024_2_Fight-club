@@ -3,6 +3,7 @@ package usecase
 import (
 	"2024_2_FIGHT-CLUB/domain"
 	"context"
+	"github.com/microcosm-cc/bluemonday"
 	"time"
 )
 
@@ -42,6 +43,10 @@ func (cs *chatUseCase) GetChat(ctx context.Context, userID1 string, userID2 stri
 }
 
 func (cs *chatUseCase) SendNewMessage(ctx context.Context, receiver string, sender string, message string) error {
+	sanitizer := bluemonday.UGCPolicy()
+	message = sanitizer.Sanitize(message)
+	receiver = sanitizer.Sanitize(receiver)
+	sender = sanitizer.Sanitize(sender)
 	err := cs.repo.SendNewMessage(ctx, receiver, sender, message)
 	if err != nil {
 		return err

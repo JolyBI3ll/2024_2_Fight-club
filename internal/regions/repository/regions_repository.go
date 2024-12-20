@@ -51,10 +51,6 @@ func (r *RegionRepository) GetVisitedRegions(ctx context.Context, userId string)
 		Where("\"userId\"", userId).
 		Order("\"startVisitDate\" ASC").
 		Find(&regions).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			logger.DBLogger.Warn("No regions found", zap.String("request_id", requestID), zap.String("userID", userId))
-			return nil, errors.New("no regions found")
-		}
 		logger.DBLogger.Error("Error fetching regions", zap.String("request_id", requestID), zap.String("userID", userId), zap.Error(err))
 		return nil, errors.New("error fetching regions")
 	}
