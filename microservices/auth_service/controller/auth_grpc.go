@@ -219,7 +219,7 @@ func (h *GrpcAuthHandler) PutUser(ctx context.Context, in *gen.PutUserRequest) (
 		Birthdate:  (in.Creds.Birthdate).AsTime(),
 		IsHost:     in.Creds.IsHost,
 	}
-	err = h.usecase.PutUser(ctx, Payload, userID, in.Avatar)
+	err = h.usecase.PutUser(ctx, Payload, userID, in.Avatar, in.SessionId)
 	if err != nil {
 		logger.AccessLogger.Warn("Failed to put user",
 			zap.String("request_id", requestID),

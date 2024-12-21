@@ -5,6 +5,7 @@ import (
 	"2024_2_FIGHT-CLUB/internal/service/images"
 	"2024_2_FIGHT-CLUB/internal/service/logger"
 	"2024_2_FIGHT-CLUB/internal/service/middleware"
+	"2024_2_FIGHT-CLUB/internal/service/session"
 	"2024_2_FIGHT-CLUB/internal/service/validation"
 	"context"
 	"errors"
@@ -12,12 +13,13 @@ import (
 	"go.uber.org/zap"
 	"net/http"
 	"regexp"
+	"time"
 )
 
 type AuthUseCase interface {
 	RegisterUser(ctx context.Context, creds *domain.User) error
 	LoginUser(ctx context.Context, creds *domain.User) (*domain.User, error)
-	PutUser(ctx context.Context, creds *domain.User, userID string, avatar []byte) error
+	PutUser(ctx context.Context, creds *domain.User, userID string, avatar []byte, sessionId string) error
 	GetAllUser(ctx context.Context) ([]domain.User, error)
 	GetUserById(ctx context.Context, userID string) (*domain.User, error)
 	UpdateUserRegions(ctx context.Context, regions domain.UpdateUserRegion, userId string) error
@@ -27,12 +29,14 @@ type AuthUseCase interface {
 type authUseCase struct {
 	authRepository domain.AuthRepository
 	minioService   images.MinioServiceInterface
+	store          session.RedisInterface
 }
 
-func NewAuthUseCase(authRepository domain.AuthRepository, minioService images.MinioServiceInterface) AuthUseCase {
+func NewAuthUseCase(authRepository domain.AuthRepository, minioService images.MinioServiceInterface, store session.RedisInterface) AuthUseCase {
 	return &authUseCase{
 		authRepository: authRepository,
 		minioService:   minioService,
+		store:          store,
 	}
 }
 
@@ -157,7 +161,7 @@ func (uc *authUseCase) LoginUser(ctx context.Context, creds *domain.User) (*doma
 	return requestedUser, nil
 }
 
-func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID string, avatar []byte) error {
+func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID string, avatar []byte, sessionId string) error {
 	requestID := middleware.GetRequestID(ctx)
 	const maxLen = 255
 	validCharPattern := regexp.MustCompile(`^[a-zA-Zа-яА-Я0-9@.,\s\-_]*$`)
@@ -225,6 +229,20 @@ func (uc *authUseCase) PutUser(ctx context.Context, creds *domain.User, userID s
 		}
 		return err
 	}
+
+	sessionStore := uc.store
+	sessionData, err := sessionStore.Get(ctx, sessionId)
+	if err != nil {
+		logger.AccessLogger.Warn("Failed to get session from Redis", zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("failed to update Redis")
+	}
+
+	sessionData.Avatar = creds.Avatar
+	if err := sessionStore.Set(ctx, sessionId, sessionData, 24*time.Hour); err != nil {
+		logger.AccessLogger.Warn("Failed to update session in Redis", zap.String("request_id", requestID), zap.Error(err))
+		return errors.New("failed to update Redis")
+	}
+
 	return nil
 }
 

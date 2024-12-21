@@ -60,7 +60,7 @@ func main() {
 
 	sessionService := session.NewSessionService(redisStore)
 	auRepository := authRepository.NewAuthRepository(db)
-	auUseCase := authUseCase.NewAuthUseCase(auRepository, minioService)
+	auUseCase := authUseCase.NewAuthUseCase(auRepository, minioService, redisStore)
 	authServer := grpcAuth.NewGrpcAuthHandler(auUseCase, sessionService, jwtToken)
 
 	grpcServer := grpc.NewServer(
