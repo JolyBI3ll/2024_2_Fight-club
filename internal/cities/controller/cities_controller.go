@@ -187,7 +187,7 @@ func (h *CityHandler) handleError(w http.ResponseWriter, err error, requestID st
 		statusCode = http.StatusBadRequest
 	case "error fetching all cities",
 		"error fetching city":
-		statusCode = http.StatusInternalServerError
+		statusCode = http.StatusNotFound
 	default:
 		statusCode = http.StatusInternalServerError
 	}

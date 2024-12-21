@@ -1094,7 +1094,7 @@ func (h *AdHandler) handleError(w http.ResponseWriter, err error, requestID stri
 		Error: err.Error(),
 	}
 	switch err.Error() {
-	case "ad not found", "ad date not found", "image not found", "error fetching all places":
+	case "ad not found", "ad date not found", "image not found", "error fetching all places", "error fetching places":
 		statusCode = http.StatusNotFound
 	case "ad already exists", "roomsNumber out of range", "not owner of ad":
 		statusCode = http.StatusConflict
