@@ -98,7 +98,7 @@ func (r *ReviewRepository) GetUserReviews(ctx context.Context, userId string) ([
 		Select("reviews.*, users.avatar as \"UserAvatar\", users.name as \"UserName\"").
 		Joins("JOIN users ON reviews.\"userId\" = users.uuid").
 		Where("reviews.\"hostId\" = ?", userId).
-		Order("reviews.\"createdAt\" ASC").
+		Order("reviews.\"createdAt\" DESC").
 		Find(&reviews).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			logger.DBLogger.Warn("No reviews found", zap.String("request_id", requestID), zap.String("userID", userId))
