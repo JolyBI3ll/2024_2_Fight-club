@@ -8,12 +8,31 @@ import (
 	"github.com/golang-jwt/jwt"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc"
+	"time"
 )
 
 type MockJwtTokenService struct {
 	MockCreate            func(session_id string, tokenExpTime int64) (string, error)
 	MockValidate          func(tokenString string, expectedSessionId string) (*middleware.JwtCsrfClaims, error)
 	MockParseSecretGetter func(token *jwt.Token) (interface{}, error)
+}
+
+type MockRedisStore struct {
+	MockGet    func(ctx context.Context, sessionID string) (domain.SessionData, error)
+	MockSet    func(ctx context.Context, sessionID string, data domain.SessionData, ttl time.Duration) error
+	MockDelete func(ctx context.Context, sessionID string) error
+}
+
+func (m *MockRedisStore) Get(ctx context.Context, sessionID string) (domain.SessionData, error) {
+	return m.MockGet(ctx, sessionID)
+}
+
+func (m *MockRedisStore) Set(ctx context.Context, sessionID string, data domain.SessionData, ttl time.Duration) error {
+	return m.MockSet(ctx, sessionID, data, ttl)
+}
+
+func (m *MockRedisStore) Delete(ctx context.Context, sessionID string) error {
+	return m.MockDelete(ctx, sessionID)
 }
 
 func (m *MockJwtTokenService) Create(session_id string, tokenExpTime int64) (string, error) {

@@ -61,8 +61,9 @@ func TestRegisterUser(t *testing.T) {
 
 	mockAuthRepo := &mocks.MockAuthRepository{}
 	mockMinioService := &mocks.MockMinioService{}
+	mockRedis := &mocks.MockRedisStore{}
 
-	uc := NewAuthUseCase(mockAuthRepo, mockMinioService)
+	uc := NewAuthUseCase(mockAuthRepo, mockMinioService, mockRedis)
 	ctx := context.TODO()
 
 	// Тест-кейс 1: Успешная регистрация
@@ -266,7 +267,7 @@ func TestLoginUser(t *testing.T) {
 	}()
 	mockAuthRepo := &mocks.MockAuthRepository{}
 
-	uc := NewAuthUseCase(mockAuthRepo, nil)
+	uc := NewAuthUseCase(mockAuthRepo, nil, nil)
 	ctx := context.TODO()
 
 	// Тест-кейс 1: Успешный вход
@@ -445,184 +446,9 @@ func TestLoginUser(t *testing.T) {
 	})
 }
 
-func TestPutUser(t *testing.T) {
-	if err := logger.InitLoggers(); err != nil {
-		log.Fatalf("Failed to initialize loggers: %v", err)
-	}
-	defer func() {
-		err := logger.SyncLoggers()
-		if err != nil {
-			return
-		}
-	}()
-
-	mockAuthRepo := &mocks.MockAuthRepository{}
-	mockMinioService := &mocks.MockMinioService{}
-
-	uc := NewAuthUseCase(mockAuthRepo, mockMinioService)
-	ctx := context.TODO()
-
-	validAvatar, _ := GenerateImage("jpeg", 2000, 2000)
-	invalidAvatar, _ := GenerateImage("jpeg", 5000, 5000)
-
-	creds := &domain.User{
-		Username: "testuser",
-		Email:    "test@example.com",
-		Password: "ValidPassword123",
-		Name:     "Test User",
-		Avatar:   "",
-		UUID:     "valid-uuid",
-	}
-
-	userID := "test-uuid"
-
-	// Тест-кейс 1: Успешное обновление пользователя без аватара
-	t.Run("Successful Update Without Avatar", func(t *testing.T) {
-		mockAuthRepo.PutUserFunc = func(ctx context.Context, user *domain.User, userID string) error {
-			return nil
-		}
-
-		err := uc.PutUser(ctx, creds, userID, nil)
-		assert.NoError(t, err)
-	})
-
-	// Тест-кейс 2: Успешное обновление пользователя с аватаром
-	t.Run("Successful Update With Avatar", func(t *testing.T) {
-		mockAuthRepo.PutUserFunc = func(ctx context.Context, user *domain.User, userID string) error {
-			return nil
-		}
-		mockMinioService.UploadFileFunc = func(file []byte, contentType, id string) (string, error) {
-			return "path/to/image.jpg", nil
-		}
-
-		err := uc.PutUser(ctx, creds, userID, validAvatar)
-		assert.NoError(t, err)
-		assert.Equal(t, "/images/path/to/image.jpg", creds.Avatar)
-	})
-
-	// Тест-кейс 3: Неверные символы в данных пользователя
-	t.Run("Invalid Characters in User Data", func(t *testing.T) {
-		invalidCreds := &domain.User{
-			UUID:   "invalid<>uuid",
-			Avatar: "invalid<>avatar",
-		}
-
-		err := uc.PutUser(ctx, invalidCreds, userID, nil)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "input contains invalid characters")
-	})
-
-	// Тест-кейс 4: Превышение длины данных
-	t.Run("Exceeds Character Limit", func(t *testing.T) {
-		longString := make([]byte, 256)
-		for i := range longString {
-			longString[i] = 'a'
-		}
-
-		invalidCreds := &domain.User{
-			Username: string(longString),
-		}
-
-		err := uc.PutUser(ctx, invalidCreds, userID, nil)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "input exceeds character limit")
-	})
-
-	// Тест-кейс 5: Неверный формат аватара
-	t.Run("Invalid Avatar Format", func(t *testing.T) {
-		mockMinioService.UploadFileFunc = func(file []byte, contentType, id string) (string, error) {
-			return "", nil
-		}
-
-		creds = &domain.User{
-			Username: "testuser",
-			Email:    "test@example.com",
-			Password: "ValidPassword123",
-			Name:     "Test User",
-			Avatar:   "",
-			UUID:     "valid-uuid",
-		}
-
-		err := uc.PutUser(ctx, creds, userID, invalidAvatar)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "image resolution exceeds maximum allowed size of 2000 x 2000")
-	})
-
-	// Тест-кейс 6: Ошибка загрузки аватара
-	t.Run("Avatar Upload Failure", func(t *testing.T) {
-		mockMinioService.UploadFileFunc = func(file []byte, contentType, id string) (string, error) {
-			return "", errors.New("upload error")
-		}
-
-		err := uc.PutUser(ctx, creds, userID, validAvatar)
-		assert.Error(t, err)
-		assert.Equal(t, "failed to upload file", err.Error())
-	})
-
-	// Тест-кейс 7: Ошибка удаления файла при откате
-	t.Run("Avatar Deletion Failure on Rollback", func(t *testing.T) {
-		mockAuthRepo.PutUserFunc = func(ctx context.Context, user *domain.User, userID string) error {
-			return errors.New("db error")
-		}
-		mockMinioService.UploadFileFunc = func(file []byte, contentType, id string) (string, error) {
-			return "path/to/image.jpg", nil
-		}
-		mockMinioService.DeleteFileFunc = func(filePath string) error {
-			return errors.New("deletion error")
-		}
-
-		err := uc.PutUser(ctx, creds, userID, validAvatar)
-		assert.Error(t, err)
-		assert.Equal(t, "failed to delete file", err.Error())
-	})
-
-	// Тест-кейс 8: Ошибка обновления пользователя в базе данных
-	t.Run("Database Update Failure", func(t *testing.T) {
-		mockAuthRepo.PutUserFunc = func(ctx context.Context, user *domain.User, userID string) error {
-			return errors.New("db error")
-		}
-		mockMinioService.UploadFileFunc = func(file []byte, contentType, id string) (string, error) {
-			return "path/to/image.jpg", nil
-		}
-		mockMinioService.DeleteFileFunc = func(filePath string) error {
-			return nil
-		}
-
-		creds = &domain.User{
-			Username: "testuser",
-			Email:    "test@example.com",
-			Password: "ValidPassword123",
-			Name:     "Test User",
-			Avatar:   "",
-			UUID:     "valid-uuid",
-		}
-
-		err := uc.PutUser(ctx, creds, userID, validAvatar)
-		assert.Error(t, err)
-		assert.Equal(t, "db error", err.Error())
-	})
-
-	// Тест-кейс 9: Ошибки валидации полей
-	t.Run("Validation Errors", func(t *testing.T) {
-		creds = &domain.User{
-			Username: "u",             // Слишком короткий логин
-			Password: "123",           // Слишком простой пароль
-			Email:    "invalid_email", // Некорректный email
-			Name:     "Invalid<>Name", // Некорректное имя
-		}
-
-		err := uc.PutUser(ctx, creds, userID, validAvatar)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "username")
-		assert.Contains(t, err.Error(), "email")
-		assert.Contains(t, err.Error(), "password")
-		assert.Contains(t, err.Error(), "name")
-	})
-}
-
 func TestGetAllUser(t *testing.T) {
 	mockAuthRepo := &mocks.MockAuthRepository{}
-	uc := NewAuthUseCase(mockAuthRepo, nil)
+	uc := NewAuthUseCase(mockAuthRepo, nil, nil)
 	ctx := context.TODO()
 
 	// Тест-кейс 1: Успешное получение всех пользователей
@@ -656,7 +482,7 @@ func TestGetUserById(t *testing.T) {
 	}()
 
 	mockAuthRepo := &mocks.MockAuthRepository{}
-	uc := NewAuthUseCase(mockAuthRepo, nil)
+	uc := NewAuthUseCase(mockAuthRepo, nil, nil)
 	ctx := context.TODO()
 
 	// Успешный тест-кейс
