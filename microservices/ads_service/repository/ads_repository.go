@@ -30,7 +30,8 @@ func (r *adRepository) GetAllPlaces(ctx context.Context, filter domain.AdFilter)
 	query := r.db.Model(&domain.Ad{}).Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
 		Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").
 		Joins("JOIN ad_available_dates ON ad_available_dates.\"adId\" = ads.uuid").
-		Select("ads.*, cities.title as cityName, ad_available_dates.\"availableDateFrom\" as \"AdDateFrom\", ad_available_dates.\"availableDateTo\" as \"AdDateTo\"")
+		Select("ads.*, cities.title as cityName, ad_available_dates.\"availableDateFrom\" as \"AdDateFrom\", ad_available_dates.\"availableDateTo\" as \"AdDateTo\"").
+		Limit(1)
 
 	if filter.Location != "" {
 		query = query.Where("cities.\"enTitle\" = ?", filter.Location)
@@ -131,48 +132,38 @@ func (r *adRepository) GetPlaceById(ctx context.Context, adId string) (domain.Ge
 
 	var ad domain.GetAllAdsResponse
 
-	query := r.db.Model(&domain.Ad{}).Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").
-		Joins("JOIN cities ON  ads.\"cityId\" = cities.id").
+	query := r.db.Model(&domain.Ad{}).
+		Joins("JOIN users ON ads.\"authorUUID\" = users.uuid").
+		Joins("JOIN cities ON ads.\"cityId\" = cities.id").
 		Joins("JOIN ad_available_dates ON ad_available_dates.\"adId\" = ads.uuid").
-		Select("ads.*, cities.title as cityName, ad_available_dates.\"availableDateFrom\" as \"AdDateFrom\", ad_available_dates.\"availableDateTo\" as \"AdDateTo\"")
+		Joins("LEFT JOIN images ON images.\"adId\" = ads.uuid").
+		Select("ads.uuid, ads.description, cities.title as \"cityName\", ad_available_dates.\"availableDateFrom\" as \"AdDateFrom\",ad_available_dates.\"availableDateTo\" as \"AdDateTo\",users.name as \"authorName\", users.avatar as \"authorAvatar\",users.score as \"authorRating\", users.\"guestCount\" as \"authorGuestCount\",users.sex as \"authorSex\", users.\"birthDate\" as \"authorBirthdate\", images.id as \"imageID\", images.\"imageUrl\" as \"imageUrl\"").
+		Where("ads.uuid = ?", adId).
+		Limit(1)
 
-	if err := query.Find(&ad).Error; err != nil {
+	rows, err := query.Rows()
+	if err != nil {
 		logger.DBLogger.Error("Error fetching place", zap.String("request_id", requestID), zap.Error(err))
 		return ad, errors.New("Error fetching place")
 	}
+	defer rows.Close()
 
-	var images []domain.Image
-	var user domain.User
-	err := r.db.Model(&domain.Image{}).Where("\"adId\" = ?", ad.UUID).Find(&images).Error
-	if err != nil {
-		logger.DBLogger.Error("Error fetching images for ad", zap.String("request_id", requestID), zap.Error(err))
-		return ad, errors.New("Error fetching images for ad")
+	// Парсинг результатов
+	var images []domain.ImageResponse
+	for rows.Next() {
+		var image domain.ImageResponse
+		if err := rows.Scan(&ad.UUID, &ad.Description, &ad.Cityname, &ad.AdDateFrom, &ad.AdDateTo,
+			&ad.AdAuthor.Name, &ad.AdAuthor.Avatar, &ad.AdAuthor.Rating, &ad.AdAuthor.GuestCount,
+			&ad.AdAuthor.Sex, &ad.AdAuthor.Birthdate, &image.ID, &image.ImagePath); err != nil {
+			logger.DBLogger.Error("Error parsing result", zap.String("request_id", requestID), zap.Error(err))
+			return ad, errors.New("Error parsing result")
+		}
+		if image.ID != 0 {
+			images = append(images, image)
+		}
 	}
+	ad.Images = images
 
-	err = r.db.Model(&domain.User{}).Where("uuid = ?", ad.AuthorUUID).Find(&user).Error
-	if err != nil {
-		logger.DBLogger.Error("Error fetching user", zap.String("request_id", requestID), zap.Error(err))
-		return ad, errors.New("Error fetching user")
-	}
-
-	ad.AdAuthor.Name = user.Name
-	ad.AdAuthor.Avatar = user.Avatar
-	ad.AdAuthor.Rating = user.Score
-	ad.AdAuthor.GuestCount = user.GuestCount
-	ad.AdAuthor.Sex = user.Sex
-	ad.AdAuthor.Birthdate = user.Birthdate
-
-	for _, img := range images {
-		ad.Images = append(ad.Images, domain.ImageResponse{
-			ID:        img.ID,
-			ImagePath: img.ImageUrl,
-		})
-	}
-
-	if err != nil {
-		logger.DBLogger.Error("Error fetching place views", zap.String("request_id", requestID), zap.Error(err))
-		return ad, errors.New("Error fetching place views")
-	}
 	logger.DBLogger.Info("Successfully fetched place by ID", zap.String("adId", adId), zap.String("request_id", requestID))
 	return ad, nil
 }

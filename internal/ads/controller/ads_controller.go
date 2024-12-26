@@ -101,11 +101,9 @@ func (h *AdHandler) GetOnePlace(w http.ResponseWriter, r *http.Request) {
 
 	sessionID, err := session.GetSessionId(r)
 	if err != nil {
-		logger.AccessLogger.Error("Failed to get session ID",
+		logger.AccessLogger.Warn("Failed to get session ID",
 			zap.String("request_id", requestID),
 			zap.Error(err))
-		h.handleError(w, err, requestID)
-		return
 	}
 
 	isAuthorized := true
